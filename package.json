@@ -7,7 +7,8 @@
     "lint": "svelte-check --tsconfig tsconfig.json --fail-on-hints && eslint . --ext .ts",
     "test:unit": "vitest",
     "dev": "rollup --config rollup.config.js -w",
-    "build": "npm run lint && rollup --config rollup.config.js --environment BUILD:production"
+    "build": "npm run lint && rollup --config rollup.config.js --environment BUILD:production",
+    "version": "node version-bump.mjs && git add manifest.json versions.json"
   },
   "keywords": [],
   "author": "",
