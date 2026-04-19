@@ -3,6 +3,7 @@ import {
   type KeymapContext,
   Menu,
   TAbstractFile,
+  TFile,
   WorkspaceLeaf,
   type PaneType,
   Scope,
@@ -224,6 +225,25 @@ export class ExplorerPane extends ItemView {
             )
           );
         });
+        if (file instanceof TFile) {
+          const cache = this.app.metadataCache.getFileCache(file);
+          const ignored = !!cache?.frontmatter?.["longform-ignore"];
+          menu.addItem((item) => {
+            item.setTitle(
+              ignored ? "Include in compile" : "Skip in compile"
+            );
+            item.setIcon(ignored ? "eye" : "eye-off");
+            item.onClick(() =>
+              this.app.fileManager.processFrontMatter(file, (fm) => {
+                if (fm["longform-ignore"]) {
+                  delete fm["longform-ignore"];
+                } else {
+                  fm["longform-ignore"] = true;
+                }
+              })
+            );
+          });
+        }
         // Triggering this event lets other apps insert menu items
         // including Obsidian, giving us lots of stuff for free.
         this.app.workspace.trigger("file-menu", menu, file, "longform");

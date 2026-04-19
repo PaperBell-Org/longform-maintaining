@@ -5,14 +5,25 @@
   */
   import type Sortable from "sortablejs";
   import { getContext, onDestroy } from "svelte";
-  import { Keymap, Notice, Platform, type PaneType, TFile } from "obsidian";
+  import {
+    Keymap,
+    Notice,
+    Platform,
+    setIcon,
+    type PaneType,
+    TFile,
+  } from "obsidian";
 
   import { activeFile } from "../stores";
   import { drafts, pluginSettings, selectedDraft } from "src/model/stores";
   import SortableList from "../sortable/SortableList.svelte";
   import type { IndentedScene, MultipleSceneDraft } from "src/model/types";
   import Disclosure from "../components/Disclosure.svelte";
-  import { formatSceneNumber, numberScenes } from "src/model/draft-utils";
+  import {
+    formatSceneNumber,
+    numberScenes,
+    scenesForCompileNumbering,
+  } from "src/model/draft-utils";
   import type { UndoManager } from "src/view/undo/undo-manager";
   import { cloneDeep } from "lodash";
   import { scenePath } from "src/model/scene-navigation";
@@ -40,12 +51,21 @@
     indent: number;
     collapsible: boolean;
     hidden: boolean;
+    ignored: boolean;
     numbering: number[];
     status: string | undefined;
   };
   let items: SceneItem[];
   let collapsedItems: string[] = [];
+  // Bumped whenever the metadata cache changes, so that `ignored`
+  // (read from each scene file's frontmatter) re-derives automatically.
+  let metadataVersion = 0;
+  const metadataCacheRef = app.metadataCache.on("changed", () => {
+    metadataVersion++;
+  });
+  onDestroy(() => app.metadataCache.offref(metadataCacheRef));
   $: {
+    void metadataVersion;
     items =
       $selectedDraft && $selectedDraft.format === "scenes"
         ? itemsFromScenes($selectedDraft.scenes, collapsedItems)
@@ -61,11 +81,17 @@
     indentedScenes: IndentedScene[],
     _collapsedItems: string[]
   ): SceneItem[] {
-    const scenes = numberScenes(indentedScenes);
+    const draft = $selectedDraft as MultipleSceneDraft;
+    const numberingByTitle = new Map<string, number[]>();
+    for (const s of numberScenes(scenesForCompileNumbering(app, draft))) {
+      numberingByTitle.set(s.title, s.numbering);
+    }
+
     const itemsToReturn: SceneItem[] = [];
     let ignoringUntilIndent = Infinity;
 
-    scenes.forEach(({ title, indent, numbering }, index) => {
+    indentedScenes.forEach(({ title, indent }, index) => {
+      const numbering = numberingByTitle.get(title) ?? [];
       const hidden = indent > ignoringUntilIndent;
       if (!hidden) {
         ignoringUntilIndent = Infinity;
@@ -76,18 +102,21 @@
         ignoringUntilIndent = Math.min(ignoringUntilIndent, indent);
       }
 
-      const nextScene = index < scenes.length - 1 ? scenes[index + 1] : false;
+      const nextScene =
+        index < indentedScenes.length - 1
+          ? indentedScenes[index + 1]
+          : null;
       const path = makeScenePath($selectedDraft as MultipleSceneDraft, title);
       const file = app.vault.getAbstractFileByPath(path);
       let status = undefined;
+      let ignored = false;
       if (file && file instanceof TFile) {
         const metadata = app.metadataCache.getFileCache(file);
-        if (
-          metadata &&
-          metadata.frontmatter &&
-          metadata.frontmatter["status"]
-        ) {
-          status = `${metadata.frontmatter["status"]}`;
+        if (metadata && metadata.frontmatter) {
+          if (metadata.frontmatter["status"]) {
+            status = `${metadata.frontmatter["status"]}`;
+          }
+          ignored = !!metadata.frontmatter["longform-ignore"];
         }
       }
       const item = {
@@ -95,8 +124,9 @@
         name: title,
         indent,
         path,
-        collapsible: nextScene && nextScene.indent > indent,
+        collapsible: !!nextScene && nextScene.indent > indent,
         hidden,
+        ignored,
         numbering,
         status,
       };
@@ -164,6 +194,28 @@
     } else {
       collapsedItems = collapsedItems.filter((i) => i !== itemID);
     }
+  }
+
+  async function toggleIgnore(item: SceneItem) {
+    const file = app.vault.getAbstractFileByPath(item.path);
+    if (!(file instanceof TFile)) return;
+    await app.fileManager.processFrontMatter(file, (fm) => {
+      if (fm["longform-ignore"]) {
+        delete fm["longform-ignore"];
+      } else {
+        fm["longform-ignore"] = true;
+      }
+    });
+  }
+
+  function iconAction(node: HTMLElement, name: string) {
+    setIcon(node, name);
+    return {
+      update(next: string) {
+        node.empty();
+        setIcon(node, next);
+      },
+    };
   }
 
   // Grab the click context function and call it when a valid scene is clicked.
@@ -279,8 +331,11 @@
     }
   }
 
-  function numberLabel(item: any): string {
-    return formatSceneNumber(item.numbering as number[]);
+  function numberLabel(item: SceneItem): string {
+    if (item.ignored) {
+      return "";
+    }
+    return formatSceneNumber(item.numbering);
   }
 
   // Undo/Redo
@@ -364,6 +419,7 @@
         data-scene-indent={item.indent}
         data-scene-name={item.name}
         data-scene-status={item.status}
+        data-scene-ignored={item.ignored}
       >
         {#if item.collapsible}
           <Disclosure
@@ -395,6 +451,15 @@
             {item.name}
           </div>
         </div>
+        <span
+          class="longform-scene-ignore-toggle"
+          class:is-ignored={item.ignored}
+          aria-label={item.ignored
+            ? "Include in compile"
+            : "Skip in compile"}
+          on:click|stopPropagation={() => toggleIgnore(item)}
+          use:iconAction={item.ignored ? "eye-off" : "eye"}
+        />
       </div>
     </SortableList>
   </div>

@@ -1,11 +1,13 @@
+import type { App } from "obsidian";
 import {
   arraysToIndentedScenes,
   indentedScenesToArrays,
-  numberScenes,
   formatSceneNumber,
+  numberScenes,
+  scenesForCompileNumbering,
   type NumberedScene,
 } from "src/model/draft-utils";
-import type { IndentedScene } from "src/model/types";
+import type { IndentedScene, MultipleSceneDraft } from "src/model/types";
 
 /** Provides API access to useful Longform-specific functions. */
 export class LongformAPI {
@@ -82,11 +84,29 @@ export class LongformAPI {
    * Annotates an array of indented scenes with a `numbering` property, an array of `number`s.
    * This property corresponds to each scene’s “number,” where a scene with no indent is numbered `[1]` or `[2]` or `[3]`, etc.
    * while an indented scene might be numbered `[1, 1, 2]` to indicate scene 1.1.2, the second scene at a third indent under the first scene and first subscene.
+   *
+   * Does not apply `longform-ignore`; use `scenesWithCompileNumberings` to match compile output.
+   *
    * @param scenes Array of `IndentedScene`s to annotate.
    * @returns Array of `NumberedScene`s, which are `IndentedScene`s with an added `numbering` property of type `number[]`.
    */
   public scenesWithNumberings(scenes: IndentedScene[]): NumberedScene[] {
     return numberScenes(scenes);
+  }
+
+  /**
+   * Numbering for scenes that participate in compile (skips `longform-ignore` in scene frontmatter).
+   * Matches multi-scene `compile()` numbering and Longform’s scene list when numbering is enabled.
+   *
+   * @param app Obsidian app (metadata cache).
+   * @param draft A multi-scene draft.
+   * @returns Numbered scenes in compile order.
+   */
+  public scenesWithCompileNumberings(
+    app: App,
+    draft: MultipleSceneDraft
+  ): NumberedScene[] {
+    return numberScenes(scenesForCompileNumbering(app, draft));
   }
 
   /**

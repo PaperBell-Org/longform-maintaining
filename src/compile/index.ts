@@ -1,5 +1,5 @@
 import { type App, normalizePath } from "obsidian";
-import { numberScenes } from "src/model/draft-utils";
+import { numberScenes, scenesForCompileNumbering } from "src/model/draft-utils";
 import {
   projectFolderPath,
   sceneFolderPath,
@@ -207,8 +207,12 @@ export async function compile(
 
     currentInput = [];
 
+    // Skipped / ignored scenes are excluded before numbering (see
+    // `scenesForCompileNumbering`) so compiled output stays contiguous.
+    const includedScenes = scenesForCompileNumbering(app, draft);
+
     // Build initial inputs
-    for (const scene of numberScenes(draft.scenes)) {
+    for (const scene of numberScenes(includedScenes)) {
       const path = scenePathForFolder(scene.title, folderPath);
       const contents = await app.vault.adapter.read(path);
       const metadata = app.metadataCache.getCache(path);

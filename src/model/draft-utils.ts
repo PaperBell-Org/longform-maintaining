@@ -2,7 +2,11 @@ import { App, TFile, Vault } from "obsidian";
 import { get, type Writable } from "svelte/store";
 
 import type { Draft, IndentedScene, MultipleSceneDraft } from "./types";
-import { scenePath } from "src/model/scene-navigation";
+import {
+  sceneFolderPath,
+  scenePath,
+  scenePathForFolder,
+} from "src/model/scene-navigation";
 import { createNoteWithPotentialTemplate } from "./note-utils";
 import { pluginSettings } from "./stores";
 
@@ -198,6 +202,22 @@ export function numberScenes(scenes: IndentedScene[]): NumberedScene[] {
 
 export function formatSceneNumber(numbering: number[]): string {
   return numbering.join(".");
+}
+
+/**
+ * Scenes that participate in compile numbering (excludes `longform-ignore` in
+ * frontmatter). Matches `compile()` multi-scene input selection.
+ */
+export function scenesForCompileNumbering(
+  app: App,
+  draft: MultipleSceneDraft
+): IndentedScene[] {
+  const folderPath = sceneFolderPath(draft, app.vault);
+  return draft.scenes.filter((s) => {
+    const path = scenePathForFolder(s.title, folderPath);
+    const meta = app.metadataCache.getCache(path);
+    return !meta?.frontmatter?.["longform-ignore"];
+  });
 }
 
 export async function insertDraftIntoFrontmatter(
