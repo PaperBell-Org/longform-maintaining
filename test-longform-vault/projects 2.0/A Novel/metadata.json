@@ -1,0 +1,30 @@
+{
+  "title": "A Novel; or, What Projects Look Like Now",
+  "publication_date": "2026-05-03",
+  "upload_type": "publication",
+  "publication_type": "article",
+  "description": "An example abstract used to exercise the Add Zenodo Frontmatter step.",
+  "creators": [
+    {
+      "name": "Doe, Jane",
+      "affiliation": "Beijing Normal University",
+      "orcid": "0000-0000-0000-0001"
+    },
+    { "name": "Roe, Rick", "affiliation": "ETH Zurich" }
+  ],
+  "keywords": ["longform", "compile", "zenodo"],
+  "journal_title": "Journal of Long-Form Sustainability",
+  "version": "v0.1",
+  "_longform": {
+    "acronym": "ANOVEL",
+    "csl": "nature",
+    "template": "default",
+    "lineno": false,
+    "figures_at_end": false,
+    "author_affiliations": {
+      "Doe, Jane": ["Beijing Normal University", "Aspen Institute"]
+    },
+    "corresponding": ["Doe, Jane"],
+    "extra_yaml": "numbersections: true\n"
+  }
+}

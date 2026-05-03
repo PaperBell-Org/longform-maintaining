@@ -1,0 +1,86 @@
+{
+  "title": "Water quotas improve irrigation but undermine groundwater sustainability",
+  "publication_date": "2026-05-03",
+  "upload_type": "publication",
+  "publication_type": "article",
+  "description": "Water quotas are increasingly used to address water scarcity in cross-boundary river basins worldwide, but whether they improve sustainability or merely shift pressure across water sources remains unclear. Here, we modelled 59 prefecture-level water agencies along China's Yellow River and their irrigation withdrawal responses to a top-down water quota policy. We coupled an agent-based model, in which agencies trade off economic returns against institutional compliance, with a process-based crop growth module to capture heterogeneous behavioural responses to quota constraints. By comparing the historical scenario with counterfactual experiments, we show that the 1998 institutional strengthening of basin-wide quota enforcement increased surface-water productivity (+32.8%) and irrigation efficiency (+6.3%). However, it also increased groundwater reliance by ~19%, consistent with observed aquifer depletion. Under a stricter enforcement counterfactual, groundwater substitution would have been even greater (+35.8%). These findings demonstrate that water quotas can improve irrigation performance while undermining groundwater sustainability through risk-shifting behaviours—a pattern likely relevant to quota-based governance in other major basins globally. Our model highlights the need for integrated surface-water and groundwater governance, alongside enhanced metering and monitoring, and provides a transferable framework for anticipating policy-induced trade-offs.",
+  "creators": [
+    {
+      "name": "Shuang Song",
+      "affiliation": "State Key Laboratory of Earth Surface Processes and Disaster Risk Reduction, Faculty of Geographical Science, Beijing Normal University, Beijing, China."
+    },
+    {
+      "name": "Shuai Wang",
+      "affiliation": "State Key Laboratory of Earth Surface Processes and Disaster Risk Reduction, Faculty of Geographical Science, Beijing Normal University, Beijing, China."
+    },
+    {
+      "name": "Zidong Li",
+      "affiliation": "College of Urban and Environmental Sciences, Peking University, Beijing, China."
+    },
+    {
+      "name": "Xutong Wu",
+      "affiliation": "State Key Laboratory of Earth Surface Processes and Disaster Risk Reduction, Faculty of Geographical Science, Beijing Normal University, Beijing, China."
+    },
+    {
+      "name": "Yuchuan Luo",
+      "affiliation": "School of Geographical Sciences, Southwest University, Chongqing, China."
+    },
+    {
+      "name": "Yueman Hou",
+      "affiliation": "State Key Laboratory of Earth Surface Processes and Disaster Risk Reduction, Faculty of Geographical Science, Beijing Normal University, Beijing, China."
+    },
+    {
+      "name": "Bo Hu",
+      "affiliation": "School of Social and Behavioral Science, Nanjing University, China."
+    },
+    {
+      "name": "Zhou He",
+      "affiliation": "School of Economics and Management, University of Chinese Academy of Sciences, Beijing, China."
+    },
+    {
+      "name": "Qu Bo",
+      "affiliation": "Yellow River Institute of Hydraulic Research, Zhengzhou City, Henan Province, China."
+    },
+    {
+      "name": "Georg Schaefer",
+      "affiliation": "Department Structural Changes of the Technosphere, Max Planck Institute of Geoanthropology, Jena, Germany."
+    },
+    {
+      "name": "Chentai Jiao",
+      "affiliation": "State Key Laboratory of Earth Surface Processes and Disaster Risk Reduction, Faculty of Geographical Science, Beijing Normal University, Beijing, China."
+    },
+    {
+      "name": "Malte Vogl",
+      "affiliation": "Department Structural Changes of the Technosphere, Max Planck Institute of Geoanthropology, Jena, Germany."
+    },
+    {
+      "name": "Yan Li",
+      "affiliation": "State Key Laboratory of Earth Surface Processes and Disaster Risk Reduction, Faculty of Geographical Science, Beijing Normal University, Beijing, China."
+    },
+    {
+      "name": "Jürgen Renn",
+      "affiliation": "Department Structural Changes of the Technosphere, Max Planck Institute of Geoanthropology, Jena, Germany."
+    },
+    {
+      "name": "Patrick Roberts",
+      "affiliation": "Department of Co-evolution of Land Use and Urbanisation, Max Planck Institute of Geoanthropology, Jena, Germany."
+    },
+    {
+      "name": "Bojie Fu",
+      "affiliation": "Research Center for Eco-Environmental Sciences, Chinese Academy of Sciences, Beijing, China."
+    }
+  ],
+  "_longform": {
+    "acronym": "WASIE",
+    "csl": "pnas",
+    "author_affiliations": {
+      "Shuang Song": [
+        "State Key Laboratory of Earth Surface Processes and Disaster Risk Reduction, Faculty of Geographical Science, Beijing Normal University, Beijing, China.",
+        "Department of Co-evolution of Land Use and Urbanisation, Max Planck Institute of Geoanthropology, Jena, Germany.",
+        "Department Structural Changes of the Technosphere, Max Planck Institute of Geoanthropology, Jena, Germany."
+      ]
+    },
+    "corresponding": ["Shuang Song", "Shuai Wang"],
+    "extra_yaml": "float-placement: H\ncorresponding-emails:\n  - name: \"Shuang Song\"\n    email: \"song@gea.mpg.de\"\n  - name: \"Shuai Wang\"\n    email: \"shuaiwang@bnu.edu.cn\"\n"
+  }
+}

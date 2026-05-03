@@ -1,0 +1,8 @@
+{
+  "summary": { "n": 42, "mean": 3.14 },
+  "samples": [
+    { "id": "S-01", "value": 1.2 },
+    { "id": "S-02", "value": 4.5 }
+  ],
+  "site": "Beijing"
+}

@@ -88,6 +88,70 @@ Saves the manuscript as Markdown note in your vault. Options:
 | Output Path              | Text    | manuscript.md | Path relative to your project at which to save your compiled manuscript. $1, if present, will be replaced with your project’s title. |
 | Open Compiled Manuscript | Boolean | true          | If checked, open the compiled manuscript in a new pane.                                                                              |
 
+#### Add Zenodo Frontmatter
+
+_Manuscript_
+
+Reads a [Zenodo deposition](https://developers.zenodo.org/#representation)–style metadata JSON from your project folder (or its `source/` subfolder) and prepends a Pandoc-compatible YAML frontmatter to the manuscript. Keeping the metadata in Zenodo's schema means the same file can be uploaded to Zenodo when archiving your work. Options:
+
+| Name                  | Type    | Default       | Description                                                                                                  |
+| --------------------- | ------- | ------------- | ------------------------------------------------------------------------------------------------------------ |
+| Metadata file         | Text    | metadata.json | Filename of the Zenodo metadata JSON in your project folder. Trailing `.json` is optional.                   |
+| Error on missing file | Boolean | true          | If checked, throw when the metadata file is not found. Otherwise pass the manuscript through unchanged.       |
+
+The metadata file follows Zenodo's deposition schema for fields like `title`, `publication_date`, `description`, `creators[]`, `contributors[]`, `keywords[]`, `journal_title`, and `version`. Plugin-specific keys (Pandoc template, citation style, line numbering, multiple affiliations per author, corresponding-author flags, free-form extra YAML) live under a `_longform` namespace that Zenodo will ignore on upload. Example:
+
+```json
+{
+  "title": "A Study",
+  "publication_date": "2026-05-03",
+  "description": "An abstract.",
+  "creators": [
+    { "name": "Doe, Jane", "affiliation": "Org A", "orcid": "0000-0000-0000-0000" },
+    { "name": "Roe, Rick", "affiliation": "Org B" }
+  ],
+  "keywords": ["alpha", "beta"],
+  "journal_title": "Nature",
+  "version": "v1.0",
+  "_longform": {
+    "acronym": "STUDY",
+    "csl": "nature",
+    "template": "default",
+    "lineno": false,
+    "figures_at_end": false,
+    "author_affiliations": { "Doe, Jane": ["Org A", "Org C"] },
+    "corresponding": ["Roe, Rick"],
+    "extra_yaml": "numbersections: true\n"
+  }
+}
+```
+
+The step derives Pandoc's indexed `affiliations:` table from `creators[].affiliation` (or `_longform.author_affiliations[name]` when an author belongs to more than one institution), in order of first appearance. `title` and `creators` are required; the step throws if either is missing.
+
+#### Replace JSON Placeholders
+
+_Manuscript_
+
+Replaces `{{ path.to.value }}` placeholders in your manuscript with values resolved from a JSON file in your project folder (or its `source/` subfolder). Useful for injecting computed numerical results, dates, or any other values produced outside Obsidian. Options:
+
+| Name             | Type    | Default      | Description                                                                                                                          |
+| ---------------- | ------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| JSON file        | Text    | results.json | Filename of the JSON data file. Trailing `.json` is optional.                                                                        |
+| Start delimiter  | Text    | `{{`         | Left delimiter of placeholders.                                                                                                      |
+| End delimiter    | Text    | `}}`         | Right delimiter of placeholders.                                                                                                     |
+| Error on missing | Boolean | false        | If checked, throw when a placeholder path is not found in the JSON file. Otherwise the placeholder is left unchanged in the output.  |
+
+Path expressions support dot and bracket notation in any combination (`a.b.c`, `a.b[0].c`). Object values are stringified as JSON, `null` becomes the empty string. Example `results.json`:
+
+```json
+{
+  "summary": { "n": 42, "mean": 3.14 },
+  "samples": [{ "id": "S-01" }, { "id": "S-02" }]
+}
+```
+
+The manuscript text `We collected {{ summary.n }} samples (first: {{ samples[0].id }}).` becomes `We collected 42 samples (first: S-01).`.
+
 ### User Script Steps
 
 In addition to the built-in steps above, Longform also supports user script steps, which are arbitrary JavaScript scripts that can be loaded and used like any other step.

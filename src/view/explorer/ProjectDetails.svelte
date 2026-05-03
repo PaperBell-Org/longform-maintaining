@@ -173,6 +173,12 @@
   function onNewDraft() {
     showNewDraftModal();
   }
+
+  const showMetadataModal: () => void = getContext("showMetadataModal");
+  function onEditMetadata() {
+    showMetadataModal();
+  }
+  let showManuscriptMetadata = true;
 </script>
 
 <div>
@@ -226,6 +232,40 @@
               template.
             </p>
           {/if}
+        </div>
+      {/if}
+    </div>
+  {/if}
+  {#if $selectedDraft}
+    <div class="longform-project-section">
+      <div
+        class="longform-project-details-section-header"
+        on:click={() => {
+          showManuscriptMetadata = !showManuscriptMetadata;
+        }}
+      >
+        <Disclosure collapsed={!showManuscriptMetadata} />
+        <h4>Manuscript Metadata</h4>
+      </div>
+      {#if showManuscriptMetadata}
+        <div>
+          <p class="longform-manuscript-metadata-help">
+            Authors, abstract, journal, and Pandoc options for the
+            <em>Add Zenodo Frontmatter</em> compile step. Stored as
+            <code>metadata.json</code> in your project folder, in
+            <a
+              href="https://developers.zenodo.org/#representation"
+              target="_blank"
+              rel="noreferrer noopener">Zenodo deposition format</a
+            >.
+          </p>
+          <button
+            type="button"
+            class="longform-edit-metadata-button"
+            on:click={onEditMetadata}
+          >
+            Edit metadata…
+          </button>
         </div>
       {/if}
     </div>
@@ -409,5 +449,20 @@
     padding: var(--size-4-2);
     color: var(--interactive-accent);
     background-color: inherit;
+  }
+
+  .longform-manuscript-metadata-help {
+    color: var(--text-muted);
+    font-size: var(--font-ui-smaller);
+    line-height: var(--line-height-tight);
+    margin: var(--size-4-2) 0 var(--size-4-3) 0;
+  }
+
+  .longform-manuscript-metadata-help a {
+    color: var(--text-accent);
+  }
+
+  .longform-edit-metadata-button {
+    width: 100%;
   }
 </style>
