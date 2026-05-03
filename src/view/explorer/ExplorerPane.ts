@@ -21,6 +21,7 @@ import { get } from "svelte/store";
 import { drafts, pluginSettings, selectedDraft } from "src/model/stores";
 import { insertScene } from "src/model/draft-utils";
 import NewDraftModal from "src/view/project-lifecycle/new-draft-modal";
+import MetadataModal from "src/view/metadata-modal";
 import { UndoManager } from "../undo/undo-manager";
 import { ignoreScene } from "./scene-menu-items";
 import { appContext } from "../utils";
@@ -312,6 +313,16 @@ export class ExplorerPane extends ItemView {
 
     context.set("showNewDraftModal", () => {
       new NewDraftModal(this.app).open();
+    });
+
+    context.set("showMetadataModal", () => {
+      const draft = get(selectedDraft);
+      if (!draft) return;
+      const projectPath = draft.vaultPath
+        .split("/")
+        .slice(0, -1)
+        .join("/");
+      new MetadataModal(this.app, projectPath, draft.title).open();
     });
 
     this.explorerView = new ExplorerView({
