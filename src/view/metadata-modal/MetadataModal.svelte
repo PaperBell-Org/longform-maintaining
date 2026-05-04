@@ -221,13 +221,12 @@
 </script>
 
 <div class="metadata-modal-root">
-  <h1 class="modal-heading">Project Metadata</h1>
   {#if loading}
     <p class="muted">Loading metadata…</p>
   {:else if !fileExists}
     <div class="empty-state">
       <div class="empty-icon">
-        <Icon iconName="file-plus" />
+        <Icon iconName="documents" />
       </div>
       <h2 class="empty-title">No metadata yet</h2>
       <p class="empty-message">
@@ -409,15 +408,6 @@
     margin: 0 auto;
   }
 
-  .modal-heading {
-    display: block;
-    margin: 0 0 var(--size-4-4) 0;
-    font-size: var(--font-ui-large);
-    font-weight: 700;
-    color: var(--text-normal);
-    text-align: left;
-  }
-
   .muted {
     color: var(--text-muted);
   }
@@ -593,23 +583,27 @@
     flex-direction: column;
     align-items: center;
     text-align: center;
-    padding: var(--size-4-8) var(--size-4-4) var(--size-4-6);
+    padding: var(--size-4-8) var(--size-4-4);
     gap: var(--size-4-3);
+    min-height: 320px;
+    box-sizing: border-box;
+  }
+  .empty-state > * {
+    flex-shrink: 0;
   }
   .empty-icon {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 64px;
-    height: 64px;
+    width: 56px;
+    height: 56px;
     border-radius: 50%;
     background: var(--background-modifier-hover);
     color: var(--text-muted);
-    margin-bottom: var(--size-4-1);
   }
   .empty-icon :global(svg) {
-    width: 28px;
-    height: 28px;
+    width: 26px;
+    height: 26px;
   }
   .empty-title {
     margin: 0;
@@ -630,7 +624,7 @@
   .empty-actions {
     display: flex;
     gap: var(--size-4-2);
-    margin-top: var(--size-4-3);
+    margin-top: var(--size-4-2);
   }
 
   code {
