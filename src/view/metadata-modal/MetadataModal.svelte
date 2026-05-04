@@ -221,21 +221,29 @@
 </script>
 
 <div class="metadata-modal-root">
+  <h1 class="modal-heading">Project Metadata</h1>
   {#if loading}
     <p class="muted">Loading metadata…</p>
   {:else if !fileExists}
     <div class="empty-state">
-      <p>
-        No <code>metadata.json</code> found in
-        <code>{projectPath}</code>.
-      </p>
-      <p class="muted">
-        Create one to describe authors, abstract, journal, and more for the
+      <div class="empty-icon">
+        <Icon iconName="file-plus" />
+      </div>
+      <h2 class="empty-title">No metadata yet</h2>
+      <p class="empty-message">
+        This project doesn't have a <code>metadata.json</code> file. Create
+        one to describe authors, abstract, journal, and more for the
         <em>Add Zenodo Frontmatter</em> compile step.
       </p>
-      <button type="button" class="primary" on:click={onCreateFile}>
-        Create metadata.json
-      </button>
+      <p class="empty-path muted small">
+        Will be saved to <code>{projectPath}/metadata.json</code>
+      </p>
+      <div class="empty-actions">
+        <button type="button" class="ghost" on:click={close}>Cancel</button>
+        <button type="button" class="primary" on:click={onCreateFile}>
+          Create metadata.json
+        </button>
+      </div>
     </div>
   {:else}
     <form on:submit|preventDefault={onSave}>
@@ -395,8 +403,19 @@
 
 <style>
   .metadata-modal-root {
+    display: block;
     width: 100%;
     max-width: 640px;
+    margin: 0 auto;
+  }
+
+  .modal-heading {
+    display: block;
+    margin: 0 0 var(--size-4-4) 0;
+    font-size: var(--font-ui-large);
+    font-weight: 700;
+    color: var(--text-normal);
+    text-align: left;
   }
 
   .muted {
@@ -570,13 +589,47 @@
   }
 
   .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     text-align: center;
-    padding: var(--size-4-6) var(--size-4-4);
+    padding: var(--size-4-8) var(--size-4-4) var(--size-4-6);
+    gap: var(--size-4-3);
   }
-  .empty-state p {
-    margin: 0 0 var(--size-4-2) 0;
+  .empty-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: var(--background-modifier-hover);
+    color: var(--text-muted);
+    margin-bottom: var(--size-4-1);
   }
-  .empty-state button.primary {
+  .empty-icon :global(svg) {
+    width: 28px;
+    height: 28px;
+  }
+  .empty-title {
+    margin: 0;
+    font-size: var(--font-ui-medium);
+    font-weight: 600;
+    color: var(--text-normal);
+  }
+  .empty-message {
+    margin: 0;
+    max-width: 440px;
+    color: var(--text-muted);
+    line-height: var(--line-height-normal);
+  }
+  .empty-path {
+    margin: 0;
+    word-break: break-all;
+  }
+  .empty-actions {
+    display: flex;
+    gap: var(--size-4-2);
     margin-top: var(--size-4-3);
   }
 
