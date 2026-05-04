@@ -14,7 +14,11 @@ export default class MetadataModal extends Modal {
   }
 
   onOpen(): void {
-    const { contentEl } = this;
+    const { contentEl, titleEl, modalEl } = this;
+    titleEl.empty();
+    contentEl.empty();
+    modalEl.addClass("longform-metadata-modal");
+    contentEl.addClass("longform-metadata-modal-content");
     const target = contentEl.createDiv("longform-metadata-modal-root");
 
     const context = appContext(this);
