@@ -5,6 +5,7 @@ import {
   CompileStepOptionType,
   makeBuiltinStep,
 } from "./abstract-compile-step";
+import { applyTargetPlaceholders } from "./write-to-note-utils";
 
 export const WriteToNoteStep = makeBuiltinStep({
   id: "write-to-note",
@@ -37,17 +38,10 @@ export const WriteToNoteStep = makeBuiltinStep({
     if (context.kind !== CompileStepKind.Manuscript) {
       throw new Error("Cannot write non-manuscript as note.");
     } else {
-      const indexBasename = context.draft.vaultPath
-        .split("/")
-        .last()
-        .replace(/\.md$/, "");
-      const draftName = context.draft.draftTitle ?? indexBasename;
-      let target = context.optionValues["target"] as string;
-      target = target
-        .split("$2")
-        .join(draftName)
-        .split("$1")
-        .join(context.draft.title);
+      const target = applyTargetPlaceholders(
+        context.optionValues["target"] as string,
+        context.draft
+      );
 
       const openAfter = context.optionValues["open-after"] as boolean;
       if (!target || target.length == 0) {
