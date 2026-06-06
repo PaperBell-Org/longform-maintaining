@@ -185,7 +185,8 @@ export async function compile(
   draft: Draft,
   workflow: Workflow,
   kinds: CompileStepKind[],
-  statusCallback: (status: CompileStatus) => void
+  statusCallback: (status: CompileStatus) => void,
+  options?: { suppressOpenAfter?: boolean }
 ): Promise<void> {
   let currentInput: any;
 
@@ -249,6 +250,7 @@ export async function compile(
       utilities: {
         normalizePath,
       },
+      suppressOpenAfter: options?.suppressOpenAfter,
     };
 
     console.log(

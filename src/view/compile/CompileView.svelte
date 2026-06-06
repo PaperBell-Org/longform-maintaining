@@ -18,7 +18,10 @@
     selectedDraft,
     workflows,
     currentWorkflow,
+    selectedProject,
+    selectedProjectHasMultipleDrafts,
   } from "src/model/stores";
+  import { draftTitle } from "src/model/draft-utils";
   import CompileStepView from "./CompileStepView.svelte";
   import SortableList from "../sortable/SortableList.svelte";
   import AutoTextArea from "../components/AutoTextArea.svelte";
@@ -241,8 +244,12 @@
     draft: Draft,
     workflow: Workflow,
     kinds: CompileStepKind[],
-    statusCallback: (status: CompileStatus) => void
-  ) => Vault = getContext("compile");
+    statusCallback: (status: CompileStatus) => void,
+    options?: { suppressOpenAfter?: boolean }
+  ) => Promise<void> = getContext("compile");
+
+  let isCompiling = false;
+
   function doCompile() {
     compile(
       $selectedDraft,
@@ -250,6 +257,68 @@
       calculatedKinds,
       onCompileStatusChange
     );
+  }
+
+  async function doCompileAll() {
+    const projectDrafts = $selectedProject ?? [];
+    if (projectDrafts.length === 0) {
+      return;
+    }
+
+    isCompiling = true;
+    let compiledCount = 0;
+
+    for (let i = 0; i < projectDrafts.length; i++) {
+      const draft = projectDrafts[i];
+      const label = `${draftTitle(draft)} (${i + 1}/${projectDrafts.length})`;
+
+      const workflow = draft.workflow
+        ? $workflows[draft.workflow]
+        : $currentWorkflow;
+      if (!workflow) {
+        new Notice(`Skipped ${label}: no workflow assigned.`);
+        continue;
+      }
+
+      const [validationResult, kinds] = calculateWorkflow(
+        workflow,
+        draft.format === "scenes"
+      );
+      if (validationResult.error !== WorkflowError.Valid) {
+        new Notice(`Skipped ${label}: ${validationResult.error}`);
+        continue;
+      }
+
+      // Prefix per-step status with which draft we're on; swallow the per-draft
+      // success notice so we only announce once at the end.
+      const wrappedStatus = (status: CompileStatus) => {
+        if (status.kind === "CompileStatusStep") {
+          compileStatus.innerText = `Compiling ${label} — step ${
+            status.stepIndex + 1
+          }/${status.totalSteps}`;
+        } else if (status.kind === "CompileStatusError") {
+          onCompileStatusChange(status);
+        }
+      };
+
+      try {
+        await compile(draft, workflow, kinds, wrappedStatus, {
+          suppressOpenAfter: true,
+        });
+        compiledCount++;
+      } catch (error) {
+        console.error("[Longform]", error);
+        new Notice(`Failed to compile ${label}. See console for details.`);
+      }
+    }
+
+    isCompiling = false;
+    compileStatus.innerText = `Compiled ${compiledCount} draft${
+      compiledCount === 1 ? "" : "s"
+    }.`;
+    compileStatus.classList.add("compile-status-success");
+    restoreDefaultStatusAfter();
+    new Notice(`Compiled ${compiledCount} draft${compiledCount === 1 ? "" : "s"}.`);
   }
 </script>
 
@@ -369,12 +438,23 @@
 
     <div class="longform-compile-run-container">
       {#if $currentWorkflow && $currentWorkflow.steps.length > 0}
-        <button
-          class="compile-button"
-          on:click={doCompile}
-          disabled={validation.error !== WorkflowError.Valid}
-          aria-label={validation.error}>Compile</button
-        >
+        <div class="longform-compile-buttons">
+          <button
+            class="compile-button"
+            on:click={doCompile}
+            disabled={validation.error !== WorkflowError.Valid || isCompiling}
+            aria-label={validation.error}>Compile</button
+          >
+          {#if $selectedProjectHasMultipleDrafts}
+            <button
+              class="compile-button"
+              on:click={doCompileAll}
+              disabled={isCompiling}
+              title="Compile every draft in this project, each to its own file."
+              >Compile All Drafts</button
+            >
+          {/if}
+        </div>
         <span class="compile-status" bind:this={compileStatus}
           >{validation.error === WorkflowError.Valid
             ? defaultCompileStatus
@@ -505,6 +585,13 @@
     align-items: center;
     justify-content: space-between;
     margin-top: var(--size-4-8);
+  }
+
+  .longform-compile-buttons {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--size-4-2);
   }
 
   .longform-compile-run-container .compile-status {

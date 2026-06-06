@@ -17,7 +17,7 @@ export const WriteToNoteStep = makeBuiltinStep({
         id: "target",
         name: "Output path",
         description:
-          "Path for the created manuscript note. Paths starting with '/' are relative to your vault root; otherwise relative to your project. $1 will be replaced with your project's title.",
+          "Path for the created manuscript note. Paths starting with '/' are relative to your vault root; otherwise relative to your project. $1 is replaced with your project's title; $2 is replaced with this draft's name (e.g. \"compiled/$2.md\" gives each draft its own file).",
         type: CompileStepOptionType.Text,
         default: "manuscript.md",
       },
@@ -37,8 +37,17 @@ export const WriteToNoteStep = makeBuiltinStep({
     if (context.kind !== CompileStepKind.Manuscript) {
       throw new Error("Cannot write non-manuscript as note.");
     } else {
+      const indexBasename = context.draft.vaultPath
+        .split("/")
+        .last()
+        .replace(/\.md$/, "");
+      const draftName = context.draft.draftTitle ?? indexBasename;
       let target = context.optionValues["target"] as string;
-      target = target.replace("$1", context.draft.title);
+      target = target
+        .split("$2")
+        .join(draftName)
+        .split("$1")
+        .join(context.draft.title);
 
       const openAfter = context.optionValues["open-after"] as boolean;
       if (!target || target.length == 0) {
@@ -48,7 +57,7 @@ export const WriteToNoteStep = makeBuiltinStep({
       const filePath = resolvePath(context.projectPath, target);
       await writeToFile(context.app, filePath, input.contents);
 
-      if (openAfter) {
+      if (openAfter && !context.suppressOpenAfter) {
         console.log("[Longform] Attempting to open:", filePath);
 
         context.app.workspace.openLinkText(filePath, "/", true).catch((err) => {

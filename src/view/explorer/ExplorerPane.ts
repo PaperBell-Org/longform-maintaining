@@ -270,9 +270,17 @@ export class ExplorerPane extends ItemView {
         draft: Draft,
         workflow: Workflow,
         kinds: CompileStepKind[],
-        statusCallback: (status: CompileStatus) => void
+        statusCallback: (status: CompileStatus) => void,
+        options?: { suppressOpenAfter?: boolean }
       ) => {
-        compile(this.app, draft, workflow, kinds, statusCallback);
+        return compile(
+          this.app,
+          draft,
+          workflow,
+          kinds,
+          statusCallback,
+          options
+        );
       }
     );
 

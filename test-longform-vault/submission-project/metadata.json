@@ -1,0 +1,35 @@
+{
+  "title": "A Complete Submission Package",
+  "publication_date": "2026-06-06",
+  "upload_type": "publication",
+  "publication_type": "article",
+  "description": "A worked example bundling a four-act main manuscript, a two-act supplement, a point-by-point response to reviewers, and a cover letter, used to exercise the Add Zenodo Frontmatter step across multiple drafts that share one metadata file.",
+  "creators": [
+    {
+      "name": "Doe, Jane",
+      "affiliation": "Institute for Worked Examples",
+      "orcid": "0000-0000-0000-0001"
+    },
+    {
+      "name": "Roe, Rick",
+      "affiliation": "Center for Placeholder Studies",
+      "orcid": "0000-0000-0000-0002"
+    }
+  ],
+  "keywords": ["longform", "submission", "metadata", "zenodo"],
+  "journal_title": "Journal of Reproducible Examples",
+  "version": "v1.0",
+  "_longform": {
+    "acronym": "ACSP",
+    "csl": "nature",
+    "template": "default",
+    "lineno": true,
+    "figures_at_end": false,
+    "author_affiliations": {
+      "Doe, Jane": ["Institute for Worked Examples", "Aspen Institute"],
+      "Roe, Rick": ["Center for Placeholder Studies"]
+    },
+    "corresponding": ["Doe, Jane"],
+    "extra_yaml": "numbersections: true\n"
+  }
+}

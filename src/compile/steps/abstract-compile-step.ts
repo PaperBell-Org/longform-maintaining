@@ -132,6 +132,11 @@ export type CompileContext = {
     /** Obsidian’s normalizePath function. Converts an arbitrary file path string into a normalized one. */
     normalizePath: (path: string) => string;
   };
+  /**
+   * When true, steps that would open the compiled result in a new pane should skip doing so.
+   * Set during batch ("Compile All Drafts") runs to avoid spawning a pane per draft.
+   */
+  suppressOpenAfter?: boolean;
 };
 
 /**
