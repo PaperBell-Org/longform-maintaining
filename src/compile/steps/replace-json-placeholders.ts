@@ -9,6 +9,7 @@ import {
   buildPlaceholderRegex,
   getByPath,
 } from "./replace-json-placeholders-utils";
+import { projectResourceCandidatePaths } from "src/model/project-resources";
 
 export const ReplaceJsonPlaceholdersStep = makeBuiltinStep({
   id: "replace-json-placeholders",
@@ -22,7 +23,7 @@ export const ReplaceJsonPlaceholdersStep = makeBuiltinStep({
         id: "json-file",
         name: "JSON file",
         description:
-          "Filename of the JSON data file in your project folder (or its 'source/' subfolder). Trailing '.json' is optional.",
+          "Filename of the JSON data file. Searched for in the draft's folder (or its 'source/' subfolder) and any parent folder up to the project root. Trailing '.json' is optional.",
         type: CompileStepOptionType.Text,
         default: "results.json",
       },
@@ -69,10 +70,11 @@ export const ReplaceJsonPlaceholdersStep = makeBuiltinStep({
       ? jsonFileName
       : `${jsonFileName}.json`;
 
-    const candidatePaths = [
-      `${context.projectPath}/${baseName}`,
-      `${context.projectPath}/source/${baseName}`,
-    ];
+    const candidatePaths = projectResourceCandidatePaths(
+      context.projectPath,
+      context.projectRoot ?? context.projectPath,
+      baseName
+    );
 
     let file: TFile | null = null;
     let foundPath = "";

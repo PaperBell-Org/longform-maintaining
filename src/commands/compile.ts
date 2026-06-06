@@ -16,6 +16,7 @@ import {
 } from "src/compile";
 import { JumpModal } from "./helpers";
 import { draftTitle } from "src/model/draft-utils";
+import { projectRootPath } from "src/model/project-resources";
 import type { Draft } from "src/model/types";
 
 export const compileCurrent: CommandBuilder = (plugin) => ({
@@ -46,12 +47,17 @@ export const compileCurrent: CommandBuilder = (plugin) => ({
       }
     }
 
+    const projectRoot = projectRootPath(
+      get(projects)[draft.title] ?? [draft]
+    );
+
     compile(
       plugin.app,
       draft,
       workflow,
       calculatedKinds,
-      onCompileStatusChange
+      onCompileStatusChange,
+      { projectRoot }
     );
   },
 });
@@ -162,7 +168,8 @@ export const compileSelection: CommandBuilder = (plugin) => ({
                   draft,
                   workflow,
                   calculatedKinds,
-                  onCompileStatusChange
+                  onCompileStatusChange,
+                  { projectRoot: projectRootPath(project) }
                 );
               }
             ).open();

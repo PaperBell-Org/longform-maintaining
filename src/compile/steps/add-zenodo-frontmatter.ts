@@ -9,6 +9,7 @@ import {
   buildPandocYaml,
   type ZenodoMetadata,
 } from "./add-zenodo-frontmatter-utils";
+import { projectResourceCandidatePaths } from "src/model/project-resources";
 
 export const AddZenodoFrontmatterStep = makeBuiltinStep({
   id: "add-zenodo-frontmatter",
@@ -22,7 +23,7 @@ export const AddZenodoFrontmatterStep = makeBuiltinStep({
         id: "metadata-file",
         name: "Metadata file",
         description:
-          "Filename of the Zenodo deposition metadata JSON in your project folder (or its 'source/' subfolder). Trailing '.json' is optional.",
+          "Filename of the Zenodo deposition metadata JSON. Searched for in the draft's folder (or its 'source/' subfolder) and any parent folder up to the project root, so multiple drafts can share one file. Trailing '.json' is optional.",
         type: CompileStepOptionType.Text,
         default: "metadata.json",
       },
@@ -55,10 +56,11 @@ export const AddZenodoFrontmatterStep = makeBuiltinStep({
       ? metaFileName
       : `${metaFileName}.json`;
 
-    const candidatePaths = [
-      `${context.projectPath}/${baseName}`,
-      `${context.projectPath}/source/${baseName}`,
-    ];
+    const candidatePaths = projectResourceCandidatePaths(
+      context.projectPath,
+      context.projectRoot ?? context.projectPath,
+      baseName
+    );
 
     let file: TFile | null = null;
     let foundPath = "";

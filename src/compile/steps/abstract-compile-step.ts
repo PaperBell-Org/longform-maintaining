@@ -137,6 +137,13 @@ export type CompileContext = {
    * Set during batch ("Compile All Drafts") runs to avoid spawning a pane per draft.
    */
   suppressOpenAfter?: boolean;
+  /**
+   * The project root: the lowest common ancestor folder of the project's drafts.
+   * Steps that resolve shared resources (e.g. metadata.json) search from the
+   * draft's folder up to this root, inclusive. When absent, only the draft's own
+   * folder (`projectPath`) is searched.
+   */
+  projectRoot?: string;
 };
 
 /**
