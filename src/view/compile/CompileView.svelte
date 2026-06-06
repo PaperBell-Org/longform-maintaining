@@ -22,6 +22,7 @@
     selectedProjectHasMultipleDrafts,
   } from "src/model/stores";
   import { draftTitle } from "src/model/draft-utils";
+  import { projectRootPath } from "src/model/project-resources";
   import CompileStepView from "./CompileStepView.svelte";
   import SortableList from "../sortable/SortableList.svelte";
   import AutoTextArea from "../components/AutoTextArea.svelte";
@@ -245,17 +246,19 @@
     workflow: Workflow,
     kinds: CompileStepKind[],
     statusCallback: (status: CompileStatus) => void,
-    options?: { suppressOpenAfter?: boolean }
+    options?: { suppressOpenAfter?: boolean; projectRoot?: string }
   ) => Promise<void> = getContext("compile");
 
   let isCompiling = false;
 
   function doCompile() {
+    const projectRoot = projectRootPath($selectedProject ?? [$selectedDraft]);
     compile(
       $selectedDraft,
       $currentWorkflow,
       calculatedKinds,
-      onCompileStatusChange
+      onCompileStatusChange,
+      { projectRoot }
     );
   }
 
@@ -264,6 +267,8 @@
     if (projectDrafts.length === 0) {
       return;
     }
+
+    const projectRoot = projectRootPath(projectDrafts);
 
     isCompiling = true;
     let compiledCount = 0;
@@ -304,6 +309,7 @@
       try {
         await compile(draft, workflow, kinds, wrappedStatus, {
           suppressOpenAfter: true,
+          projectRoot,
         });
         compiledCount++;
       } catch (error) {

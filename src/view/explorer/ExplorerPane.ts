@@ -18,7 +18,13 @@ import ExplorerView from "./ExplorerView.svelte";
 import { scenePath } from "src/model/scene-navigation";
 import { migrate } from "src/model/migration";
 import { get } from "svelte/store";
-import { drafts, pluginSettings, selectedDraft } from "src/model/stores";
+import {
+  drafts,
+  pluginSettings,
+  selectedDraft,
+  selectedProject,
+} from "src/model/stores";
+import { projectRootPath } from "src/model/project-resources";
 import { insertScene } from "src/model/draft-utils";
 import NewDraftModal from "src/view/project-lifecycle/new-draft-modal";
 import MetadataModal from "src/view/metadata-modal";
@@ -326,10 +332,7 @@ export class ExplorerPane extends ItemView {
     context.set("showMetadataModal", () => {
       const draft = get(selectedDraft);
       if (!draft) return;
-      const projectPath = draft.vaultPath
-        .split("/")
-        .slice(0, -1)
-        .join("/");
+      const projectPath = projectRootPath(get(selectedProject) ?? [draft]);
       new MetadataModal(this.app, projectPath, draft.title).open();
     });
 
