@@ -29,3 +29,22 @@
   height: auto;
   overflow-y: auto;
 }
+
+/* Live-rendered {{Variable}} placeholders in reading mode. */
+.longform-variable {
+  border-radius: 3px;
+  padding: 0 2px;
+  background-color: var(--background-modifier-hover);
+  cursor: pointer;
+  transition: background-color 0.1s ease-in-out;
+}
+
+.longform-variable:hover {
+  background-color: var(--text-selection);
+}
+
+.longform-variable[data-longform-var-defined="false"] {
+  background-color: transparent;
+  color: var(--text-muted);
+  border-bottom: 1px dashed var(--text-faint);
+}
