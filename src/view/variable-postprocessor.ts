@@ -1,3 +1,4 @@
+import { Notice } from "obsidian";
 import type { App, Plugin } from "obsidian";
 import {
   buildPlaceholderRegex,
@@ -39,16 +40,21 @@ function makeVariableSpan(
   span.addEventListener("dblclick", (evt) => {
     evt.preventDefault();
     evt.stopPropagation();
-    new VariableEditModal(app, {
-      metadataFilePath,
-      varPath: path,
-      currentValue: defined ? formatPlaceholderValue(value) : "",
-      onSaved: (newDisplay) => {
-        const nowDefined = newDisplay !== "";
-        span.textContent = nowDefined ? newDisplay : `{{${path}}}`;
-        span.dataset.longformVarDefined = String(nowDefined);
-      },
-    }).open();
+    try {
+      new VariableEditModal(app, {
+        metadataFilePath,
+        varPath: path,
+        currentValue: defined ? formatPlaceholderValue(value) : "",
+        onSaved: (newDisplay) => {
+          const nowDefined = newDisplay !== "";
+          span.textContent = nowDefined ? newDisplay : `{{${path}}}`;
+          span.dataset.longformVarDefined = String(nowDefined);
+        },
+      }).open();
+    } catch (e) {
+      console.error("longform: failed to open the variable editor", e);
+      new Notice("Couldn't open the variable editor.");
+    }
   });
   return span;
 }
@@ -84,7 +90,11 @@ function renderTextNode(
   if (lastIndex < text.length) {
     frag.appendChild(document.createTextNode(text.slice(lastIndex)));
   }
-  textNode.replaceWith(frag);
+  // The node may have been detached since we collected it; only replace when
+  // it is still attached, otherwise replaceWith throws.
+  if (textNode.parentNode) {
+    textNode.replaceWith(frag);
+  }
 }
 
 /**
@@ -94,29 +104,35 @@ function renderTextNode(
  */
 export function registerVariablePostProcessor(plugin: Plugin): void {
   plugin.registerMarkdownPostProcessor(async (el, ctx) => {
-    // Quick bail before any async work if there's nothing to render.
-    if (!el.textContent || !el.textContent.includes("{{")) return;
+    // Never let a rendering hiccup break Obsidian's reading view: any failure
+    // here just leaves the raw `{{...}}` text untouched.
+    try {
+      // Quick bail before any async work if there's nothing to render.
+      if (!el.textContent || !el.textContent.includes("{{")) return;
 
-    const resolved = await resolveProjectMetadataFile(
-      plugin.app,
-      ctx.sourcePath
-    );
-    if (!resolved || !resolved.data) return;
-    const { file, data } = resolved;
+      const resolved = await resolveProjectMetadataFile(
+        plugin.app,
+        ctx.sourcePath
+      );
+      if (!resolved || !resolved.data) return;
+      const { file, data } = resolved;
 
-    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-    const textNodes: Text[] = [];
-    let node: Node | null;
-    while ((node = walker.nextNode())) {
-      const t = node as Text;
-      if (!t.nodeValue || !t.nodeValue.includes("{{")) continue;
-      if (isInCodeOrPre(t)) continue;
-      textNodes.push(t);
-    }
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      const textNodes: Text[] = [];
+      let node: Node | null;
+      while ((node = walker.nextNode())) {
+        const t = node as Text;
+        if (!t.nodeValue || !t.nodeValue.includes("{{")) continue;
+        if (isInCodeOrPre(t)) continue;
+        textNodes.push(t);
+      }
 
-    const regex = buildPlaceholderRegex("{{", "}}");
-    for (const textNode of textNodes) {
-      renderTextNode(textNode, regex, data, file.path, plugin.app);
+      const regex = buildPlaceholderRegex("{{", "}}");
+      for (const textNode of textNodes) {
+        renderTextNode(textNode, regex, data, file.path, plugin.app);
+      }
+    } catch (e) {
+      console.error("longform: failed to render {{Variable}} placeholders", e);
     }
   });
 }
