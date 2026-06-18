@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   buildPlaceholderRegex,
+  formatPlaceholderValue,
   getByPath,
+  setByPath,
 } from "src/compile/steps/replace-json-placeholders-utils";
 
 describe("getByPath", () => {
@@ -40,6 +42,67 @@ describe("getByPath", () => {
 
   it("does not resolve inherited prototype properties", () => {
     expect(getByPath(data, "toString")).toBeUndefined();
+  });
+});
+
+describe("setByPath", () => {
+  it("creates a new top-level key", () => {
+    const data: Record<string, unknown> = { title: "Paper" };
+    expect(setByPath(data, "deadline", "2026-07-01")).toBe(true);
+    expect(data).toEqual({ title: "Paper", deadline: "2026-07-01" });
+  });
+
+  it("overwrites an existing scalar leaf", () => {
+    const data: Record<string, unknown> = { version: "1" };
+    expect(setByPath(data, "version", "2")).toBe(true);
+    expect(data.version).toBe("2");
+  });
+
+  it("sets a nested existing leaf, creating intermediate objects", () => {
+    const data: Record<string, unknown> = { _longform: { acronym: "LF" } };
+    expect(setByPath(data, "_longform.csl", "nature")).toBe(true);
+    expect(data._longform).toEqual({ acronym: "LF", csl: "nature" });
+    expect(setByPath(data, "meta.author.name", "Ada")).toBe(true);
+    expect(data.meta).toEqual({ author: { name: "Ada" } });
+  });
+
+  it("refuses array-index paths", () => {
+    const data: Record<string, unknown> = {
+      creators: [{ name: "Ada" }],
+    };
+    expect(setByPath(data, "creators[0].name", "Grace")).toBe(false);
+    expect(data.creators).toEqual([{ name: "Ada" }]);
+  });
+
+  it("refuses to overwrite a scalar with an object", () => {
+    const data: Record<string, unknown> = { title: "Paper" };
+    expect(setByPath(data, "title.sub", "x")).toBe(false);
+    expect(data.title).toBe("Paper");
+  });
+
+  it("refuses an empty path", () => {
+    const data: Record<string, unknown> = {};
+    expect(setByPath(data, "", "x")).toBe(false);
+    expect(data).toEqual({});
+  });
+});
+
+describe("formatPlaceholderValue", () => {
+  it("renders null and undefined as empty string", () => {
+    expect(formatPlaceholderValue(null)).toBe("");
+    expect(formatPlaceholderValue(undefined)).toBe("");
+  });
+
+  it("stringifies objects and arrays", () => {
+    expect(formatPlaceholderValue({ a: 1 })).toBe('{"a":1}');
+    expect(formatPlaceholderValue([1, 2])).toBe("[1,2]");
+  });
+
+  it("coerces scalars with String", () => {
+    expect(formatPlaceholderValue("hi")).toBe("hi");
+    expect(formatPlaceholderValue(42)).toBe("42");
+    expect(formatPlaceholderValue(0)).toBe("0");
+    expect(formatPlaceholderValue(true)).toBe("true");
   });
 });
 

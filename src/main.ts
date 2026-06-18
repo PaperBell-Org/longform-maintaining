@@ -52,6 +52,7 @@ import { draftForPath } from "./model/scene-navigation";
 import { WritingSessionTracker } from "./model/writing-session-tracker";
 import NewProjectModal from "./view/project-lifecycle/new-project-modal";
 import { LongformAPI } from "./api/LongformAPI";
+import { registerVariablePostProcessor } from "./view/variable-postprocessor";
 
 const LONGFORM_LEAF_CLASS = "longform-leaf";
 
@@ -155,6 +156,10 @@ export default class LongformPlugin extends Plugin {
     );
 
     addCommands(this);
+
+    // Render {{Variable}} placeholders in reading mode from the project's
+    // metadata.json, with double-click-to-edit.
+    registerVariablePostProcessor(this);
 
     // Dynamically style longform scenes
     this.registerEvent(

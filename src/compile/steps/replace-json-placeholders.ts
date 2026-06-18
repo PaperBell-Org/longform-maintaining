@@ -7,6 +7,7 @@ import {
 } from "./abstract-compile-step";
 import {
   buildPlaceholderRegex,
+  formatPlaceholderValue,
   getByPath,
 } from "./replace-json-placeholders-utils";
 import { projectResourceCandidatePaths } from "src/model/project-resources";
@@ -119,19 +120,17 @@ export const ReplaceJsonPlaceholdersStep = makeBuiltinStep({
         }
         return match;
       }
-      if (value === null) return "";
-      if (typeof value === "object") {
-        try {
-          return JSON.stringify(value);
-        } catch {
-          return String(value);
-        }
-      }
-      return String(value);
+      return formatPlaceholderValue(value);
     });
 
     return { contents: replaced };
   },
 });
 
-export { buildPlaceholderRegex, getByPath };
+export {
+  buildPlaceholderRegex,
+  formatPlaceholderValue,
+  getByPath,
+  setByPath,
+  tokenizePath,
+} from "./replace-json-placeholders-utils";
