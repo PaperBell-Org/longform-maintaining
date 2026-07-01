@@ -1,0 +1,12 @@
+{
+  "summary": {
+    "n": 42,
+    "mean": 3.14,
+    "unit": "samples"
+  },
+  "samples": [
+    { "id": "S-01" },
+    { "id": "S-02" }
+  ],
+  "computed_date": "2026-06-30"
+}

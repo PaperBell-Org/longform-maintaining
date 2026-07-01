@@ -1,0 +1,33 @@
+{
+  "title": "A Minimal PaperBell Manuscript — Supplementary Information",
+  "publication_date": "2026-07-01",
+  "upload_type": "publication",
+  "publication_type": "article",
+  "description": "Supplementary information for the minimal PaperBell example. Shares the publication metadata of the main manuscript but adds supplementary: true so figures and tables receive an S prefix.",
+  "creators": [
+    {
+      "name": "Song, Shuang",
+      "affiliation": "Institute for Worked Examples",
+      "orcid": "0000-0000-0000-0001"
+    },
+    {
+      "name": "Roe, Rick",
+      "affiliation": "Center for Placeholder Studies",
+      "orcid": "0000-0000-0000-0002"
+    }
+  ],
+  "keywords": ["longform", "paperbell", "supplementary", "example"],
+  "journal_title": "Journal of Reproducible Examples",
+  "version": "v1.0",
+  "_longform": {
+    "acronym": "PBMIN",
+    "csl": "nature",
+    "template": "default",
+    "author_affiliations": {
+      "Song, Shuang": ["Institute for Worked Examples", "Aspen Institute"],
+      "Roe, Rick": ["Center for Placeholder Studies"]
+    },
+    "corresponding": ["Song, Shuang"],
+    "extra_yaml": "supplementary: true\nnumbersections: true\n"
+  }
+}
