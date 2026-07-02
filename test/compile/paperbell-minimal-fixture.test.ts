@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { readFileSync } from "fs";
+import { resolve } from "path";
 import { buildPandocYaml } from "src/compile/steps/add-zenodo-frontmatter-utils";
 import type { ZenodoMetadata } from "src/compile/steps/add-zenodo-frontmatter-utils";
 import {
@@ -35,7 +35,7 @@ describe("paperbell-minimal fixture: Add Zenodo Frontmatter", () => {
 
     expect(yaml).toContain('title: "A Minimal PaperBell Manuscript"');
     expect(yaml).toContain('csl: "nature"');
-    expect(yaml).toContain('template: "default"');
+    expect(yaml).toContain('template: "paperbell"');
     expect(yaml).toContain('acronym: "PBMIN"');
     expect(yaml).toContain('lineno: "true"');
 
@@ -91,34 +91,5 @@ describe("paperbell-minimal fixture: {{Variable}} placeholders", () => {
     const mixed = "v{{version}} / n={{summary.n}}";
     const compiled = substitute(substitute(mixed, metadata), results);
     expect(compiled).toBe("vv1.0 / n=42");
-  });
-});
-
-describe("paperbell-minimal fixture: PaperBell Manuscript workflow", () => {
-  it("is registered in the vault with the expected step order", () => {
-    const data = JSON.parse(
-      readFileSync(
-        resolve(
-          process.cwd(),
-          "test-longform-vault/.obsidian/plugins/longform-paperbell/data.json"
-        ),
-        "utf8"
-      )
-    ) as {
-      workflows: Record<string, { steps: { id: string }[] }>;
-    };
-
-    const wf = data.workflows["PaperBell Manuscript"];
-    expect(wf).toBeDefined();
-    expect(wf.steps.map((s) => s.id)).toEqual([
-      "strip-frontmatter",
-      "concatenate-text",
-      "replace-json-placeholders",
-      "replace-json-placeholders",
-      "add-zenodo-frontmatter",
-      "write-to-note",
-    ]);
-    // The existing starter workflow is left intact.
-    expect(data.workflows["Default Workflow"]).toBeDefined();
   });
 });

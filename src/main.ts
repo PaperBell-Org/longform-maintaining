@@ -161,6 +161,17 @@ export default class LongformPlugin extends Plugin {
     // metadata.json, with double-click-to-edit.
     registerVariablePostProcessor(this);
 
+    // One-time hint that PDF export exists and how to set it up.
+    this.app.workspace.onLayoutReady(() => {
+      if (!get(pluginSettings).pandocSetupDismissed) {
+        new Notice(
+          "Longform (PaperBell): PDF export is available. Run “Set up Pandoc export” from the command palette to check prerequisites.",
+          12000
+        );
+        pluginSettings.update((s) => ({ ...s, pandocSetupDismissed: true }));
+      }
+    });
+
     // Dynamically style longform scenes
     this.registerEvent(
       this.app.workspace.on("layout-change", () => {

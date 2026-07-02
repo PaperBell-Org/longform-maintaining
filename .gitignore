@@ -8,6 +8,10 @@ coverage
 main.js
 *.js.map
 
+# downloaded pandoc assets (fetched at runtime into the vault)
+test-longform-vault/.obsidian/plugins/longform-paperbell/pandoc-assets
+test-longform-vault/PaperBell
+
 # obsidian
 data.json
 
@@ -24,3 +28,5 @@ test-longform-vault/.obsidian/plugins/longform/*.js
 test-longform-vault/.obsidian/plugins/longform/*.json
 /test-longform-vault/.obsidian/workspace.json
 /test-longform-vault/longform-sessions.json
+*.pdf
+pandoc-assets

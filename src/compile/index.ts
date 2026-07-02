@@ -282,9 +282,11 @@ export async function compile(
       }
     } catch (error) {
       console.error("[Longform]", error);
+      const detail =
+        error instanceof Error ? error.stack ?? error.message : String(error);
       statusCallback({
         kind: "CompileStatusError",
-        error: `${error}`,
+        error: `Step "${step.description.name}" failed:\n\n${detail}`,
       });
       return;
     }

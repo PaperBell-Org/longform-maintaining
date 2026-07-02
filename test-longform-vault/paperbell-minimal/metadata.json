@@ -22,7 +22,7 @@
   "_longform": {
     "acronym": "PBMIN",
     "csl": "nature",
-    "template": "default",
+    "template": "paperbell",
     "lineno": true,
     "figures_at_end": false,
     "author_affiliations": {

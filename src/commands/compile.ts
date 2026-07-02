@@ -15,6 +15,7 @@ import {
   type CompileStatus,
 } from "src/compile";
 import { JumpModal } from "./helpers";
+import { showErrorModal } from "src/view/error-modal";
 import { draftTitle } from "src/model/draft-utils";
 import { projectRootPath } from "src/model/project-resources";
 import type { Draft } from "src/model/types";
@@ -44,6 +45,8 @@ export const compileCurrent: CommandBuilder = (plugin) => ({
     function onCompileStatusChange(status: CompileStatus) {
       if (status.kind == "CompileStatusSuccess") {
         new Notice("Compile complete.");
+      } else if (status.kind == "CompileStatusError") {
+        showErrorModal(plugin.app, "Compile failed", status.error);
       }
     }
 
@@ -160,6 +163,8 @@ export const compileSelection: CommandBuilder = (plugin) => ({
                 function onCompileStatusChange(status: CompileStatus) {
                   if (status.kind == "CompileStatusSuccess") {
                     new Notice("Compile complete.");
+                  } else if (status.kind == "CompileStatusError") {
+                    showErrorModal(plugin.app, "Compile failed", status.error);
                   }
                 }
 

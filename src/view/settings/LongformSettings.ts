@@ -14,6 +14,7 @@ import { FolderSuggest } from "./folder-suggest";
 import { DEFAULT_SESSION_FILE } from "src/model/types";
 import { FileSuggest } from "./file-suggest";
 import { syncSceneIndices } from "src/model/store-vault-sync";
+import { PandocSetupModal } from "../pandoc-setup-modal";
 
 export class LongformSettingsTab extends PluginSettingTab {
   plugin: LongformPlugin;
@@ -85,6 +86,85 @@ export class LongformSettingsTab extends PluginSettingTab {
       });
 
     new Setting(containerEl).setName("Compile").setHeading();
+
+    new Setting(containerEl)
+      .setName("Pandoc export")
+      .setDesc(
+        "Settings for the 'Run Pandoc Export' compile step. The Pandoc toolchain (filters, templates, CSL) ships with the plugin, so most fields can stay empty."
+      )
+      .addButton((cb) => {
+        cb.setButtonText("Set up Pandoc export…")
+          .setCta()
+          .onClick(() => new PandocSetupModal(this.app).open());
+      });
+
+    new Setting(containerEl)
+      .setName("Pandoc assets URL")
+      .setDesc(
+        "Link to the Pandoc toolchain .zip (filters/templates/CSL). Used by 'Set up Pandoc export → Download assets'."
+      )
+      .addText((cb) => {
+        cb.setPlaceholder("https://…/pandoc-assets.zip")
+          .setValue(settings.pandocAssetsUrl)
+          .onChange((v) => {
+            pluginSettings.update((s) => ({ ...s, pandocAssetsUrl: v }));
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Pandoc assets folder")
+      .setDesc(
+        "Folder containing defaults/ and csl/. Leave empty for the default download location (PaperBell/pandoc). Absolute or vault-relative."
+      )
+      .addSearch((cb) => {
+        new FolderSuggest(this.app, cb.inputEl);
+        cb.setPlaceholder("PaperBell/pandoc")
+          .setValue(settings.pandocAssetsFolder)
+          .onChange((v) => {
+            pluginSettings.update((s) => ({ ...s, pandocAssetsFolder: v }));
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Pandoc output folder")
+      .setDesc(
+        "Folder to write <acronym>_<date>.pdf into. Leave empty to write next to the compiled manuscript."
+      )
+      .addSearch((cb) => {
+        new FolderSuggest(this.app, cb.inputEl);
+        cb.setPlaceholder("(next to manuscript)")
+          .setValue(settings.pandocOutputFolder)
+          .onChange((v) => {
+            pluginSettings.update((s) => ({ ...s, pandocOutputFolder: v }));
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Bibliography")
+      .setDesc(
+        "Path to a .bib for citations. Leave empty to auto-detect references.bib / mybib.bib in the project."
+      )
+      .addSearch((cb) => {
+        new FileSuggest(this.app, cb.inputEl);
+        cb.setPlaceholder("(auto-detect)")
+          .setValue(settings.pandocBibliography)
+          .onChange((v) => {
+            pluginSettings.update((s) => ({ ...s, pandocBibliography: v }));
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Pandoc binary")
+      .setDesc(
+        "Path to the pandoc executable, or just 'pandoc'. Common Homebrew/MacTeX dirs are added to PATH automatically."
+      )
+      .addText((cb) => {
+        cb.setPlaceholder("pandoc")
+          .setValue(settings.pandocBinary)
+          .onChange((v) => {
+            pluginSettings.update((s) => ({ ...s, pandocBinary: v }));
+          });
+      });
 
     new Setting(containerEl)
       .setName("User script step folder")
@@ -322,11 +402,11 @@ export class LongformSettingsTab extends PluginSettingTab {
 
     containerEl.createEl("p", {}, (el) => {
       el.innerHTML =
-        'Longform written and maintained by <a href="https://kevinbarrett.org">Kevin Barrett</a>.';
+        'Longform (PaperBell) — a fork of <a href="https://github.com/kevboh/longform">Longform</a>, originally written by <a href="https://kevinbarrett.org">Kevin Barrett</a>. Maintained by <a href="https://github.com/PaperBell-Org">PaperBell-Org</a>.';
     });
     containerEl.createEl("p", {}, (el) => {
       el.innerHTML =
-        'Read the source code and report issues at <a href="https://github.com/kevboh/longform">https://github.com/kevboh/longform</a>.';
+        'Read the source code and report issues at <a href="https://github.com/PaperBell-Org">https://github.com/PaperBell-Org</a>.';
     });
     containerEl.createEl("p", {}, (el) => {
       el.innerHTML =

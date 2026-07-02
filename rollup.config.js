@@ -33,7 +33,9 @@ const getPlugins = (...plugins) =>
 
 const BASE_CONFIG = {
   input: "src/main.ts",
-  external: ["obsidian"],
+  // Node built-ins are provided at runtime by Electron on desktop; keep them
+  // external so the Pandoc export step can shell out via child_process/fs/path.
+  external: ["obsidian", "fs", "os", "path", "child_process"],
 };
 
 const DEV_PLUGIN_CONFIG = {
