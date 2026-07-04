@@ -1,0 +1,35 @@
+{
+  "title": "A Minimal PaperBell Manuscript",
+  "publication_date": "2026-07-01",
+  "upload_type": "publication",
+  "publication_type": "article",
+  "description": "A minimal worked example that exercises every PaperBell writing convention (figures, xlsx tables, citations, math, highlights, footnotes, cross-references, and {{Variable}} placeholders) in one small Longform project, used as a regression fixture while extending the plugin.",
+  "creators": [
+    {
+      "name": "Song, Shuang",
+      "affiliation": "Institute for Worked Examples",
+      "orcid": "0000-0000-0000-0001"
+    },
+    {
+      "name": "Roe, Rick",
+      "affiliation": "Center for Placeholder Studies",
+      "orcid": "0000-0000-0000-0002"
+    }
+  ],
+  "keywords": ["longform", "paperbell", "pandoc", "example"],
+  "journal_title": "Journal of Reproducible Examples",
+  "version": "v1.0",
+  "_longform": {
+    "acronym": "PBMIN",
+    "csl": "nature",
+    "template": "paperbell",
+    "lineno": true,
+    "figures_at_end": false,
+    "author_affiliations": {
+      "Song, Shuang": ["Institute for Worked Examples", "Aspen Institute"],
+      "Roe, Rick": ["Center for Placeholder Studies"]
+    },
+    "corresponding": ["Song, Shuang"],
+    "extra_yaml": "numbersections: true\n"
+  }
+}

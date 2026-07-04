@@ -18,10 +18,12 @@ import {
   insertSingleSceneTemplate,
 } from "./templates";
 import { startNewSession } from "./word-counts";
+import { setupPandocExport } from "./pandoc";
 
 const commandBuilders = [
   compileCurrent,
   compileSelection,
+  setupPandocExport,
   focusCurrentDraft,
   previousScene,
   previousSceneAtIndent,

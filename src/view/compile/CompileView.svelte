@@ -27,6 +27,10 @@
   import SortableList from "../sortable/SortableList.svelte";
   import AutoTextArea from "../components/AutoTextArea.svelte";
   import type { Draft } from "src/model/types";
+  import { useApp } from "../utils";
+  import { showErrorModal } from "../error-modal";
+
+  const app = useApp();
 
   let workflowContextButton: HTMLElement;
   let workflowInputState: "hidden" | "new" | "rename" = "hidden";
@@ -216,9 +220,10 @@
 
   function onCompileStatusChange(status: CompileStatus) {
     if (status.kind == "CompileStatusError") {
-      compileStatus.innerText = `${status.error}. See dev console for more details.`;
+      compileStatus.innerText = "Compile failed.";
       compileStatus.classList.add("compile-status-error");
       restoreDefaultStatusAfter(10000);
+      showErrorModal(app, "Compile failed", status.error);
     } else if (status.kind == "CompileStatusStep") {
       compileStatus.innerText = `Step ${status.stepIndex + 1}/${
         status.totalSteps

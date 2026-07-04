@@ -99,6 +99,13 @@ export interface LongformPluginSettings {
   fallbackWaitEnabled: boolean;
   fallbackWaitTime: number;
   writeProperty: boolean;
+  // Pandoc export (Run Pandoc Export compile step).
+  pandocAssetsUrl: string; // URL of the toolchain zip to download
+  pandocAssetsFolder: string; // "" = the default download folder (PaperBell/pandoc)
+  pandocOutputFolder: string; // "" = write next to the manuscript
+  pandocBinary: string; // "pandoc" or an absolute path
+  pandocBibliography: string; // "" = auto-detect project references.bib/mybib.bib
+  pandocSetupDismissed: boolean; // true once the user has seen the setup prompt
   // DEPRECATED. To be removed in future, needed now for migrations.
   projects: {
     [path: string]: {
@@ -132,6 +139,12 @@ export const DEFAULT_SETTINGS: LongformPluginSettings = {
   waitForSync: false,
   fallbackWaitEnabled: true,
   fallbackWaitTime: 5,
+  pandocAssetsUrl: "",
+  pandocAssetsFolder: "",
+  pandocOutputFolder: "",
+  pandocBinary: "pandoc",
+  pandocBibliography: "",
+  pandocSetupDismissed: false,
 };
 
 export const TRACKED_SETTINGS_PATHS: (keyof LongformPluginSettings)[] = [
@@ -155,6 +168,12 @@ export const TRACKED_SETTINGS_PATHS: (keyof LongformPluginSettings)[] = [
   "fallbackWaitEnabled",
   "fallbackWaitTime",
   "writeProperty",
+  "pandocAssetsUrl",
+  "pandocAssetsFolder",
+  "pandocOutputFolder",
+  "pandocBinary",
+  "pandocBibliography",
+  "pandocSetupDismissed",
 ];
 
 export const PASSTHROUGH_SAVE_SETTINGS_PATHS: (keyof LongformPluginSettings)[] =
@@ -175,4 +194,10 @@ export const PASSTHROUGH_SAVE_SETTINGS_PATHS: (keyof LongformPluginSettings)[] =
     "fallbackWaitEnabled",
     "fallbackWaitTime",
     "writeProperty",
+    "pandocAssetsUrl",
+    "pandocAssetsFolder",
+    "pandocOutputFolder",
+    "pandocBinary",
+    "pandocBibliography",
+    "pandocSetupDismissed",
   ];

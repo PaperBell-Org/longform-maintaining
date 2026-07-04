@@ -17,6 +17,8 @@ Major features include:
 
 A Getting Started guide follows; there is also reasonably-complete [documentation](./docs/).
 
+> **PaperBell fork:** this build adds an academic writing/export pipeline — shared `metadata.json`, `{{Variable}}` placeholders, and a **Run Pandoc Export** compile step that produces a typeset PDF. The Pandoc toolchain (filters/templates/CSL) is downloaded on demand from a separate assets repository, not bundled. Run the **Set up Pandoc export** command to get started; see [docs/PANDOC_EXPORT.md](./docs/PANDOC_EXPORT.md).
+
 ## Installing
 
 Longform is in the Community Plugins section of Obsidian’s settings. You may also install it manually by copying the `main.js`, `manifest.json`, and `styles.css` files from a release into a `longform/` folder in the `.obsidian/plugins` folder of your vault. The Community Plugins interface is preferred.
@@ -148,6 +150,10 @@ Longform does a lot of complex tracking to bridge a project’s metadata with th
 
 Any [sponsorship](https://github.com/sponsors/kevboh) is deeply appreciated, although by no means necessary.
 
+## Credits
+
+This is the **PaperBell** fork of [Longform](https://github.com/kevboh/longform), originally written by [Kevin Barrett](https://kevinbarrett.org). It is maintained by [PaperBell-Org](https://github.com/PaperBell-Org), which adds an academic writing/export pipeline on top of Longform. Our thanks to Kevin and the original contributors.
+
 ## License
 
-See [LICENSE.md](./LICENSE.md). You can view the license’s history [here](https://git.sr.ht/~boringcactus/fafol/tree/master/LICENSE.md).
+Licensed under the Fuck Around and Find Out License (FAFOL) v0.2 — see [LICENSE.md](./LICENSE.md); license history [here](https://git.sr.ht/~boringcactus/fafol/tree/master/LICENSE.md). The license is unchanged from upstream Longform. Note the FAFOL "Ethics" clause: this software must be used for Good, not Evil — so it is not an OSI-approved / FSF-free license. Copyright is held by the respective contributors (Kevin Barrett and the PaperBell-Org maintainers).

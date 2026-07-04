@@ -152,6 +152,14 @@ Path expressions support dot and bracket notation in any combination (`a.b.c`, `
 
 The manuscript text `We collected {{ summary.n }} samples (first: {{ samples[0].id }}).` becomes `We collected 42 samples (first: S-01).`.
 
+#### Run Pandoc Export
+
+_Manuscript_
+
+Exports the compiled manuscript to a typeset PDF via [Pandoc](https://pandoc.org) (PaperBell pipeline), reading the template/CSL/acronym/date from the frontmatter that **Add Zenodo Frontmatter** produced. The Pandoc toolchain (filters, templates, CSL, defaults) ships with the plugin, so no external assets are required. Desktop only. Run it after **Add Zenodo Frontmatter** (and usually **Save as Note**).
+
+Options are **Dry run** (log the pandoc command instead of running it) and **Open PDF after export**. Paths (assets folder, output folder, bibliography, pandoc binary) are configured once in **Settings → Compile → Pandoc export**. Run the **Set up Pandoc export** command for a prerequisites checklist. See [PANDOC_EXPORT.md](./PANDOC_EXPORT.md) for the full guide.
+
 ### User Script Steps
 
 In addition to the built-in steps above, Longform also supports user script steps, which are arbitrary JavaScript scripts that can be loaded and used like any other step.
