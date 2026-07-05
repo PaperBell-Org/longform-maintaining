@@ -1,6 +1,6 @@
 # Results
 
-The primary outcome is shown in @fig:demo; the trend is consistent with the hypothesis stated in the introduction.
+The primary outcome is shown in Figure \ref{fig:demo}; the trend is consistent with the hypothesis stated in the introduction.
 
 ![A minimal example figure. {#fig:demo width=70%}](figs/example_figure.png)
 

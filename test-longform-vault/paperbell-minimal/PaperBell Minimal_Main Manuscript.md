@@ -45,12 +45,12 @@ $$\bar{h}_t = \operatorname{mean}(\{h_{i,t}\}), \quad h_{i,t} \in \mathbb{R}.$$
 
 Blackboard symbols such as $\mathbb{R}$ and $\mathbb{N}$ come from `amssymb`, which the template loads.
 
-Values below are injected at compile time from `results.json` (they are *not* in `metadata.json`, so they stay as raw placeholders in the live reading-mode preview and are only substituted by the compile step): we analysed {{ summary.n }} {{ summary.unit }} with a mean of {{ summary.mean }}, the first of which is identified as {{ samples[0].id }}. The dataset was computed on {{ computed_date }}.
+Values below are injected at compile time from `results.json` (they are *not* in `metadata.json`, so they stay as raw placeholders in the live reading-mode preview and are only substituted by the compile step): we analysed 42 samples with a mean of 3.14, the first of which is identified as S-01. The dataset was computed on 2026-06-30.
 
 
 # Results
 
-The primary outcome is shown in @fig:demo; the trend is consistent with the hypothesis stated in the introduction.
+The primary outcome is shown in Figure \ref{fig:demo}; the trend is consistent with the hypothesis stated in the introduction.
 
 ![A minimal example figure. {#fig:demo width=70%}](figs/example_figure.png)
 
