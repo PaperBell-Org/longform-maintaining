@@ -7,8 +7,10 @@ import {
 } from "./abstract-compile-step";
 import {
   buildPlaceholderRegex,
+  deepMerge,
   formatPlaceholderValue,
   getByPath,
+  parseJsonFileList,
 } from "./replace-json-placeholders-utils";
 import { projectResourceCandidatePaths } from "src/model/project-resources";
 
@@ -22,11 +24,11 @@ export const ReplaceJsonPlaceholdersStep = makeBuiltinStep({
     options: [
       {
         id: "json-file",
-        name: "JSON file",
+        name: "JSON file(s)",
         description:
-          "Filename of the JSON data file. Searched for in the draft's folder (or its 'source/' subfolder) and any parent folder up to the project root. Trailing '.json' is optional.",
+          "Filename(s) of the JSON data file(s). Separate several with commas — they are merged into one namespace, with later files winning on key conflicts (e.g. 'metadata.json, results.json'). Each is searched for in the draft's folder (or its 'source/' subfolder) and any parent folder up to the project root. Trailing '.json' is optional.",
         type: CompileStepOptionType.Text,
-        default: "results.json",
+        default: "metadata.json, results.json",
       },
       {
         id: "start-delim",
@@ -60,51 +62,63 @@ export const ReplaceJsonPlaceholdersStep = makeBuiltinStep({
       throw new Error("Cannot replace placeholders on non-manuscript.");
     }
 
-    const jsonFileName = String(
-      context.optionValues["json-file"] ?? "results.json"
-    ).trim();
+    const fileList = parseJsonFileList(
+      String(context.optionValues["json-file"] ?? "metadata.json, results.json")
+    );
     const startDelim = String(context.optionValues["start-delim"] ?? "{{");
     const endDelim = String(context.optionValues["end-delim"] ?? "}}");
     const errorOnMissing = Boolean(context.optionValues["error-on-missing"]);
 
-    const baseName = jsonFileName.endsWith(".json")
-      ? jsonFileName
-      : `${jsonFileName}.json`;
-
-    const candidatePaths = projectResourceCandidatePaths(
-      context.projectPath,
-      context.projectRoot ?? context.projectPath,
-      baseName
-    );
-
-    let file: TFile | null = null;
-    let foundPath = "";
-    for (const path of candidatePaths) {
-      const f = context.app.vault.getAbstractFileByPath(path);
-      if (f instanceof TFile) {
-        file = f;
-        foundPath = path;
-        break;
-      }
+    if (fileList.length === 0) {
+      throw new Error("[Replace JSON Placeholders] No JSON file configured.");
     }
 
-    if (!file) {
-      throw new Error(
-        `[Replace JSON Placeholders] JSON file not found at ${candidatePaths.join(
-          " or "
-        )}`
+    // Resolve, read, and merge each file into one namespace. Files listed later
+    // win on key conflicts. A listed file that isn't found is skipped (unless
+    // none of them are found, which is an error).
+    let data: unknown = {};
+    const foundNames: string[] = [];
+    const searchedFor: string[] = [];
+    for (const baseName of fileList) {
+      const candidatePaths = projectResourceCandidatePaths(
+        context.projectPath,
+        context.projectRoot ?? context.projectPath,
+        baseName
       );
+      searchedFor.push(`${baseName} (${candidatePaths.join(" or ")})`);
+
+      let file: TFile | null = null;
+      let foundPath = "";
+      for (const path of candidatePaths) {
+        const f = context.app.vault.getAbstractFileByPath(path);
+        if (f instanceof TFile) {
+          file = f;
+          foundPath = path;
+          break;
+        }
+      }
+      if (!file) continue;
+
+      const raw = await context.app.vault.cachedRead(file);
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(raw);
+      } catch (e) {
+        throw new Error(
+          `[Replace JSON Placeholders] Invalid JSON in ${foundPath}: ${
+            (e as Error).message
+          }`
+        );
+      }
+      data = deepMerge(data, parsed);
+      foundNames.push(foundPath);
     }
 
-    const raw = await context.app.vault.cachedRead(file);
-    let data: unknown;
-    try {
-      data = JSON.parse(raw);
-    } catch (e) {
+    if (foundNames.length === 0) {
       throw new Error(
-        `[Replace JSON Placeholders] Invalid JSON in ${foundPath}: ${
-          (e as Error).message
-        }`
+        `[Replace JSON Placeholders] None of the configured JSON files were found. Searched for: ${searchedFor.join(
+          "; "
+        )}`
       );
     }
 
@@ -129,8 +143,10 @@ export const ReplaceJsonPlaceholdersStep = makeBuiltinStep({
 
 export {
   buildPlaceholderRegex,
+  deepMerge,
   formatPlaceholderValue,
   getByPath,
+  parseJsonFileList,
   setByPath,
   tokenizePath,
 } from "./replace-json-placeholders-utils";

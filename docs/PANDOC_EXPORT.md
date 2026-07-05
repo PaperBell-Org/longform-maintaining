@@ -83,16 +83,25 @@ If your manuscript uses `[@citekey]` citations, it needs a `.bib`. The step uses
 the **Bibliography** setting if set, otherwise the nearest `references.bib` or
 `mybib.bib` found from the draft folder up to the project root. Without a bib,
 citations can't be typeset and the PDF build fails — the step's checklist tells
-you when this is the problem. (`@fig:`/`@tbl:` cross-references don't count as
-citations.)
+you when this is the problem. (Cross-references use LaTeX `\ref{}` for both
+figures and tables, so they never look like citations; any leftover `@fig:`/
+`@tbl:`-style tokens are also excluded from citation detection.)
 
 ## Which template / CSL is used
 
-Both come from the manuscript's frontmatter, which **Add Zenodo Frontmatter**
-generates from `metadata.json` (`_longform.template`, `_longform.csl`):
+By default both come from the manuscript's frontmatter, which **Add Zenodo
+Frontmatter** generates from `metadata.json` (`_longform.template`,
+`_longform.csl`):
 
 - `template` → `<assets>/defaults/<template>.yaml` (empty ⇒ `undefined.yaml`)
 - `csl` → `<assets>/csl/<csl>.csl`
+
+**Overriding the template per workflow.** The **Run Pandoc Export** step has a
+*Template / preset* dropdown listing every downloaded `defaults/*.yaml`. Leave it
+blank to use the project's `_longform.template`, or pick another preset — e.g.
+one workflow named "Manuscript" (`paperbell`) and another "SI" (a supplementary
+layout). The dropdown populates after you download assets via **Set up Pandoc
+export**.
 
 ## Notes
 

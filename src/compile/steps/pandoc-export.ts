@@ -37,6 +37,16 @@ export const RunPandocExportStep = makeBuiltinStep({
     availableKinds: [CompileStepKind.Manuscript],
     options: [
       {
+        id: "template",
+        name: "Template / preset",
+        description:
+          "Which downloaded Pandoc preset (defaults/*.yaml) to export with — e.g. a Manuscript vs. an SI layout. Leave blank to use the template from your project metadata (_longform.template).",
+        type: CompileStepOptionType.Dropdown,
+        dynamicChoices: "pandoc-templates",
+        emptyLabel: "(use metadata template)",
+        default: "",
+      },
+      {
         id: "dry-run",
         name: "Dry run",
         description:
@@ -84,7 +94,9 @@ export const RunPandocExportStep = makeBuiltinStep({
     const fm = parseExportFrontmatter(input.contents);
     const acronym = String(fm.acronym || context.draft.title || "manuscript");
     const date = String(fm.date || new Date().toISOString().slice(0, 10));
-    const template = String(fm.template || "undefined");
+    // The step's template dropdown overrides the project metadata template when set.
+    const optionTemplate = String(context.optionValues["template"] ?? "").trim();
+    const template = optionTemplate || String(fm.template || "undefined");
     const csl = String(fm.csl || "nature");
 
     const dirs = binSearchDirs(home);

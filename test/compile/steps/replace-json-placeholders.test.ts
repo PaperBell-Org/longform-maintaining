@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   buildPlaceholderRegex,
+  deepMerge,
   formatPlaceholderValue,
   getByPath,
+  parseJsonFileList,
   setByPath,
 } from "src/compile/steps/replace-json-placeholders-utils";
 
@@ -115,6 +117,70 @@ function findCaptures(re: RegExp, s: string): string[] {
   }
   return out;
 }
+
+describe("parseJsonFileList", () => {
+  it("parses a single filename and adds .json", () => {
+    expect(parseJsonFileList("results")).toEqual(["results.json"]);
+    expect(parseJsonFileList("results.json")).toEqual(["results.json"]);
+  });
+
+  it("splits comma/semicolon/newline lists and trims", () => {
+    expect(parseJsonFileList("metadata.json, results.json")).toEqual([
+      "metadata.json",
+      "results.json",
+    ]);
+    expect(parseJsonFileList("a ; b\nc")).toEqual([
+      "a.json",
+      "b.json",
+      "c.json",
+    ]);
+  });
+
+  it("drops empty entries", () => {
+    expect(parseJsonFileList("metadata.json,,")).toEqual(["metadata.json"]);
+    expect(parseJsonFileList("")).toEqual([]);
+  });
+});
+
+describe("deepMerge", () => {
+  it("merges disjoint keys from both objects", () => {
+    expect(
+      deepMerge({ title: "Paper" }, { summary: { n: 42 } })
+    ).toEqual({ title: "Paper", summary: { n: 42 } });
+  });
+
+  it("lets the later value win on scalar conflicts", () => {
+    expect(deepMerge({ v: "1" }, { v: "2" })).toEqual({ v: "2" });
+  });
+
+  it("recurses into shared object keys", () => {
+    expect(
+      deepMerge(
+        { _longform: { acronym: "PB", csl: "nature" } },
+        { _longform: { csl: "science" } }
+      )
+    ).toEqual({ _longform: { acronym: "PB", csl: "science" } });
+  });
+
+  it("replaces arrays wholesale rather than merging by index", () => {
+    expect(deepMerge({ a: [1, 2, 3] }, { a: [9] })).toEqual({ a: [9] });
+  });
+
+  it("keeps the earlier value when the later is undefined", () => {
+    expect(deepMerge({ a: 1 }, { a: undefined })).toEqual({ a: 1 });
+  });
+
+  it("resolves cross-file placeholders after merge", () => {
+    const merged = deepMerge(
+      { title: "A Paper", _longform: { acronym: "PBMIN" } },
+      { summary: { n: 42 }, computed_date: "2026-06-30" }
+    );
+    expect(getByPath(merged, "title")).toBe("A Paper");
+    expect(getByPath(merged, "_longform.acronym")).toBe("PBMIN");
+    expect(getByPath(merged, "summary.n")).toBe(42);
+    expect(getByPath(merged, "computed_date")).toBe("2026-06-30");
+  });
+});
 
 describe("buildPlaceholderRegex", () => {
   it("matches default {{ x }} delimiters", () => {
