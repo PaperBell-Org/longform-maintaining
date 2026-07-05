@@ -9,6 +9,7 @@
     PLACEHOLDER_MISSING_STEP,
   } from "src/compile/steps/abstract-compile-step";
   import { createEventDispatcher } from "svelte";
+  import { pandocTemplates } from "src/model/stores";
 
   export let step: CompileStep;
   export let ordinal: number;
@@ -79,6 +80,17 @@
                   placeholder="key: value"
                   bind:value={step.optionValues[option.id]}
                 />
+              {:else if option.type === CompileStepOptionType.Dropdown}
+                <label for={step.id + "-" + option.id}>{option.name}</label>
+                <select
+                  id={step.id + "-" + option.id}
+                  bind:value={step.optionValues[option.id]}
+                >
+                  <option value="">{option.emptyLabel ?? "(default)"}</option>
+                  {#each option.dynamicChoices === "pandoc-templates" ? $pandocTemplates : option.choices ?? [] as choice}
+                    <option value={choice}>{choice}</option>
+                  {/each}
+                </select>
               {:else}
                 <div class="longform-compile-step-checkbox-container">
                   <input
@@ -209,6 +221,11 @@
   }
 
   .longform-compile-step-option input[type="text"] {
+    margin: 0 0 var(--size-4-1) 0;
+    width: 100%;
+  }
+
+  .longform-compile-step-option select {
     margin: 0 0 var(--size-4-1) 0;
     width: 100%;
   }

@@ -40,6 +40,8 @@ export enum CompileStepOptionType {
   Text,
   /** Key-value text */
   MultilineText,
+  /** A single-select dropdown. Choices come from `choices` or `dynamicChoices`. */
+  Dropdown,
 }
 
 /**
@@ -58,6 +60,21 @@ export interface CompileStepOption {
   type: CompileStepOptionType;
   /** What the option’s value should default to. */
   default: unknown;
+  /**
+   * For `Dropdown` options: a static list of selectable values. Ignored unless
+   * `type` is `Dropdown` and `dynamicChoices` is not set.
+   */
+  choices?: string[];
+  /**
+   * For `Dropdown` options: an identifier the compile UI resolves to a live list
+   * of choices (e.g. `"pandoc-templates"` → the downloaded Pandoc presets).
+   */
+  dynamicChoices?: string;
+  /**
+   * For `Dropdown` options: the label shown for the empty (`""`) choice, which
+   * lets the step fall back to its own default behavior. Defaults to "(default)".
+   */
+  emptyLabel?: string;
 }
 
 /**

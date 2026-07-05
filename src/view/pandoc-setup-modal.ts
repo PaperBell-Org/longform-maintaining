@@ -11,6 +11,7 @@ import {
   resolveBinary,
 } from "src/compile/steps/pandoc-export-utils";
 import { downloadPandocAssets } from "src/model/pandoc-assets";
+import { refreshPandocTemplates } from "src/model/pandoc-templates";
 
 type Check = { ok: boolean; label: string; detail: string };
 
@@ -182,6 +183,7 @@ export class PandocSetupModal extends Modal {
     try {
       const { count } = await downloadPandocAssets(this.app, url, dest);
       pluginSettings.update((s) => ({ ...s, pandocAssetsFolder: dest }));
+      refreshPandocTemplates(this.app);
       notice.hide();
       new Notice(`Downloaded ${count} asset files to ${dest}.`);
       this.render();

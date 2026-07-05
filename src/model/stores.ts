@@ -61,6 +61,14 @@ export const draftWordCounts = writable<DraftWordCounts>({});
  */
 export const waitingForSync = writable<boolean>(false);
 
+/**
+ * Writeable store of the basenames (without `.yaml`) of the downloaded Pandoc
+ * `defaults/` presets. Populates the "Template / preset" dropdown on the Run
+ * Pandoc Export compile step. Refreshed on layout-ready and after assets are
+ * downloaded via `refreshPandocTemplates`.
+ */
+export const pandocTemplates = writable<string[]>([]);
+
 // DERIVED STORES
 
 /**

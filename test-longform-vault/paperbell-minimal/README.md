@@ -18,7 +18,7 @@ paperbell-minimal/
 ├── manuscript/
 │   ├── introduction.md         # §4 emphasis/==highlight==/footnote, §8 [@key], {{ }} from metadata.json
 │   ├── methods.md              # §5 inline/display math, {{ }} from results.json
-│   └── results.md              # §6 figure + @fig:, §7 xlsx-table + Table \ref{}
+│   └── results.md              # §6 figure + Figure \ref{}, §7 xlsx-table + Table \ref{}
 └── supplementary/
     ├── Supplementary (Index).md   # draft 2 (same title → same project)
     ├── metadata.json              # nearest-wins override adding supplementary: true → S-numbering
@@ -31,29 +31,34 @@ paperbell-minimal/
 |---|---|---|
 | §4 | headings, `*italic*`/`**bold**`, `==highlight==`, footnote | `manuscript/introduction.md` |
 | §5 | inline `$…$` / display `$$…$$`, `\mathbb{}` symbols | `manuscript/methods.md` |
-| §6 | figure `![…{#fig:demo width=70%}](figs/…)` + `@fig:demo` | `manuscript/results.md` |
+| §6 | figure `![…{#fig:demo width=70%}](figs/…)` + `Figure \ref{fig:demo}` | `manuscript/results.md` |
 | §7 | `xlsx-table` block + `Table \ref{tbl:demo}` | `manuscript/results.md` |
 | §8 | citations `[@key]`, `[@a; @b]` | `manuscript/introduction.md` |
 | §10 | `supplementary: true` → Figure S1 / Table S1 | `supplementary/` |
 | fork | `{{Variable}}` placeholders | `manuscript/introduction.md`, `manuscript/methods.md` |
 
-## `{{Variable}}` placeholders — two sources
+## `{{Variable}}` placeholders — two sources, one step
 
-- **`metadata.json` paths** (`{{title}}`, `{{version}}`, `{{_longform.acronym}}`): rendered
-  **live in reading mode** by the variable post-processor **and** substituted at compile time
-  by the first *Replace JSON Placeholders* step (pointed at `metadata.json`).
+A single *Replace JSON Placeholders* step reads **both** data files (its `JSON file(s)` option is
+`metadata.json, results.json`) and merges them into one namespace, so placeholders from either
+file resolve at compile time:
+
+- **`metadata.json` paths** (`{{title}}`, `{{version}}`, `{{_longform.acronym}}`): also rendered
+  **live in reading mode** by the variable post-processor.
 - **`results.json` paths** (`{{summary.n}}`, `{{samples[0].id}}`): the live preview leaves these
-  as raw text (the post-processor only reads `metadata.json`); they are substituted only at
-  compile time by the second *Replace JSON Placeholders* step (pointed at `results.json`).
+  as raw text (the post-processor only reads `metadata.json`); they are substituted at compile time.
 
 ## Compiling
 
 Both drafts use the vault-wide **PaperBell Manuscript** workflow
 (`.obsidian/plugins/longform-paperbell/data.json`):
 
-`strip-frontmatter → concatenate-text (\n\n) → replace-json-placeholders (metadata.json) →
-replace-json-placeholders (results.json) → add-zenodo-frontmatter (metadata.json) →
-write-to-note ($1_$2.md) → Run Pandoc Export`
+`strip-frontmatter → concatenate-text (\n\n) → replace-json-placeholders (metadata.json, results.json) →
+add-zenodo-frontmatter (metadata.json) → write-to-note ($1_$2.md) → Run Pandoc Export`
+
+The **Run Pandoc Export** step has a *Template / preset* dropdown: leave it blank to use the
+project's `_longform.template` (`paperbell`), or pick a different downloaded preset (e.g. an SI
+layout) per workflow.
 
 `write-to-note` produces a Pandoc-ready Markdown manuscript (`PaperBell Minimal_Main Manuscript.md` /
 `PaperBell Minimal_Supplementary.md`) with academic frontmatter, resolved placeholders, and the

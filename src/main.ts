@@ -53,6 +53,7 @@ import { WritingSessionTracker } from "./model/writing-session-tracker";
 import NewProjectModal from "./view/project-lifecycle/new-project-modal";
 import { LongformAPI } from "./api/LongformAPI";
 import { registerVariablePostProcessor } from "./view/variable-postprocessor";
+import { refreshPandocTemplates } from "./model/pandoc-templates";
 
 const LONGFORM_LEAF_CLASS = "longform-leaf";
 
@@ -412,6 +413,7 @@ export default class LongformPlugin extends Plugin {
     );
 
     this.initLeaf();
+    refreshPandocTemplates(this.app);
     initialized.set(true);
   }
 
