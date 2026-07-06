@@ -10,7 +10,13 @@
   const app = useApp();
   const close: () => void = getContext("close");
 
-  type CreatorRow = { name: string; affiliation: string; orcid: string };
+  type CreatorRow = {
+    name: string;
+    affiliation: string;
+    orcid: string;
+    email: string;
+    corresponding: boolean;
+  };
   type FormState = {
     title: string;
     publication_date: string;
@@ -20,10 +26,6 @@
     version: string;
     creators: CreatorRow[];
     acronym: string;
-    csl: string;
-    template: string;
-    lineno: boolean;
-    figuresAtEnd: boolean;
   };
 
   // Round-trip preservation: keep the parsed JSON so unknown fields survive save.
@@ -42,12 +44,8 @@
       keywords: "",
       journal_title: "",
       version: "",
-      creators: [{ name: "", affiliation: "", orcid: "" }],
+      creators: [{ name: "", affiliation: "", orcid: "", email: "", corresponding: false }],
       acronym: "",
-      csl: "",
-      template: "",
-      lineno: false,
-      figuresAtEnd: false,
     };
   }
 
@@ -88,13 +86,20 @@
 
   function parsedToForm(j: Record<string, unknown>): FormState {
     const ext = (j._longform as Record<string, unknown>) ?? {};
+    const correspondingSet = new Set(
+      Array.isArray(ext.corresponding)
+        ? (ext.corresponding as unknown[]).map((n) => String(n))
+        : []
+    );
     const creators = Array.isArray(j.creators)
       ? (j.creators as Record<string, unknown>[]).map((c) => ({
           name: String(c?.name ?? ""),
           affiliation: String(c?.affiliation ?? ""),
           orcid: String(c?.orcid ?? ""),
+          email: String(c?.email ?? ""),
+          corresponding: correspondingSet.has(String(c?.name ?? "")),
         }))
-      : [{ name: "", affiliation: "", orcid: "" }];
+      : [{ name: "", affiliation: "", orcid: "", email: "", corresponding: false }];
     const keywords = Array.isArray(j.keywords)
       ? (j.keywords as unknown[]).map((k) => String(k)).join(", ")
       : "";
@@ -107,12 +112,8 @@
       keywords,
       journal_title: String(j.journal_title ?? ""),
       version: String(j.version ?? ""),
-      creators: creators.length > 0 ? creators : [{ name: "", affiliation: "", orcid: "" }],
+      creators: creators.length > 0 ? creators : [{ name: "", affiliation: "", orcid: "", email: "", corresponding: false }],
       acronym: String(ext.acronym ?? ""),
-      csl: String(ext.csl ?? ""),
-      template: String(ext.template ?? ""),
-      lineno: Boolean(ext.lineno),
-      figuresAtEnd: Boolean(ext.figures_at_end),
     };
   }
 
@@ -131,6 +132,7 @@
         const o: Record<string, unknown> = { name: c.name.trim() };
         if (c.affiliation.trim()) o.affiliation = c.affiliation.trim();
         if (c.orcid.trim()) o.orcid = c.orcid.trim();
+        if (c.email.trim()) o.email = c.email.trim();
         return o;
       });
 
@@ -150,12 +152,21 @@
     const prevExt = (originalJson._longform as Record<string, unknown>) ?? {};
     const ext: Record<string, unknown> = { ...prevExt };
     setOrDelete(ext, "acronym", form.acronym.trim());
-    setOrDelete(ext, "csl", form.csl.trim());
-    setOrDelete(ext, "template", form.template.trim());
-    ext.lineno = form.lineno;
-    ext.figures_at_end = form.figuresAtEnd;
-    if (!form.lineno) delete ext.lineno;
-    if (!form.figuresAtEnd) delete ext.figures_at_end;
+    // CSL, Pandoc template, line numbers, and figures-at-end are managed by the
+    // Pandoc config (defaults/*.yaml), not per-project metadata — strip any
+    // legacy copies so metadata.json doesn't shadow the config.
+    delete ext.csl;
+    delete ext.template;
+    delete ext.lineno;
+    delete ext.figures_at_end;
+
+    // Corresponding authors: names of the checked creators. Their email (above)
+    // is what the Add Zenodo Frontmatter step emits as the `corresponding:` value.
+    const corresponding = form.creators
+      .filter((c) => c.corresponding && c.name.trim() !== "")
+      .map((c) => c.name.trim());
+    if (corresponding.length > 0) ext.corresponding = corresponding;
+    else delete ext.corresponding;
 
     if (Object.keys(ext).length > 0) out._longform = ext;
     else delete out._longform;
@@ -177,12 +188,12 @@
   $: canSave = !loading && titleOk && creatorsOk;
 
   function addCreator() {
-    form.creators = [...form.creators, { name: "", affiliation: "", orcid: "" }];
+    form.creators = [...form.creators, { name: "", affiliation: "", orcid: "", email: "", corresponding: false }];
   }
   function removeCreator(i: number) {
     form.creators = form.creators.filter((_, idx) => idx !== i);
     if (form.creators.length === 0) {
-      form.creators = [{ name: "", affiliation: "", orcid: "" }];
+      form.creators = [{ name: "", affiliation: "", orcid: "", email: "", corresponding: false }];
     }
   }
   function moveCreator(i: number, dir: -1 | 1) {
@@ -248,10 +259,16 @@
     <form on:submit|preventDefault={onSave}>
       <section>
         <h3>Basics</h3>
-        <label class="field">
-          <span>Title<span class="req">*</span></span>
-          <input type="text" bind:value={form.title} placeholder="Manuscript title" />
-        </label>
+        <div class="row title-row">
+          <label class="field">
+            <span>Title<span class="req">*</span></span>
+            <input type="text" bind:value={form.title} placeholder="Manuscript title" />
+          </label>
+          <label class="field">
+            <span>Acronym</span>
+            <input type="text" bind:value={form.acronym} placeholder="MYPAPER" />
+          </label>
+        </div>
         <div class="row two-col">
           <label class="field">
             <span>Publication date</span>
@@ -302,29 +319,43 @@
           Zenodo treats <code>affiliation</code> as a single string. For
           multi-affiliation authors, edit
           <code>_longform.author_affiliations</code> directly in the JSON file.
+          Check <strong>Corresponding</strong> to mark an author; their
+          <code>email</code> is printed as the “Corresponding author” line.
         </p>
         <div class="creators">
           {#each form.creators as creator, i (i)}
             <div class="creator-row">
-              <div class="creator-fields">
-                <input
-                  type="text"
-                  bind:value={creator.name}
-                  placeholder="Family, Given"
-                  class="creator-name"
-                />
-                <input
-                  type="text"
-                  bind:value={creator.affiliation}
-                  placeholder="Affiliation"
-                  class="creator-affil"
-                />
-                <input
-                  type="text"
-                  bind:value={creator.orcid}
-                  placeholder="0000-0000-0000-0000"
-                  class="creator-orcid"
-                />
+              <div class="creator-main">
+                <div class="creator-fields">
+                  <input
+                    type="text"
+                    bind:value={creator.name}
+                    placeholder="Family, Given"
+                    class="creator-name"
+                  />
+                  <input
+                    type="text"
+                    bind:value={creator.affiliation}
+                    placeholder="Affiliation"
+                    class="creator-affil"
+                  />
+                  <input
+                    type="text"
+                    bind:value={creator.orcid}
+                    placeholder="0000-0000-0000-0000"
+                    class="creator-orcid"
+                  />
+                  <input
+                    type="email"
+                    bind:value={creator.email}
+                    placeholder="email@example.org"
+                    class="creator-email"
+                  />
+                </div>
+                <label class="creator-corresponding">
+                  <input type="checkbox" bind:checked={creator.corresponding} />
+                  Corresponding author
+                </label>
               </div>
               <div class="creator-actions">
                 <button
@@ -350,38 +381,6 @@
               </div>
             </div>
           {/each}
-        </div>
-      </section>
-
-      <section>
-        <h3>Longform extras</h3>
-        <p class="muted small">
-          Plugin-specific keys under <code>_longform</code>. Zenodo ignores
-          these on upload.
-        </p>
-        <div class="row two-col">
-          <label class="field">
-            <span>Acronym</span>
-            <input type="text" bind:value={form.acronym} placeholder="MYPAPER" />
-          </label>
-          <label class="field">
-            <span>CSL style</span>
-            <input type="text" bind:value={form.csl} placeholder="nature" />
-          </label>
-        </div>
-        <label class="field">
-          <span>Pandoc template</span>
-          <input type="text" bind:value={form.template} placeholder="default" />
-        </label>
-        <div class="row two-col toggles">
-          <label class="toggle">
-            <input type="checkbox" bind:checked={form.lineno} />
-            <span>Line numbers</span>
-          </label>
-          <label class="toggle">
-            <input type="checkbox" bind:checked={form.figuresAtEnd} />
-            <span>Figures at end</span>
-          </label>
         </div>
       </section>
 
@@ -475,19 +474,10 @@
     margin-top: var(--size-4-3);
   }
 
-  .toggles {
-    align-items: center;
-    margin-top: var(--size-4-3);
-  }
-  .toggle {
-    display: flex;
-    align-items: center;
-    gap: var(--size-4-2);
-    color: var(--text-normal);
-    font-size: var(--font-ui-small);
-  }
-  .toggle input {
-    margin: 0;
+  .row.title-row {
+    display: grid;
+    grid-template-columns: 3fr 1fr;
+    gap: var(--size-4-3);
   }
 
   .creators {
@@ -505,14 +495,29 @@
     border-radius: var(--radius-s);
     background: var(--background-secondary);
   }
-  .creator-fields {
-    display: grid;
-    grid-template-columns: 1.2fr 1.6fr 1fr;
+  .creator-main {
+    display: flex;
+    flex-direction: column;
     gap: var(--size-4-2);
     flex: 1;
   }
+  .creator-fields {
+    display: grid;
+    grid-template-columns: 1.2fr 1.6fr 1fr 1.4fr;
+    gap: var(--size-4-2);
+  }
   .creator-fields input {
     width: 100%;
+  }
+  .creator-corresponding {
+    display: flex;
+    align-items: center;
+    gap: var(--size-4-1);
+    font-size: var(--font-ui-smaller);
+    color: var(--text-muted);
+  }
+  .creator-corresponding input {
+    width: auto;
   }
   .creator-actions {
     display: flex;
