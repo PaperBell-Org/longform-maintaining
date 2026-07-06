@@ -3,6 +3,8 @@ export interface ZenodoCreator {
   affiliation?: string;
   orcid?: string;
   gnd?: string;
+  /** Contact email; emitted as the `corresponding:` value for corresponding authors. */
+  email?: string;
 }
 
 export interface ZenodoContributor extends ZenodoCreator {
@@ -77,6 +79,7 @@ export function buildPandocYaml(metadata: ZenodoMetadata): string {
     name: string;
     affiliationIndices: number[];
     corresponding: boolean;
+    email: string;
   };
   const authorsOut: AuthorOut[] = metadata.creators.map((creator) => {
     const explicit = authorAffiliations[creator.name];
@@ -90,6 +93,7 @@ export function buildPandocYaml(metadata: ZenodoMetadata): string {
       name: creator.name,
       affiliationIndices: affilNames.map(indexFor),
       corresponding: correspondingSet.has(creator.name),
+      email: (creator.email ?? "").trim(),
     };
   });
 
@@ -104,7 +108,10 @@ export function buildPandocYaml(metadata: ZenodoMetadata): string {
       lines.push(`    affiliation: [${a.affiliationIndices.join(", ")}]`);
     }
     if (a.corresponding) {
-      lines.push(`    corresponding: ${yamlString("yes")}`);
+      // The LaTeX template prints this value as the "Corresponding author: …"
+      // line, so emit the author's email when available; fall back to the "yes"
+      // flag (still truthy for the author-name marker) when no email is given.
+      lines.push(`    corresponding: ${yamlString(a.email || "yes")}`);
     }
   }
 

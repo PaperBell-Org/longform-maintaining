@@ -39,9 +39,10 @@ describe("paperbell-minimal fixture: Add Zenodo Frontmatter", () => {
     expect(yaml).toContain('acronym: "PBMIN"');
     expect(yaml).toContain('lineno: "true"');
 
-    // Corresponding author is flagged.
+    // Corresponding author carries their email (printed as the
+    // "Corresponding author: …" line by the LaTeX template).
     expect(yaml).toMatch(
-      /- name: "Song, Shuang"\n {4}affiliation: \[1, 2\]\n {4}corresponding: "yes"/
+      /- name: "Song, Shuang"\n {4}affiliation: \[1, 2\]\n {4}corresponding: "song@gea\.mpg\.de"/
     );
     expect(yaml).toMatch(/- name: "Roe, Rick"\n {4}affiliation: \[3\]/);
 

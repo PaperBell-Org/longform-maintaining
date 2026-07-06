@@ -14,6 +14,7 @@ import {
 import {
   binSearchDirs,
   buildExecPath,
+  buildExportFilename,
   buildPandocArgs,
   DEFAULT_ASSETS_DIR,
   hasCitations,
@@ -44,6 +45,14 @@ export const RunPandocExportStep = makeBuiltinStep({
         type: CompileStepOptionType.Dropdown,
         dynamicChoices: "pandoc-templates",
         emptyLabel: "(use metadata template)",
+        default: "",
+      },
+      {
+        id: "filename",
+        name: "File name",
+        description:
+          "Name for the exported PDF. Variables: {title}, {acronym}, {date}, {csl}, {template}, {draft}. E.g. {acronym}_{date} → PBMIN_2026-07-01.pdf. The .pdf extension is added automatically. Leave blank to use the compiled manuscript's name.",
+        type: CompileStepOptionType.Text,
         default: "",
       },
       {
@@ -175,17 +184,34 @@ export const RunPandocExportStep = makeBuiltinStep({
       );
     }
 
-    // Output path: a folder (default = project folder), or a full *.pdf path.
+    // Output path. The directory comes from the "Pandoc output folder" setting
+    // (default = the project folder); the file name comes from the step's
+    // "File name" pattern ({title}/{acronym}/{date}/…), or the compiled
+    // manuscript's name when blank. A setting that ends in .pdf is still honored
+    // as a full output path, but only when no File name pattern is given.
     let outputFolder = (settings.pandocOutputFolder ?? "").trim();
     if (outputFolder.indexOf("<") !== -1) outputFolder = "";
+    const settingIsFullPath =
+      !!outputFolder && outputFolder.toLowerCase().endsWith(".pdf");
+    const filenamePattern = String(context.optionValues["filename"] ?? "");
+    const draftName =
+      context.draft.draftTitle || context.draft.title || "manuscript";
+
     let outputPath: string;
-    if (outputFolder && outputFolder.toLowerCase().endsWith(".pdf")) {
+    if (settingIsFullPath && !filenamePattern.trim()) {
       outputPath = resolveUserPath(outputFolder, base, home);
     } else {
-      const outDirAbs = outputFolder
+      const outDirAbs = settingIsFullPath
+        ? path.dirname(resolveUserPath(outputFolder, base, home))
+        : outputFolder
         ? resolveUserPath(outputFolder, base, home)
         : projectAbs;
-      outputPath = path.join(outDirAbs, `${acronym}_${date}.pdf`);
+      const filename = buildExportFilename(
+        filenamePattern,
+        { title: String(fm.title || draftName), acronym, date, csl, template, draft: draftName },
+        draftName
+      );
+      outputPath = path.join(outDirAbs, filename);
     }
 
     const inputFile = path.join(projectAbs, ".longform-pandoc-export.md");

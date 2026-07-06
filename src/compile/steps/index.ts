@@ -9,6 +9,7 @@ import { AddFrontmatterStep } from "./add-frontmatter";
 import { AddZenodoFrontmatterStep } from "./add-zenodo-frontmatter";
 import { ReplaceJsonPlaceholdersStep } from "./replace-json-placeholders";
 import { RunPandocExportStep } from "./pandoc-export";
+import { SupplementaryInfoStep } from "./supplementary-info";
 
 export const BUILTIN_STEPS = [
   AddFrontmatterStep,
@@ -21,5 +22,6 @@ export const BUILTIN_STEPS = [
   ReplaceJsonPlaceholdersStep,
   RunPandocExportStep,
   StripFrontmatterStep,
+  SupplementaryInfoStep,
   WriteToNoteStep,
 ];

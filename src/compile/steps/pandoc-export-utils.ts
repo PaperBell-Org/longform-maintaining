@@ -131,6 +131,53 @@ export function hasCitations(contents: string): boolean {
   );
 }
 
+/**
+ * Substitute `{var}` tokens in an output file-name pattern from `vars` (e.g.
+ * `{acronym}_{date}` → `PBMIN_2026-07-01`). Unknown tokens are left literally so
+ * a typo stays visible in the resulting name rather than silently vanishing.
+ */
+export function renderFilenamePattern(
+  pattern: string,
+  vars: Record<string, string>
+): string {
+  return pattern.replace(/\{(\w+)\}/g, (m, key) =>
+    Object.prototype.hasOwnProperty.call(vars, key) ? vars[key] : m
+  );
+}
+
+/**
+ * Make a string safe as a file name: drop path separators and characters
+ * illegal on common filesystems, collapse whitespace, and strip leading dots
+ * (no accidental hidden files). Falls back to "manuscript" if nothing is left.
+ */
+export function sanitizeExportFilename(name: string): string {
+  const cleaned = String(name)
+    .replace(/[/\\]+/g, "-")
+    // eslint-disable-next-line no-control-regex
+    .replace(/[:*?"<>|\u0000-\u001f]+/g, "-") // illegal / control chars (spaces kept)
+    .replace(/\s+/g, " ") // collapse whitespace runs
+    .replace(/^[.\-\s]+|[.\-\s]+$/g, "") // trim surrounding dots/dashes/space
+    .trim();
+  return cleaned || "manuscript";
+}
+
+/**
+ * Resolve the export PDF file name: render the user's pattern (or fall back to
+ * `fallbackName` when the pattern is blank), sanitize it, and ensure exactly one
+ * `.pdf` extension.
+ */
+export function buildExportFilename(
+  pattern: string,
+  vars: Record<string, string>,
+  fallbackName: string
+): string {
+  const rendered = pattern.trim()
+    ? renderFilenamePattern(pattern.trim(), vars)
+    : fallbackName;
+  const base = sanitizeExportFilename(rendered);
+  return /\.pdf$/i.test(base) ? base : base + ".pdf";
+}
+
 export type PandocArgPaths = {
   inputFile: string;
   defaultsFile: string;
