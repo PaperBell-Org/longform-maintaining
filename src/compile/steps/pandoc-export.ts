@@ -212,6 +212,22 @@ export const RunPandocExportStep = makeBuiltinStep({
       return input;
     }
 
+    // Ensure the output directory exists. Matters when exporting to a root
+    // folder outside the vault (settings' "Pandoc output folder") that may not
+    // have been created yet — otherwise pandoc's -o fails with a cryptic error.
+    const outputDir = path.dirname(outputPath);
+    try {
+      fs.mkdirSync(outputDir, { recursive: true });
+    } catch (e) {
+      throw new Error(
+        "Could not create the Pandoc output folder:\n  " +
+          outputDir +
+          "\n\n" +
+          (e as Error).message +
+          "\n\nCheck the 'Pandoc output folder' setting in Longform → Compile → Pandoc export."
+      );
+    }
+
     fs.writeFileSync(inputFile, input.contents, "utf8");
     try {
       await new Promise<void>((resolve, reject) => {
