@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 import { unzipSync, zipSync, strToU8, strFromU8 } from "fflate";
 import {
   buildExecPath,
+  buildExportFilename,
   buildPandocArgs,
   commonTopDir,
   COMMON_BIN_DIRS,
   hasCitations,
   parseExportFrontmatter,
+  renderFilenamePattern,
+  sanitizeExportFilename,
   resolveBinary,
   resolveUserPath,
 } from "src/compile/steps/pandoc-export-utils";
@@ -108,6 +111,57 @@ describe("resolveUserPath", () => {
     expect(resolveUserPath("assets/pandoc", "/vault", "/home/u")).toBe(
       "/vault/assets/pandoc"
     );
+  });
+});
+
+describe("renderFilenamePattern", () => {
+  const vars = { title: "A Study", acronym: "PBMIN", date: "2026-07-01" };
+
+  it("substitutes known {var} tokens", () => {
+    expect(renderFilenamePattern("{acronym}_{date}", vars)).toBe(
+      "PBMIN_2026-07-01"
+    );
+    expect(renderFilenamePattern("{title}", vars)).toBe("A Study");
+  });
+
+  it("leaves unknown tokens literal so typos stay visible", () => {
+    expect(renderFilenamePattern("{acronym}-{nope}", vars)).toBe(
+      "PBMIN-{nope}"
+    );
+  });
+});
+
+describe("sanitizeExportFilename", () => {
+  it("drops path separators and illegal chars but keeps spaces", () => {
+    expect(sanitizeExportFilename("A Study: v2/final")).toBe("A Study- v2-final");
+    expect(sanitizeExportFilename("my<name>|x")).toBe("my-name-x");
+  });
+
+  it("strips leading dots and falls back when empty", () => {
+    expect(sanitizeExportFilename("...hidden")).toBe("hidden");
+    expect(sanitizeExportFilename("   ")).toBe("manuscript");
+    expect(sanitizeExportFilename("/")).toBe("manuscript");
+  });
+});
+
+describe("buildExportFilename", () => {
+  const vars = { title: "A Study", acronym: "PBMIN", date: "2026-07-01" };
+
+  it("renders the pattern and appends .pdf", () => {
+    expect(buildExportFilename("{acronym}_{date}", vars, "Fallback")).toBe(
+      "PBMIN_2026-07-01.pdf"
+    );
+  });
+
+  it("falls back to the given name when the pattern is blank", () => {
+    expect(buildExportFilename("   ", vars, "Main Manuscript")).toBe(
+      "Main Manuscript.pdf"
+    );
+  });
+
+  it("does not double the .pdf extension", () => {
+    expect(buildExportFilename("{acronym}.pdf", vars, "x")).toBe("PBMIN.pdf");
+    expect(buildExportFilename("{acronym}.PDF", vars, "x")).toBe("PBMIN.PDF");
   });
 });
 

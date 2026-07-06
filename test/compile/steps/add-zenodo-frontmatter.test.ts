@@ -82,6 +82,38 @@ describe("buildPandocYaml", () => {
     expect(yaml).toMatch(/Roe, Rick"\n {4}affiliation: \[2\]\n {4}corresponding: "yes"/);
   });
 
+  it("emits the corresponding author's email when creators carry one", () => {
+    const yaml = buildPandocYaml({
+      ...baseMetadata,
+      creators: [
+        { name: "Doe, Jane", affiliation: "Org A", email: "  jane@a.edu  " },
+        { name: "Roe, Rick", affiliation: "Org B", email: "rick@b.edu" },
+      ],
+      _longform: { corresponding: ["Roe, Rick"] },
+    });
+    // Only the corresponding author's email is emitted, trimmed; the
+    // non-corresponding author's email is not.
+    expect(yaml).toMatch(
+      /Roe, Rick"\n {4}affiliation: \[2\]\n {4}corresponding: "rick@b.edu"/
+    );
+    expect(yaml).not.toContain("jane@a.edu");
+    expect(yaml).not.toContain('corresponding: "yes"');
+  });
+
+  it("falls back to the 'yes' flag when the corresponding author has no email", () => {
+    const yaml = buildPandocYaml({
+      ...baseMetadata,
+      creators: [
+        { name: "Doe, Jane", affiliation: "Org A", email: "jane@a.edu" },
+        { name: "Roe, Rick", affiliation: "Org B" },
+      ],
+      _longform: { corresponding: ["Roe, Rick"] },
+    });
+    expect(yaml).toMatch(
+      /Roe, Rick"\n {4}affiliation: \[2\]\n {4}corresponding: "yes"/
+    );
+  });
+
   it("emits keywords, journal, csl, template, and toggles", () => {
     const yaml = buildPandocYaml({
       ...baseMetadata,

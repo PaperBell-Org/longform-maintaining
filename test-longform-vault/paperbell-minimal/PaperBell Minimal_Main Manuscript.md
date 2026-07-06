@@ -4,7 +4,7 @@ date: "2026-07-01"
 authors:
   - name: "Song, Shuang"
     affiliation: [1, 2]
-    corresponding: "yes"
+    corresponding: "song@gea.mpg.de"
   - name: "Roe, Rick"
     affiliation: [3]
 affiliations:

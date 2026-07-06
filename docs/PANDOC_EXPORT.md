@@ -15,7 +15,8 @@ vault, so it can evolve independently and you can customize or contribute templa
    `PaperBell/pandoc/` in your vault.
 4. Add the **Run Pandoc Export** step to a compile workflow, after **Add Zenodo
    Frontmatter** and **Save as Note**, and compile. The PDF is written next to
-   your manuscript as `<acronym>_<date>.pdf`.
+   your manuscript, named after the compiled note (customize with the step's
+   **File name** option — see [Naming the PDF](#naming-the-pdf)).
 
 ## Prerequisites (system tools)
 
@@ -103,14 +104,56 @@ one workflow named "Manuscript" (`paperbell`) and another "SI" (a supplementary
 layout). The dropdown populates after you download assets via **Set up Pandoc
 export**.
 
+## Naming the PDF
+
+The **Run Pandoc Export** step's **File name** option controls the PDF's name.
+Leave it blank to use the **compiled manuscript's name** (the note produced by
+*Save as Note*). To customize, type a pattern with any of these variables:
+
+| Variable | From | Example |
+| --- | --- | --- |
+| `{title}` | frontmatter `title` | `A Minimal PaperBell Manuscript` |
+| `{acronym}` | `_longform.acronym` | `PBMIN` |
+| `{date}` | frontmatter `date` | `2026-07-01` |
+| `{csl}` | `_longform.csl` | `nature` |
+| `{template}` | resolved template | `paperbell` |
+| `{draft}` | the draft's name | `Main Manuscript` |
+
+For example `{acronym}_{date}` produces `PBMIN_2026-07-01.pdf`. The `.pdf`
+extension is added automatically, unknown `{tokens}` are left as-is (so a typo is
+visible), and characters illegal in file names are replaced with `-`.
+
+## Supplementary Information
+
+To export a **Supplementary Information (SI)** document, add the **Supplementary
+Information** step to that draft's workflow, after **Add Zenodo Frontmatter** and
+before **Save as Note** / **Run Pandoc Export**. Use a *separate* SI-only workflow
+(the main manuscript's workflow should not include this step). It:
+
+1. **S-numbers figures and tables** — prepends a raw-LaTeX block that redefines
+   `\thefigure`/`\thetable` to `S1`, `S2`, … (each SI is its own PDF, so the
+   counters start fresh). This is the only thing that produces S-numbering; the
+   template and Lua filters don't do it on their own.
+2. **Retitles** the document to `Supplementary Information for "<original title>"`.
+3. **Drops keywords** (an SI doesn't need them).
+4. **Replaces the abstract.** By default it auto-generates a one-line summary
+   listing the SI's top-level section headings — no AI and no `metadata.json`,
+   e.g. *"This document provides supplementary information for the main
+   manuscript, comprising: Supplementary Methods; Supplementary Results."* Fill in
+   the step's **Abstract** box to override it, or uncheck **Auto-summarize
+   sections** to leave it empty.
+
+Because the S-prefix comes from this step, you no longer need a `supplementary:
+true` flag in `metadata.json` for numbering.
+
 ## Exporting outside your vault
 
 By default the PDF lands next to the compiled manuscript, inside the vault. To
 keep PDFs out of the vault entirely, set **Pandoc output folder** to an absolute
 path — e.g. `~/Papers` or `/Users/me/Documents/Papers`. Every project then exports
-into that one folder as `<acronym>_<date>.pdf` (the `<acronym>` keeps files from
-different projects distinct). The folder is created automatically if it doesn't
-exist yet, so you can point it anywhere writable.
+into that one folder, named by the step's **File name** option (default: the
+compiled note's name). The folder is created automatically if it doesn't exist
+yet, so you can point it anywhere writable.
 
 ## Notes
 
