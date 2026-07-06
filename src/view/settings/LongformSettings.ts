@@ -128,11 +128,11 @@ export class LongformSettingsTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Pandoc output folder")
       .setDesc(
-        "Folder to write <acronym>_<date>.pdf into. Leave empty to write next to the compiled manuscript."
+        "Folder to write <acronym>_<date>.pdf into. Vault-relative, or an absolute path to export outside your vault (e.g. ~/Papers — ~ expands to your home folder; it's created if missing). Leave empty to write next to the compiled manuscript."
       )
       .addSearch((cb) => {
         new FolderSuggest(this.app, cb.inputEl);
-        cb.setPlaceholder("(next to manuscript)")
+        cb.setPlaceholder("(next to manuscript, or e.g. ~/Papers)")
           .setValue(settings.pandocOutputFolder)
           .onChange((v) => {
             pluginSettings.update((s) => ({ ...s, pandocOutputFolder: v }));

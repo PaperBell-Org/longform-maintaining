@@ -73,7 +73,7 @@ open a PR against the assets repository.
 | --- | --- | --- |
 | Pandoc assets URL | *(empty)* | The toolchain `.zip` to download. |
 | Pandoc assets folder | `PaperBell/pandoc` | Where the toolchain lives. Absolute or vault-relative. |
-| Pandoc output folder | *(next to manuscript)* | Where to write the PDF. |
+| Pandoc output folder | *(next to manuscript)* | Where to write the PDF. Vault-relative, or an absolute path (`~/Papers`, `/Users/me/Papers`) to export **outside the vault**. `~` expands to your home folder; the folder is created if missing. |
 | Bibliography | *(auto-detect)* | `.bib` for citations. Auto-detects `references.bib`/`mybib.bib` in the project. |
 | Pandoc binary | `pandoc` | Path to pandoc, if not on `PATH`. |
 
@@ -102,6 +102,15 @@ blank to use the project's `_longform.template`, or pick another preset — e.g.
 one workflow named "Manuscript" (`paperbell`) and another "SI" (a supplementary
 layout). The dropdown populates after you download assets via **Set up Pandoc
 export**.
+
+## Exporting outside your vault
+
+By default the PDF lands next to the compiled manuscript, inside the vault. To
+keep PDFs out of the vault entirely, set **Pandoc output folder** to an absolute
+path — e.g. `~/Papers` or `/Users/me/Documents/Papers`. Every project then exports
+into that one folder as `<acronym>_<date>.pdf` (the `<acronym>` keeps files from
+different projects distinct). The folder is created automatically if it doesn't
+exist yet, so you can point it anywhere writable.
 
 ## Notes
 
