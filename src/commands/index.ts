@@ -19,6 +19,7 @@ import {
 } from "./templates";
 import { startNewSession } from "./word-counts";
 import { setupPandocExport } from "./pandoc";
+import { markManuscriptSpan, insertManuscriptRef } from "./manuscript-refs";
 
 const commandBuilders = [
   compileCurrent,
@@ -39,6 +40,8 @@ const commandBuilders = [
   insertMultiSceneTemplate,
   insertSingleSceneTemplate,
   startNewSession,
+  markManuscriptSpan,
+  insertManuscriptRef,
 ];
 
 export function addCommands(plugin: LongformPlugin) {

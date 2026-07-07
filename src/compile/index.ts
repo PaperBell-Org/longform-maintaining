@@ -341,4 +341,143 @@ export const DEFAULT_WORKFLOWS: Record<string, SerializedWorkflow> = {
       },
     ],
   },
+
+  // ── PaperBell academic pipelines (see docs/PANDOC_EXPORT.md, 回复信手稿引用规范) ──
+  // Manuscript & SI keep HTML comments (remove-html-comments:false) so <!--ms:-->
+  // reference markers survive to the harvest pass; Pandoc drops the comments in the
+  // PDF anyway. Response/Cover Letter set run-pandoc-export's preset explicitly.
+  "PaperBell Manuscript": {
+    name: "PaperBell Manuscript",
+    description:
+      "Compile the main manuscript to PDF, then harvest line/figure numbers so a response letter can cite it.",
+    steps: [
+      { id: "strip-frontmatter", optionValues: {} },
+      { id: "concatenate-text", optionValues: { separator: "\\n\\n" } },
+      {
+        id: "remove-comments",
+        optionValues: {
+          "remove-markdown-comments": true,
+          "remove-html-comments": false,
+        },
+      },
+      {
+        id: "replace-json-placeholders",
+        optionValues: {
+          "json-file": "metadata.json, results.json",
+          "start-delim": "{{",
+          "end-delim": "}}",
+          "error-on-missing": false,
+        },
+      },
+      {
+        id: "add-zenodo-frontmatter",
+        optionValues: {
+          "metadata-file": "metadata.json",
+          "error-on-missing-file": true,
+        },
+      },
+      { id: "write-to-note", optionValues: { target: "$1_$2.md", "open-after": true } },
+      {
+        id: "run-pandoc-export",
+        optionValues: {
+          template: "",
+          "dry-run": false,
+          "open-after": true,
+          filename: "{acronym}_{date}",
+        },
+      },
+      { id: "harvest-manuscript-lines", optionValues: { enabled: true } },
+    ],
+  },
+  "PaperBell Supplementary": {
+    name: "PaperBell Supplementary",
+    description:
+      "Compile the Supplementary Information (S-numbered figures/tables) to PDF and harvest its line/figure numbers.",
+    steps: [
+      { id: "strip-frontmatter", optionValues: {} },
+      { id: "concatenate-text", optionValues: { separator: "\\n\\n" } },
+      {
+        id: "remove-comments",
+        optionValues: {
+          "remove-markdown-comments": true,
+          "remove-html-comments": false,
+        },
+      },
+      {
+        id: "replace-json-placeholders",
+        optionValues: {
+          "json-file": "metadata.json, results.json",
+          "start-delim": "{{",
+          "end-delim": "}}",
+          "error-on-missing": false,
+        },
+      },
+      {
+        id: "add-zenodo-frontmatter",
+        optionValues: {
+          "metadata-file": "metadata.json",
+          "error-on-missing-file": true,
+        },
+      },
+      {
+        id: "supplementary-info",
+        optionValues: { abstract: true, "summarize-sections": true },
+      },
+      { id: "write-to-note", optionValues: { target: "$1_$2.md", "open-after": true } },
+      {
+        id: "run-pandoc-export",
+        optionValues: {
+          template: "",
+          "dry-run": false,
+          "open-after": true,
+          filename: "{acronym}_SI_{date}",
+        },
+      },
+      { id: "harvest-manuscript-lines", optionValues: { enabled: true } },
+    ],
+  },
+  "PaperBell Response Letter": {
+    name: "PaperBell Response Letter",
+    description:
+      "Compile a response letter that cites the manuscript/SI (```manuscript / @id) with synced text, line numbers, and figure numbers from the latest Manuscript/SI compile.",
+    steps: [
+      { id: "strip-frontmatter", optionValues: {} },
+      { id: "concatenate-text", optionValues: { separator: "\\n\\n" } },
+      {
+        id: "add-zenodo-frontmatter",
+        optionValues: {
+          "metadata-file": "metadata.json",
+          "error-on-missing-file": false,
+        },
+      },
+      { id: "write-to-note", optionValues: { target: "$1_Response.md", "open-after": true } },
+      {
+        id: "run-pandoc-export",
+        optionValues: {
+          template: "response-letter",
+          "dry-run": false,
+          "open-after": true,
+          filename: "{acronym}_Response_{date}",
+        },
+      },
+    ],
+  },
+  "PaperBell Cover Letter": {
+    name: "PaperBell Cover Letter",
+    description: "Compile a submission cover letter (moderncv letterhead).",
+    steps: [
+      { id: "strip-frontmatter", optionValues: {} },
+      { id: "concatenate-text", optionValues: { separator: "\\n\\n" } },
+      { id: "write-to-note", optionValues: { target: "$1_Cover.md", "open-after": true } },
+      {
+        id: "run-pandoc-export",
+        optionValues: {
+          template: "cover_letter",
+          "dry-run": false,
+          "open-after": true,
+          filename: "{acronym}_Cover_{date}",
+        },
+      },
+    ],
+  },
 };

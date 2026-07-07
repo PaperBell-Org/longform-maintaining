@@ -9,6 +9,7 @@ import { AddFrontmatterStep } from "./add-frontmatter";
 import { AddZenodoFrontmatterStep } from "./add-zenodo-frontmatter";
 import { ReplaceJsonPlaceholdersStep } from "./replace-json-placeholders";
 import { RunPandocExportStep } from "./pandoc-export";
+import { HarvestManuscriptLinesStep } from "./harvest-manuscript-lines";
 import { SupplementaryInfoStep } from "./supplementary-info";
 
 export const BUILTIN_STEPS = [
@@ -21,6 +22,7 @@ export const BUILTIN_STEPS = [
   RemoveStrikethroughsStep,
   ReplaceJsonPlaceholdersStep,
   RunPandocExportStep,
+  HarvestManuscriptLinesStep,
   StripFrontmatterStep,
   SupplementaryInfoStep,
   WriteToNoteStep,

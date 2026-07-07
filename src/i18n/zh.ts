@@ -21,6 +21,8 @@ export const zh: Messages = {
   "cmd.insertMultiScene": "插入多场景 frontmatter",
   "cmd.insertSingleScene": "插入单场景 frontmatter",
   "cmd.startSession": "开始新的写作会话",
+  "cmd.markManuscriptSpan": "标记手稿引用片段",
+  "cmd.insertManuscriptRef": "插入手稿引用",
 
   // ── 通知与菜单 ────────────────────────────────────────────────────────
   "notice.pdfExport":

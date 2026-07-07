@@ -24,6 +24,8 @@ export const en = {
   "cmd.insertMultiScene": "Insert multi-scene frontmatter",
   "cmd.insertSingleScene": "Insert single-scene frontmatter",
   "cmd.startSession": "Start new writing session",
+  "cmd.markManuscriptSpan": "Mark manuscript reference span",
+  "cmd.insertManuscriptRef": "Insert manuscript reference",
 
   // ── Notices & menus ─────────────────────────────────────────────────────
   "notice.pdfExport":

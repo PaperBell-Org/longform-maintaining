@@ -308,7 +308,7 @@ export const RunPandocExportStep = makeBuiltinStep({
  * present, else the nearest `references.bib`/`mybib.bib` searched from the
  * draft folder up to the project root. Returns null when none is found.
  */
-function resolveBibliography(
+export function resolveBibliography(
   settings: { pandocBibliography?: string | null },
   context: CompileContext,
   base: string,
