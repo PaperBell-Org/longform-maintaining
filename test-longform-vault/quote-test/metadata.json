@@ -1,0 +1,26 @@
+{
+  "title": "Bilingual Quote Test",
+  "publication_date": "2026-07-07",
+  "upload_type": "publication",
+  "publication_type": "article",
+  "description": "A tiny fixture for eyeballing how English vs Chinese quotes and apostrophes render in the PDF export.",
+  "creators": [
+    {
+      "name": "Song, Shuang",
+      "affiliation": "Institute for Worked Examples",
+      "email": "song@gea.mpg.de"
+    }
+  ],
+  "keywords": ["quotes", "cjk", "test"],
+  "journal_title": "Journal of Reproducible Examples",
+  "version": "v1.0",
+  "_longform": {
+    "acronym": "QTEST",
+    "csl": "nature",
+    "template": "paperbell",
+    "lineno": false,
+    "figures_at_end": false,
+    "corresponding": ["Song, Shuang"],
+    "extra_yaml": "numbersections: false\n"
+  }
+}
