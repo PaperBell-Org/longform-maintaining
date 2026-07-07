@@ -110,6 +110,33 @@ migration & sync messages), and the **entire settings tab** are localized. Deepe
 still English — migrate them incrementally by wrapping their strings in `t()`. Command-palette
 names are read by Obsidian at registration, so a language change relabels them only after reload.
 
+## Pandoc assets — sync from the canonical vault
+
+The Pandoc export toolchain (filters / templates / defaults / csl) is **not** authored in this
+repo. Its single source of truth is a working vault's `脚本/Pandoc/` folder. This repo's
+`pandoc-assets/` is a **staging copy**: consumed by the test vault (via the `pandocAssetsFolder`
+setting) and packaged into the published assets zip (`pandocAssetsUrl`).
+
+**To pull the latest toolchain in:**
+
+```
+./scripts/sync-pandoc-assets.sh              # from the default source
+PANDOC_SRC=/path/to/Pandoc ./scripts/sync-pandoc-assets.sh
+./scripts/sync-pandoc-assets.sh --dry-run    # preview, change nothing
+```
+
+The script `rsync`s `filters/ defaults/ templates/ csl/` (with `--delete`) and then:
+- normalizes machine-specific paths in `defaults/*.yaml` — `crossrefYaml` → `${USERDATA}/…`,
+  and comments out every `bibliography:` line (the export step injects `--bibliography`; see
+  `src/compile/steps/pandoc-export-utils.ts`);
+- excludes docs (`*.md`), `.DS_Store`, and personal cover-letter identity assets
+  (signature / logo), dropping placeholders + a README so the `cover_letter` preset still builds.
+
+It is idempotent — re-run any time the canonical source changes. `pandoc-assets/` itself is
+**gitignored**, so a sync updates the local staging only; publish by zipping `pandoc-assets/` to
+the release the `pandocAssetsUrl` points at. Never hand-edit `pandoc-assets/` — change the
+canonical vault source and re-sync, or the next sync overwrites your edit.
+
 ## Dev
 
 - `npm run dev` builds into `test-longform-vault/.obsidian/plugins/longform-paperbell/` (the folder
