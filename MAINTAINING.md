@@ -86,6 +86,30 @@ and skips entirely when no bundle is installed.
 - Keep `manifest.json`, `manifest-beta.json`, and `package.json` versions in sync — the release
   workflow fails the build if the tag and `manifest.json` disagree.
 
+## Localization (i18n)
+
+Bilingual **zh / en** UI lives in `src/i18n/`:
+
+- `en.ts` is the **source of truth** for message keys; `zh.ts` must cover the same keys
+  (enforced by the `Messages` type and a completeness test in `test/i18n/`).
+- `translate(key, vars?)` — imperative, for `.ts` (command names, notices).
+- `t` — a reactive store for Svelte: `{$t("key")}` re-renders on language change.
+- `{name}`-style placeholders are filled from `vars`.
+
+**Language resolution** (`controller.ts`, `resolveLocale`): an explicit setting (`en`/`zh`)
+wins; otherwise `auto` follows the connected PaperBell host's language, then falls back to
+Obsidian's UI language. The `language` plugin setting (default `auto`) drives it; the settings
+tab re-renders live when the resolved locale changes.
+
+**Adding a string:** add the key to `en.ts` and `zh.ts`, then use `t("key")` / `translate("key")`.
+The completeness test fails if a locale is missing a key.
+
+**Coverage note:** the command palette, notices, folder menu, explorer shell (tabs / pane title /
+migration & sync messages), and the **entire settings tab** are localized. Deeper modals
+(new-project / new-draft / metadata / compile step editors) and compile-step descriptions are
+still English — migrate them incrementally by wrapping their strings in `t()`. Command-palette
+names are read by Obsidian at registration, so a language change relabels them only after reload.
+
 ## Dev
 
 - `npm run dev` builds into `test-longform-vault/.obsidian/plugins/longform-paperbell/` (the folder

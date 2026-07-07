@@ -4,6 +4,7 @@ import { activeFile } from "src/view/stores";
 import { drafts as draftsStore } from "src/model/stores";
 import { findScene } from "src/model/scene-navigation";
 import type { CommandBuilder } from "./types";
+import { translate } from "src/i18n";
 
 const checkIndent = (
   checking: boolean,
@@ -34,12 +35,12 @@ const checkIndent = (
 
 export const indentScene: CommandBuilder = (_plugin) => ({
   id: "longform-indent-scene",
-  name: "Indent scene",
+  name: translate("cmd.indentScene"),
   editorCheckCallback: (checking: boolean) => checkIndent(checking, "indent"),
 });
 
 export const unindentScene: CommandBuilder = (_plugin) => ({
   id: "longform-unindent-scene",
-  name: "Unindent scene",
+  name: translate("cmd.unindentScene"),
   editorCheckCallback: (checking: boolean) => checkIndent(checking, "unindent"),
 });

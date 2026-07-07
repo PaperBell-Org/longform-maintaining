@@ -1,7 +1,14 @@
 <script lang="ts">
   import { type ExplorerTab, selectedTab } from "src/view/stores";
+  import { t } from "src/i18n";
 
   export let tab: ExplorerTab;
+
+  const tabLabelKeys = {
+    Scenes: "explorer.tab.scenes",
+    Project: "explorer.tab.project",
+    Compile: "explorer.tab.compile",
+  } as const;
 </script>
 
 <button
@@ -64,7 +71,7 @@
       /></svg
     >
   {/if}
-  {tab}
+  {$t(tabLabelKeys[tab])}
 </button>
 
 <style>

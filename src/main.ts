@@ -53,6 +53,8 @@ import { WritingSessionTracker } from "./model/writing-session-tracker";
 import NewProjectModal from "./view/project-lifecycle/new-project-modal";
 import { LongformAPI } from "./api/LongformAPI";
 import { PaperBellClient } from "./paperbell/client";
+import { translate } from "./i18n";
+import { startLocaleSync } from "./i18n/controller";
 import { registerVariablePostProcessor } from "./view/variable-postprocessor";
 import { refreshPandocTemplates } from "./model/pandoc-templates";
 
@@ -71,6 +73,7 @@ export default class LongformPlugin extends Plugin {
   private unsubscribeSelectedDraft: Unsubscriber;
   private unsubscribeSessions: Unsubscriber;
   private unsubscribeGoalNotification: Unsubscriber;
+  private unsubscribeLocale: Unsubscriber;
   private userScriptObserver: UserScriptObserver;
   writingSessionTracker: WritingSessionTracker;
   public api: LongformAPI;
@@ -97,7 +100,7 @@ export default class LongformPlugin extends Plugin {
         }
         menu.addItem((item) => {
           item
-            .setTitle("Create PaperOut Project")
+            .setTitle(translate("menu.createProject"))
             .setIcon(ICON_NAME)
             .onClick(() => {
               new NewProjectModal(this.app, file).open();
@@ -137,6 +140,11 @@ export default class LongformPlugin extends Plugin {
     });
 
     await this.loadSettings();
+
+    // Resolve UI language from the saved preference (+ PaperBell/Obsidian) before
+    // commands and notices are created, so their labels use the right language.
+    this.unsubscribeLocale = startLocaleSync();
+
     this.addSettingTab(new LongformSettingsTab(this.app, this));
 
     this.storeVaultSync = new StoreVaultSync(this.app);
@@ -170,10 +178,7 @@ export default class LongformPlugin extends Plugin {
     // One-time hint that PDF export exists and how to set it up.
     this.app.workspace.onLayoutReady(() => {
       if (!get(pluginSettings).pandocSetupDismissed) {
-        new Notice(
-          "PaperOut To-Authors: PDF export is available. Run “Set up Pandoc export” from the command palette to check prerequisites.",
-          12000
-        );
+        new Notice(translate("notice.pdfExport"), 12000);
         pluginSettings.update((s) => ({ ...s, pandocSetupDismissed: true }));
       }
     });
@@ -192,6 +197,7 @@ export default class LongformPlugin extends Plugin {
   }
 
   onunload(): void {
+    this.unsubscribeLocale?.();
     this.paperBell?.destroy();
     this.userScriptObserver.destroy();
     this.storeVaultSync.destroy();
@@ -412,7 +418,7 @@ export default class LongformPlugin extends Plugin {
             !this.writingSessionTracker.goalsNotifiedFor.has(target)
           ) {
             this.writingSessionTracker.goalsNotifiedFor.add(target);
-            new Notice("Writing goal met!");
+            new Notice(translate("notice.goalMet"));
           }
         }
       }

@@ -12,6 +12,7 @@
   import { needsMigration } from "src/model/migration";
   import { getContext } from "svelte";
   import Tab from "./Tab.svelte";
+  import { t } from "src/i18n";
 
   const _migrate: () => void = getContext("migrate");
   function doMigration() {
@@ -31,26 +32,22 @@
 
 {#if $needsMigration}
   <div class="longform-explorer">
+    <p>{$t("explorer.migration.body1")}</p>
     <p>
-      Longform has been upgraded and requires a migration to a new format.
-      Deprecated index files will be deleted, and some scene files may move.
-      It’s recommended to back up your vault before migrating.
-    </p>
-    <p>
-      You can view the docs and an explanation of what this migration does <a
+      {$t("explorer.migration.body2Prefix")}<a
         href="https://github.com/kevboh/longform/blob/main/docs/MIGRATING_FROM_VERSION_1_TO_2.md"
-        >here</a
+        >{$t("explorer.migration.body2Link")}</a
       >.
     </p>
     <button class="longform-migrate-button" type="button" on:click={doMigration}
-      >Migrate</button
+      >{$t("explorer.migration.button")}</button
     >
   </div>
 {:else if $waitingForSync}
   <div class="longform-sync-wait">
     <div class="longform-spinner"></div>
     <div class="longform-sync-message">
-      Waiting for Obsidian Sync to complete...
+      {$t("explorer.syncWaiting")}
     </div>
   </div>
 {:else}

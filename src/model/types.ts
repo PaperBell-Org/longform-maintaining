@@ -80,6 +80,8 @@ export type WordCountSession = {
 
 export interface LongformPluginSettings {
   version: number;
+  // UI language: an explicit locale, or "auto" to follow PaperBell / Obsidian.
+  language: "auto" | "en" | "zh";
   selectedDraftVaultPath: string | null;
   workflows: Record<string, SerializedWorkflow> | null;
   userScriptFolder: string | null;
@@ -119,6 +121,7 @@ export const DEFAULT_SESSION_FILE = "longform-sessions.json";
 
 export const DEFAULT_SETTINGS: LongformPluginSettings = {
   version: LONGFORM_CURRENT_PLUGIN_DATA_VERSION,
+  language: "auto",
   selectedDraftVaultPath: null,
   workflows: null,
   userScriptFolder: null,
@@ -149,6 +152,7 @@ export const DEFAULT_SETTINGS: LongformPluginSettings = {
 
 export const TRACKED_SETTINGS_PATHS: (keyof LongformPluginSettings)[] = [
   "version",
+  "language",
   "projects",
   "selectedDraftVaultPath",
   "userScriptFolder",
@@ -178,6 +182,7 @@ export const TRACKED_SETTINGS_PATHS: (keyof LongformPluginSettings)[] = [
 
 export const PASSTHROUGH_SAVE_SETTINGS_PATHS: (keyof LongformPluginSettings)[] =
   [
+    "language",
     "sessionStorage",
     "userScriptFolder",
     "showWordCountInStatusBar",

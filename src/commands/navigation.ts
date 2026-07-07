@@ -1,4 +1,5 @@
 import type { App, PaneType } from "obsidian";
+import { translate } from "src/i18n";
 
 import { get } from "svelte/store";
 import { repeat } from "lodash";
@@ -39,7 +40,7 @@ const checkForLocation = (
 
 export const previousScene: CommandBuilder = (plugin) => ({
   id: "longform-previous-scene",
-  name: "Previous scene",
+  name: translate("cmd.previousScene"),
   editorCheckCallback: (checking: boolean) =>
     checkForLocation(
       checking,
@@ -53,7 +54,7 @@ export const previousScene: CommandBuilder = (plugin) => ({
 
 export const previousSceneAtIndent: CommandBuilder = (plugin) => ({
   id: "longform-previous-scene-at-level",
-  name: "Previous scene at indent level",
+  name: translate("cmd.previousSceneAtIndent"),
   editorCheckCallback: (checking: boolean) =>
     checkForLocation(
       checking,
@@ -67,7 +68,7 @@ export const previousSceneAtIndent: CommandBuilder = (plugin) => ({
 
 export const nextScene: CommandBuilder = (plugin) => ({
   id: "longform-next-scene",
-  name: "Next scene",
+  name: translate("cmd.nextScene"),
   editorCheckCallback: (checking: boolean) =>
     checkForLocation(
       checking,
@@ -81,7 +82,7 @@ export const nextScene: CommandBuilder = (plugin) => ({
 
 export const nextSceneAtIndent: CommandBuilder = (plugin) => ({
   id: "longform-next-scene-at-level",
-  name: "Next scene at indent level",
+  name: translate("cmd.nextSceneAtIndent"),
   editorCheckCallback: (checking: boolean) =>
     checkForLocation(
       checking,
@@ -95,7 +96,7 @@ export const nextSceneAtIndent: CommandBuilder = (plugin) => ({
 
 export const focusCurrentDraft: CommandBuilder = () => ({
   id: "longform-focus-current-draft",
-  name: "Open current note’s project",
+  name: translate("cmd.openCurrentProject"),
   editorCheckCallback(checking) {
     const path = get(activeFile).path;
     const drafts = get(draftsStore);
@@ -134,7 +135,7 @@ const showLeaf = (plugin: LongformPlugin) => {
 
 export const showLongform: CommandBuilder = (plugin) => ({
   id: "longform-show-view",
-  name: "Open Longform pane",
+  name: translate("cmd.openPane"),
   callback: () => {
     showLeaf(plugin);
   },
@@ -142,7 +143,7 @@ export const showLongform: CommandBuilder = (plugin) => ({
 
 export const jumpToProject: CommandBuilder = (plugin) => ({
   id: "longform-jump-to-project",
-  name: "Jump to project",
+  name: translate("cmd.jumpToProject"),
   callback: () => {
     const projectCallback = (project: Draft[]) => {
       if (project && project.length > 0) {
@@ -214,7 +215,7 @@ export const jumpToProject: CommandBuilder = (plugin) => ({
 
 export const jumpToScene: CommandBuilder = (plugin) => ({
   id: "longform-jump-to-scene",
-  name: "Jump to scene in current project",
+  name: translate("cmd.jumpToScene"),
   checkCallback(checking) {
     const currentDraft = get(selectedDraft);
     if (
@@ -266,7 +267,7 @@ export const jumpToScene: CommandBuilder = (plugin) => ({
 
 export const revealProjectFolder: CommandBuilder = (plugin) => ({
   id: "longform-reveal-project-folder",
-  name: "Reveal current project in navigation",
+  name: translate("cmd.revealProject"),
   checkCallback(checking) {
     const path = get(selectedDraftVaultPath);
     if (checking) {
@@ -294,7 +295,7 @@ export const revealProjectFolder: CommandBuilder = (plugin) => ({
 
 export const focusNewSceneField: CommandBuilder = (plugin) => ({
   id: "longform-focus-new-scene-field",
-  name: "Focus new scene field",
+  name: translate("cmd.focusNewScene"),
   checkCallback(checking) {
     const draft = get(selectedDraft);
     if (checking) {
