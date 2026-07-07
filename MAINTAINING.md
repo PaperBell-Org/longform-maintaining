@@ -137,6 +137,24 @@ It is idempotent — re-run any time the canonical source changes. `pandoc-asset
 the release the `pandocAssetsUrl` points at. Never hand-edit `pandoc-assets/` — change the
 canonical vault source and re-sync, or the next sync overwrites your edit.
 
+### Library overrides (ahead of the canonical vault)
+
+`pandoc-assets-overrides/` (git-tracked) holds files where **this library is ahead of the vault**.
+After the rsync + normalize, the sync copies these on top and applies small patches, so the
+improvement survives every re-sync (the gitignored `pandoc-assets/` alone would be clobbered).
+
+Current overrides:
+- `filters/quotes-i18n.lua` — bilingual quotes done right: English quotes/apostrophes via
+  `\textquote…{}` commands, Chinese quotes full-width, **plus** the vault's smart-boundary fix
+  (`他说"你好"` typed tight against CJK). Because English no longer relies on the xeCJK
+  `Default`-class, the sync also **strips the `\xeCJKDeclareCharClass{Default}` block from
+  `templates/paperbell.latex`** so Chinese quotes stay full-width. (Kept in `responseletter.sty`
+  / `cover_letter.latex`: English-only products with no `quotes-i18n` filter.)
+
+When the vault catches up (copy the override into `脚本/Pandoc/` and delete the template block
+there), remove it from `pandoc-assets-overrides/` and the corresponding patch in the sync script —
+then it's a plain synced file again.
+
 ## Dev
 
 - `npm run dev` builds into `test-longform-vault/.obsidian/plugins/longform-paperbell/` (the folder
