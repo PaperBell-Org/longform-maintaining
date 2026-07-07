@@ -35,3 +35,16 @@ test-longform-vault/.obsidian/plugins/longform/*.json
 /test-longform-vault/longform-sessions.json
 *.pdf
 pandoc-assets
+
+# generated compile artifacts in the test vault (regenerated on every compile)
+# — harvest sidecars (reference-sync line/figure/table numbers)
+test-longform-vault/**/manuscript-lines.json
+test-longform-vault/**/si-lines.json
+test-longform-vault/**/figure-numbers.json
+test-longform-vault/**/table-numbers.json
+# — write-to-note compiled outputs (<title>_<draftTitle>.md) and temp files
+test-longform-vault/**/*_Main Manuscript.md
+test-longform-vault/**/*_Supplementary.md
+test-longform-vault/**/*_Response Letter.md
+test-longform-vault/**/*_Main.md
+test-longform-vault/**/.longform-*.md
