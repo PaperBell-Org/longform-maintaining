@@ -285,7 +285,7 @@ export const revealProjectFolder: CommandBuilder = (plugin) => ({
       ].instance.revealInFolder(parent);
     } catch (error) {
       console.error(
-        "[Longform] Error calling file-explorer.revealInFolder:",
+        "[PaperOut] Error calling file-explorer.revealInFolder:",
         error
       );
     }

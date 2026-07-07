@@ -1,9 +1,6 @@
-## Longform
+## PaperOut To-Authors
 
-Longform is a plugin for [Obsidian](https://obsidian.md) that helps you write and edit novels, screenplays, and other long projects. It lets you organize a series of notes, or _scenes_, into an ordered manuscript. It also supports single-note projects for shorter works.
-
-> [!TIP]
-> If you’d like a way to sync, share your manuscripts with others, and edit them on the web check out my other project, [screen.garden](https://screen.garden).
+**PaperOut To-Authors** is a plugin for [Obsidian](https://obsidian.md) for writing and exporting academic manuscripts. It is part of the **PaperBell** suite and a fork of [Longform](https://github.com/kevboh/longform) (originally by Kevin Barrett): it keeps Longform's project/scene organization and compile workflow, and adds an academic writing/export pipeline on top. It organizes a series of notes, or _scenes_, into an ordered manuscript, and also supports single-note projects for shorter works.
 
 Major features include:
 
@@ -17,21 +14,21 @@ Major features include:
 
 A Getting Started guide follows; there is also reasonably-complete [documentation](./docs/).
 
-> **PaperBell fork:** this build adds an academic writing/export pipeline — shared `metadata.json`, `{{Variable}}` placeholders, and a **Run Pandoc Export** compile step that produces a typeset PDF. The Pandoc toolchain (filters/templates/CSL) is downloaded on demand from a separate assets repository, not bundled. Run the **Set up Pandoc export** command to get started; see [docs/PANDOC_EXPORT.md](./docs/PANDOC_EXPORT.md).
+> **Academic pipeline:** on top of Longform, PaperOut To-Authors adds shared `metadata.json`, `{{Variable}}` placeholders, and a **Run Pandoc Export** compile step that produces a typeset PDF. The Pandoc toolchain (filters/templates/CSL) is downloaded on demand from a separate assets repository, not bundled. Run the **Set up Pandoc export** command to get started; see [docs/PANDOC_EXPORT.md](./docs/PANDOC_EXPORT.md).
 
 ## Installing
 
-Longform is in the Community Plugins section of Obsidian’s settings. You may also install it manually by copying the `main.js`, `manifest.json`, and `styles.css` files from a release into a `longform/` folder in the `.obsidian/plugins` folder of your vault. The Community Plugins interface is preferred.
+PaperOut To-Authors is distributed as a beta plugin (install it with [BRAT](https://github.com/TfTHacker/obsidian42-brat), pointing at this repository). You may also install it manually by copying the `main.js`, `manifest.json`, and `styles.css` files from a release into a `longform-paperbell/` folder in the `.obsidian/plugins` folder of your vault.
 
 ## Getting Started
 
-Longform works by searching your vault for any note that contains a frontmatter entry named `longform` (don’t worry if you don’t know what that means; Longform includes tools to help you generate these files). You can think of these notes as the “spines” or tables of contents of your projects. Let‘s walk through creating two different Longform projects: a novel and a short story.
+PaperOut To-Authors works by searching your vault for any note that contains a frontmatter entry named `longform` (don’t worry if you don’t know what that means; the plugin includes tools to help you generate these files). You can think of these notes as the “spines” or tables of contents of your projects. Let‘s walk through creating two different projects: a novel and a short story.
 
 ### Creating a Novel
 
-1. To begin, find or create a folder somewhere in your vault in which you’d like to create your novel. Right-click it and select `Create Longform Project`.
+1. To begin, find or create a folder somewhere in your vault in which you’d like to create your novel. Right-click it and select `Create PaperOut Project`.
 
-![Create Longform Project menu item](./docs/res/walkthrough-create-longform-project.png)
+![Create PaperOut Project menu item](./docs/res/walkthrough-create-longform-project.png)
 
 2. A `Create Project` modal will appear. This modal lets us choose between Multi- and Single-scene project types. We’re creating a novel, so we’ll stick with Multi. The text under the project type switch explains a little about how each type of project works.
 
@@ -72,7 +69,7 @@ This is how Longform tracks your work.
 
 Longform also supports [single-scene projects](./docs/SINGLE_SCENE_PROJECTS.md) that live as a single note in your vault. Let’s create one.
 
-1. Right-click the enclosing folder as before and select the `Create Longform Project` menu item.
+1. Right-click the enclosing folder as before and select the `Create PaperOut Project` menu item.
 
 2. In the Create Project modal, choose `Single`. Let’s write something noirish and call it `On the Rooftops`.
 

@@ -48,7 +48,7 @@ export class ExplorerPane extends ItemView {
   }
 
   getDisplayText(): string {
-    return "Longform";
+    return "PaperOut To-Authors";
   }
 
   getIcon(): string {

@@ -12,6 +12,11 @@ main.js
 test-longform-vault/.obsidian/plugins/longform-paperbell/pandoc-assets
 test-longform-vault/PaperBell
 
+# PaperBell host plugin — a collaborator's pre-release, installed locally only for
+# live handshake testing. We stay decoupled from its main features, so its binary
+# must NOT enter our repo. Drop the paperbell-*.zip contents here to test.
+test-longform-vault/.obsidian/plugins/paperbell/
+
 # obsidian
 data.json
 

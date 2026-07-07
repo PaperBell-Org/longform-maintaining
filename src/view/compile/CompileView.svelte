@@ -318,7 +318,7 @@
         });
         compiledCount++;
       } catch (error) {
-        console.error("[Longform]", error);
+        console.error("[PaperOut]", error);
         new Notice(`Failed to compile ${label}. See console for details.`);
       }
     }

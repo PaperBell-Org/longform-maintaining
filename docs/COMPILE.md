@@ -156,7 +156,7 @@ The manuscript text `We collected {{ summary.n }} samples (first: {{ samples[0].
 
 _Manuscript_
 
-Exports the compiled manuscript to a typeset PDF via [Pandoc](https://pandoc.org) (PaperBell pipeline), reading the template/CSL/acronym/date from the frontmatter that **Add Zenodo Frontmatter** produced. The Pandoc toolchain (filters, templates, CSL, defaults) ships with the plugin, so no external assets are required. Desktop only. Run it after **Add Zenodo Frontmatter** (and usually **Save as Note**).
+Exports the compiled manuscript to a typeset PDF via [Pandoc](https://pandoc.org) (PaperBell pipeline), reading the template/CSL/acronym/date from the frontmatter that **Add Zenodo Frontmatter** produced. The Pandoc toolchain (filters, templates, CSL, defaults) is **downloaded on demand** from a separate assets repository — not bundled — so run **Set up Pandoc export** once to fetch it. Desktop only. Run it after **Add Zenodo Frontmatter** (and usually **Save as Note**).
 
 Options are **Dry run** (log the pandoc command instead of running it) and **Open PDF after export**. Paths (assets folder, output folder, bibliography, pandoc binary) are configured once in **Settings → Compile → Pandoc export**. Run the **Set up Pandoc export** command for a prerequisites checklist. See [PANDOC_EXPORT.md](./PANDOC_EXPORT.md) for the full guide.
 

@@ -234,7 +234,7 @@ export async function compile(
     const kind = index < kinds.length ? kinds[index] : null;
     if (kind === null) {
       const error = `No step kind data for step at position ${index}.`;
-      console.error(`[Longform] ${error}`);
+      console.error(`[PaperOut] ${error}`);
       statusCallback({
         kind: "CompileStatusError",
         error,
@@ -255,7 +255,7 @@ export async function compile(
     };
 
     console.log(
-      `[Longform] Running compile step ${step.description.name} with context:`,
+      `[PaperOut] Running compile step ${step.description.name} with context:`,
       context
     );
 
@@ -281,7 +281,7 @@ export async function compile(
         currentInput = await step.compile(currentInput, context);
       }
     } catch (error) {
-      console.error("[Longform]", error);
+      console.error("[PaperOut]", error);
       const detail =
         error instanceof Error ? error.stack ?? error.message : String(error);
       statusCallback({
@@ -293,7 +293,7 @@ export async function compile(
   }
 
   console.log(
-    `[Longform] Compile workflow "${workflow.name}" finished with final result:`,
+    `[PaperOut] Compile workflow "${workflow.name}" finished with final result:`,
     currentInput
   );
 

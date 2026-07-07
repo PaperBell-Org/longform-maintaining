@@ -10,6 +10,7 @@ import { get } from "svelte/store";
 
 import type LongformPlugin from "../../main";
 import { pluginSettings, userScriptSteps } from "src/model/stores";
+import { paperbell } from "src/paperbell/store";
 import { FolderSuggest } from "./folder-suggest";
 import { DEFAULT_SESSION_FILE } from "src/model/types";
 import { FileSuggest } from "./file-suggest";
@@ -398,11 +399,56 @@ export class LongformSettingsTab extends PluginSettingTab {
         });
       });
 
+    // PaperBell host integration (optional; standalone-safe).
+    new Setting(containerEl).setName("PaperBell").setHeading();
+    const pb = get(paperbell);
+    if (pb.connected) {
+      const account = pb.config?.account;
+      const status = account?.displayName
+        ? `Connected to PaperBell — ${account.displayName}${
+            account.plan ? ` (${account.plan})` : ""
+          }.`
+        : "Connected to PaperBell.";
+      containerEl.createEl("p", { cls: "setting-item-description" }, (el) => {
+        el.setText(status);
+      });
+      new Setting(containerEl)
+        .setName("Account & shared settings")
+        .setDesc(
+          "Fetch your PaperBell account and shared config (language, AI). PaperBell asks for your consent the first time."
+        )
+        .addButton((b) =>
+          b
+            .setButtonText(pb.config ? "Refresh" : "Connect")
+            .onClick(async () => {
+              await this.plugin.paperBell.fetchSharedConfig();
+              this.display();
+            })
+        );
+      if (pb.capabilities.includes("llm-invoke")) {
+        containerEl.createEl(
+          "p",
+          { cls: "setting-item-description" },
+          (el) => {
+            el.setText(
+              "AI features are available through PaperBell — no API key is stored in this plugin."
+            );
+          }
+        );
+      }
+    } else {
+      containerEl.createEl("p", { cls: "setting-item-description" }, (el) => {
+        el.setText(
+          "PaperBell is not connected. Install and enable the PaperBell plugin to follow its language and enable AI features. This plugin works fully without it."
+        );
+      });
+    }
+
     new Setting(containerEl).setName("Credits").setHeading();
 
     containerEl.createEl("p", {}, (el) => {
       el.innerHTML =
-        'Longform (PaperBell) — a fork of <a href="https://github.com/kevboh/longform">Longform</a>, originally written by <a href="https://kevinbarrett.org">Kevin Barrett</a>. Maintained by <a href="https://github.com/PaperBell-Org">PaperBell-Org</a>.';
+        'PaperOut To-Authors — part of the PaperBell suite, a fork of <a href="https://github.com/kevboh/longform">Longform</a>, originally written by <a href="https://kevinbarrett.org">Kevin Barrett</a>. Maintained by <a href="https://github.com/PaperBell-Org">PaperBell-Org</a>.';
     });
     containerEl.createEl("p", {}, (el) => {
       el.innerHTML =

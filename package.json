@@ -1,14 +1,14 @@
 {
-  "name": "longform",
+  "name": "paperout-to-authors",
   "version": "2.2.0-beta.11",
-  "description": "Write novels, screenplays, and other long projects in Obsidian (https://obsidian.md).",
+  "description": "PaperOut To-Authors — write and export academic manuscripts in Obsidian (https://obsidian.md). Part of the PaperBell suite; a fork of Longform.",
   "main": "main.js",
   "scripts": {
     "lint": "svelte-check --tsconfig tsconfig.json --fail-on-hints && eslint . --ext .ts",
     "test:unit": "vitest",
     "dev": "rollup --config rollup.config.js -w",
     "build": "npm run lint && rollup --config rollup.config.js --environment BUILD:production",
-    "version": "node version-bump.mjs && git add manifest.json versions.json"
+    "version": "node version-bump.mjs && git add manifest.json manifest-beta.json versions.json"
   },
   "keywords": [],
   "author": "PaperBell-Org (https://github.com/PaperBell-Org)",

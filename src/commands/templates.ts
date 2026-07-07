@@ -26,7 +26,7 @@ const callbackForFormat = (
     return false;
   } else if (draft) {
     console.log(
-      `[Longform] Attempted to insert frontmatter into existing draft at ${file.path}; ignoring.`
+      `[PaperOut] Attempted to insert frontmatter into existing draft at ${file.path}; ignoring.`
     );
   } else if (checking) {
     return true;

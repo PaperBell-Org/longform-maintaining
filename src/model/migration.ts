@@ -21,7 +21,7 @@ export function determineMigrationStatus(settings: LongformPluginSettings) {
 export async function migrate(settings: LongformPluginSettings, app: App) {
   if (settings.version >= LONGFORM_CURRENT_PLUGIN_DATA_VERSION) {
     console.log(
-      `[Longform] Attempted to migrate settings with version ${settings.version} > current (${LONGFORM_CURRENT_PLUGIN_DATA_VERSION}); ignoring.`
+      `[PaperOut] Attempted to migrate settings with version ${settings.version} > current (${LONGFORM_CURRENT_PLUGIN_DATA_VERSION}); ignoring.`
     );
     return;
   }
@@ -38,7 +38,7 @@ export async function migrate(settings: LongformPluginSettings, app: App) {
 
       const projectPaths = Object.keys(settings.projects);
       for (const projectPath of projectPaths) {
-        console.log(`[Longform] Migrating ${projectPath} to Projects 2.0…`);
+        console.log(`[PaperOut] Migrating ${projectPath} to Projects 2.0…`);
         const project = settings.projects[projectPath];
         const normalizedProjectPath = normalizePath(projectPath);
 
@@ -68,7 +68,7 @@ export async function migrate(settings: LongformPluginSettings, app: App) {
           await app.vault.adapter.append(indexPath, INDEX_MIGRATION_NOTICE);
         } catch (error) {
           console.log(
-            `[Longform] Error appending deprecation notice to old index file`,
+            `[PaperOut] Error appending deprecation notice to old index file`,
             error
           );
         }
@@ -100,7 +100,7 @@ export async function migrate(settings: LongformPluginSettings, app: App) {
             ),
             normalizedProjectPath
           );
-          console.log(`[Longform] Wrote only draft to ${vaultPath}`);
+          console.log(`[PaperOut] Wrote only draft to ${vaultPath}`);
         } else {
           for (const oldDraft of drafts) {
             const vaultPathParent = normalizePath(
@@ -110,7 +110,7 @@ export async function migrate(settings: LongformPluginSettings, app: App) {
               await app.vault.createFolder(vaultPathParent);
             } catch (error) {
               console.log(
-                `[Longform] Error creating folder during migration`,
+                `[PaperOut] Error creating folder during migration`,
                 error
               );
             }
@@ -141,7 +141,7 @@ export async function migrate(settings: LongformPluginSettings, app: App) {
               ),
               vaultPathParent
             );
-            console.log(`[Longform] Wrote ${oldDraft.name} to ${vaultPath}`);
+            console.log(`[PaperOut] Wrote ${oldDraft.name} to ${vaultPath}`);
           }
         }
       }
