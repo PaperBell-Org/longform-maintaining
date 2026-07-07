@@ -103,24 +103,4 @@ replace them with your own logo (PDF) and signature (PNG), keeping the same file
 or change the names in `defaults/cover_letter.yaml`.
 EOF
 
-# ── 4. apply library overrides (improvements ahead of the canonical vault) ───
-# These are version-controlled in pandoc-assets-overrides/ and re-applied on every
-# sync so they survive (the canonical vault doesn't have them yet). Push them
-# upstream to the vault when ready, then they become plain synced files.
-OVERRIDES="$REPO_ROOT/pandoc-assets-overrides"
-if [[ -d "$OVERRIDES" ]]; then
-  printf '── applying library overrides ──\n'
-  rsync -a --exclude='.DS_Store' --itemize-changes "$OVERRIDES/" "$DEST/" | sed 's/^/  /' || true
-  # our quotes-i18n.lua renders English quotes via \textquote commands, so
-  # paperbell.latex no longer needs the xeCJK Default-class fix — drop it so CJK
-  # quotes stay full-width. (Kept in responseletter.sty / cover_letter.latex:
-  # English-only products, which have no quotes-i18n filter in their pipeline.)
-  if [[ -f "$DEST/templates/paperbell.latex" ]] \
-     && grep -q 'xeCJKDeclareCharClass{Default}' "$DEST/templates/paperbell.latex"; then
-    perl -ni -e 'print unless (/East-Asian/ .. /xeCJKDeclareCharClass\{Default\}/)' \
-      "$DEST/templates/paperbell.latex"
-    printf '  patched: templates/paperbell.latex (dropped xeCJK Default-class → full-width CJK quotes)\n'
-  fi
-fi
-
 printf '── sync complete ──\n'
