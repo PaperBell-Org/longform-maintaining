@@ -24,6 +24,7 @@
   import { draftTitle } from "src/model/draft-utils";
   import { projectRootPath } from "src/model/project-resources";
   import CompileStepView from "./CompileStepView.svelte";
+  import CompileMatrixModal from "./compile-matrix";
   import SortableList from "../sortable/SortableList.svelte";
   import AutoTextArea from "../components/AutoTextArea.svelte";
   import type { Draft } from "src/model/types";
@@ -267,69 +268,10 @@
     );
   }
 
-  async function doCompileAll() {
-    const projectDrafts = $selectedProject ?? [];
-    if (projectDrafts.length === 0) {
-      return;
-    }
-
-    const projectRoot = projectRootPath(projectDrafts);
-
-    isCompiling = true;
-    let compiledCount = 0;
-
-    for (let i = 0; i < projectDrafts.length; i++) {
-      const draft = projectDrafts[i];
-      const label = `${draftTitle(draft)} (${i + 1}/${projectDrafts.length})`;
-
-      const workflow = draft.workflow
-        ? $workflows[draft.workflow]
-        : $currentWorkflow;
-      if (!workflow) {
-        new Notice(`Skipped ${label}: no workflow assigned.`);
-        continue;
-      }
-
-      const [validationResult, kinds] = calculateWorkflow(
-        workflow,
-        draft.format === "scenes"
-      );
-      if (validationResult.error !== WorkflowError.Valid) {
-        new Notice(`Skipped ${label}: ${validationResult.error}`);
-        continue;
-      }
-
-      // Prefix per-step status with which draft we're on; swallow the per-draft
-      // success notice so we only announce once at the end.
-      const wrappedStatus = (status: CompileStatus) => {
-        if (status.kind === "CompileStatusStep") {
-          compileStatus.innerText = `Compiling ${label} — step ${
-            status.stepIndex + 1
-          }/${status.totalSteps}`;
-        } else if (status.kind === "CompileStatusError") {
-          onCompileStatusChange(status);
-        }
-      };
-
-      try {
-        await compile(draft, workflow, kinds, wrappedStatus, {
-          suppressOpenAfter: true,
-          projectRoot,
-        });
-        compiledCount++;
-      } catch (error) {
-        console.error("[PaperOut]", error);
-        new Notice(`Failed to compile ${label}. See console for details.`);
-      }
-    }
-
-    isCompiling = false;
-    compileStatus.innerText = `Compiled ${compiledCount} draft${
-      compiledCount === 1 ? "" : "s"
-    }.`;
-    compileStatus.classList.add("compile-status-success");
-    restoreDefaultStatusAfter();
-    new Notice(`Compiled ${compiledCount} draft${compiledCount === 1 ? "" : "s"}.`);
+  // "Compile All Drafts" opens the Compile Matrix board (reorder, batch config,
+  // then run) rather than compiling immediately.
+  function openCompileMatrix() {
+    new CompileMatrixModal(app).open();
   }
 </script>
 
@@ -459,10 +401,10 @@
           {#if $selectedProjectHasMultipleDrafts}
             <button
               class="compile-button"
-              on:click={doCompileAll}
+              on:click={openCompileMatrix}
               disabled={isCompiling}
-              title="Compile every draft in this project, each to its own file."
-              >Compile All Drafts</button
+              title="Open the compile matrix: reorder drafts, batch-configure, and run each with live progress."
+              >Compile All Drafts…</button
             >
           {/if}
         </div>

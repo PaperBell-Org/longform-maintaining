@@ -30,6 +30,17 @@ export const zh: Messages = {
   "notice.goalMet": "已达成写作目标!",
   "menu.createProject": "新建 PaperOut 项目",
 
+  // ── 批量编译看板 ──────────────────────────────────────────────────────
+  "matrix.title": "批量编译",
+  "matrix.drafts": "个草稿",
+  "matrix.dryRun": "干跑",
+  "matrix.openPdf": "打开 PDF",
+  "matrix.harvest": "抓行号",
+  "matrix.run": "运行",
+  "matrix.running": "运行中…",
+  "matrix.skipped": "已跳过",
+  "matrix.reorderHint": "拖动行来设定编译顺序(从上到下)。",
+
   // ── 资源管理器面板 ────────────────────────────────────────────────────
   "explorer.paneTitle": "PaperOut To-Authors",
   "explorer.tab.scenes": "场景",

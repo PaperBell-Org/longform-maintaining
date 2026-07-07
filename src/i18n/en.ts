@@ -33,6 +33,17 @@ export const en = {
   "notice.goalMet": "Writing goal met!",
   "menu.createProject": "Create PaperOut Project",
 
+  // ── Compile matrix ──────────────────────────────────────────────────────
+  "matrix.title": "Compile All Drafts",
+  "matrix.drafts": "drafts",
+  "matrix.dryRun": "Dry run",
+  "matrix.openPdf": "Open PDFs",
+  "matrix.harvest": "Harvest lines",
+  "matrix.run": "Run",
+  "matrix.running": "Running…",
+  "matrix.skipped": "skipped",
+  "matrix.reorderHint": "Drag rows to set the compile order (top → bottom).",
+
   // ── Explorer pane ───────────────────────────────────────────────────────
   "explorer.paneTitle": "PaperOut To-Authors",
   "explorer.tab.scenes": "Scenes",
