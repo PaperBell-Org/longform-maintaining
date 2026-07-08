@@ -1,9 +1,9 @@
 {
   "id": "longform-paperbell",
-  "name": "Longform (PaperBell)",
-  "version": "2.2.0-beta.4",
+  "name": "PaperOut To-Authors",
+  "version": "2.2.0-beta.11",
   "minAppVersion": "1.0",
-  "description": "Write novels, screenplays, and academic manuscripts in Obsidian. A PaperBell fork of Longform (originally by Kevin Barrett).",
+  "description": "Write and export academic manuscripts in Obsidian. Part of the PaperBell suite; a fork of Longform, originally by Kevin Barrett.",
   "author": "PaperBell-Org",
   "authorUrl": "https://github.com/PaperBell-Org",
   "isDesktopOnly": false

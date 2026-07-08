@@ -2,6 +2,7 @@ import { get } from "svelte/store";
 import { Notice } from "obsidian";
 
 import type { CommandBuilder } from "./types";
+import { translate } from "src/i18n";
 import {
   currentWorkflow,
   projects,
@@ -22,7 +23,7 @@ import type { Draft } from "src/model/types";
 
 export const compileCurrent: CommandBuilder = (plugin) => ({
   id: "longform-compile-current",
-  name: "Compile current project with current workflow",
+  name: translate("cmd.compileCurrent"),
   checkCallback: (checking: boolean) => {
     const draft = get(selectedDraft);
     const workflow = get(currentWorkflow);
@@ -67,7 +68,7 @@ export const compileCurrent: CommandBuilder = (plugin) => ({
 
 export const compileSelection: CommandBuilder = (plugin) => ({
   id: "longform-compile-selection",
-  name: "Compile project…",
+  name: translate("cmd.compileProject"),
   checkCallback: (checking: boolean) => {
     const allProjects = get(projects);
     const projectTitles = Object.keys(allProjects);

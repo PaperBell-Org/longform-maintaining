@@ -241,7 +241,7 @@ export async function insertDraftIntoFrontmatter(
     });
   } catch (error) {
     console.error(
-      "[Longform] insertDraftIntoFrontmatter: processFrontMatter error:",
+      "[PaperOut] insertDraftIntoFrontmatter: processFrontMatter error:",
       error
     );
   }

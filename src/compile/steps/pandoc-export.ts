@@ -133,7 +133,7 @@ export const RunPandocExportStep = makeBuiltinStep({
         "pandoc — " + (pandocBin || "not found"),
         pandocBin
           ? ""
-          : "Install pandoc, or set the Pandoc binary in Longform settings. Run 'Set up Pandoc export' for help."
+          : "Install pandoc, or set the Pandoc binary in PaperOut To-Authors settings. Run 'Set up Pandoc export' for help."
       ),
       line(
         assetsOk,
@@ -250,7 +250,7 @@ export const RunPandocExportStep = makeBuiltinStep({
           outputDir +
           "\n\n" +
           (e as Error).message +
-          "\n\nCheck the 'Pandoc output folder' setting in Longform → Compile → Pandoc export."
+          "\n\nCheck the 'Pandoc output folder' setting in PaperOut To-Authors → Compile → Pandoc export."
       );
     }
 
@@ -308,7 +308,7 @@ export const RunPandocExportStep = makeBuiltinStep({
  * present, else the nearest `references.bib`/`mybib.bib` searched from the
  * draft folder up to the project root. Returns null when none is found.
  */
-function resolveBibliography(
+export function resolveBibliography(
   settings: { pandocBibliography?: string | null },
   context: CompileContext,
   base: string,

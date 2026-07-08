@@ -52,6 +52,9 @@ import { draftForPath } from "./model/scene-navigation";
 import { WritingSessionTracker } from "./model/writing-session-tracker";
 import NewProjectModal from "./view/project-lifecycle/new-project-modal";
 import { LongformAPI } from "./api/LongformAPI";
+import { PaperBellClient } from "./paperbell/client";
+import { translate } from "./i18n";
+import { startLocaleSync } from "./i18n/controller";
 import { registerVariablePostProcessor } from "./view/variable-postprocessor";
 import { refreshPandocTemplates } from "./model/pandoc-templates";
 
@@ -70,14 +73,19 @@ export default class LongformPlugin extends Plugin {
   private unsubscribeSelectedDraft: Unsubscriber;
   private unsubscribeSessions: Unsubscriber;
   private unsubscribeGoalNotification: Unsubscriber;
+  private unsubscribeLocale: Unsubscriber;
   private userScriptObserver: UserScriptObserver;
   writingSessionTracker: WritingSessionTracker;
   public api: LongformAPI;
+  /** Optional bridge to the PaperBell host plugin; no-ops when the host is absent. */
+  public paperBell: PaperBellClient;
 
   private storeVaultSync: StoreVaultSync;
 
   async onload(): Promise<void> {
-    console.log(`[Longform] Starting Longform ${this.manifest.version}…`);
+    console.log(
+      `[PaperOut] Starting PaperOut To-Authors ${this.manifest.version}…`
+    );
     addIcon(ICON_NAME, ICON_SVG);
 
     this.registerView(
@@ -92,7 +100,7 @@ export default class LongformPlugin extends Plugin {
         }
         menu.addItem((item) => {
           item
-            .setTitle("Create Longform Project")
+            .setTitle(translate("menu.createProject"))
             .setIcon(ICON_NAME)
             .onClick(() => {
               new NewProjectModal(this.app, file).open();
@@ -132,6 +140,11 @@ export default class LongformPlugin extends Plugin {
     });
 
     await this.loadSettings();
+
+    // Resolve UI language from the saved preference (+ PaperBell/Obsidian) before
+    // commands and notices are created, so their labels use the right language.
+    this.unsubscribeLocale = startLocaleSync();
+
     this.addSettingTab(new LongformSettingsTab(this.app, this));
 
     this.storeVaultSync = new StoreVaultSync(this.app);
@@ -165,10 +178,7 @@ export default class LongformPlugin extends Plugin {
     // One-time hint that PDF export exists and how to set it up.
     this.app.workspace.onLayoutReady(() => {
       if (!get(pluginSettings).pandocSetupDismissed) {
-        new Notice(
-          "Longform (PaperBell): PDF export is available. Run “Set up Pandoc export” from the command palette to check prerequisites.",
-          12000
-        );
+        new Notice(translate("notice.pdfExport"), 12000);
         pluginSettings.update((s) => ({ ...s, pandocSetupDismissed: true }));
       }
     });
@@ -187,6 +197,8 @@ export default class LongformPlugin extends Plugin {
   }
 
   onunload(): void {
+    this.unsubscribeLocale?.();
+    this.paperBell?.destroy();
     this.userScriptObserver.destroy();
     this.storeVaultSync.destroy();
     this.unsubscribeSettings();
@@ -226,7 +238,7 @@ export default class LongformPlugin extends Plugin {
     let _workflows = settings["workflows"];
 
     if (!_workflows) {
-      console.log("[Longform] No workflows found; adding default workflow.");
+      console.log("[PaperOut] No workflows found; adding default workflow.");
       _workflows = DEFAULT_WORKFLOWS;
     }
 
@@ -343,7 +355,7 @@ export default class LongformPlugin extends Plugin {
         let file: string | null = null;
         if (this.cachedSettings.sessionStorage === "plugin-folder") {
           if (!this.manifest.dir) {
-            console.error(`[Longform] No manifest.dir for saving sessions.`);
+            console.error(`[PaperOut] No manifest.dir for saving sessions.`);
             return;
           }
           file = normalizePath(`${this.manifest.dir}/sessions.json`);
@@ -406,7 +418,7 @@ export default class LongformPlugin extends Plugin {
             !this.writingSessionTracker.goalsNotifiedFor.has(target)
           ) {
             this.writingSessionTracker.goalsNotifiedFor.add(target);
-            new Notice("Writing goal met!");
+            new Notice(translate("notice.goalMet"));
           }
         }
       }
@@ -414,6 +426,13 @@ export default class LongformPlugin extends Plugin {
 
     this.initLeaf();
     refreshPandocTemplates(this.app);
+
+    // Optional PaperBell host integration. Standalone-safe: this no-ops if the
+    // PaperBell plugin isn't installed, and connects (now or on its ready event)
+    // if it is. See src/paperbell/.
+    this.paperBell = new PaperBellClient(this);
+    this.paperBell.init();
+
     initialized.set(true);
   }
 

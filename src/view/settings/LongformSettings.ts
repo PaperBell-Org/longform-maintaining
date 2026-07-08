@@ -10,6 +10,8 @@ import { get } from "svelte/store";
 
 import type LongformPlugin from "../../main";
 import { pluginSettings, userScriptSteps } from "src/model/stores";
+import { paperbell } from "src/paperbell/store";
+import { locale, translate as t } from "src/i18n";
 import { FolderSuggest } from "./folder-suggest";
 import { DEFAULT_SESSION_FILE } from "src/model/types";
 import { FileSuggest } from "./file-suggest";
@@ -20,6 +22,7 @@ export class LongformSettingsTab extends PluginSettingTab {
   plugin: LongformPlugin;
   private unsubscribeUserScripts: Unsubscriber;
   private unsubscribeSettings: Unsubscriber;
+  private unsubscribeLocale: Unsubscriber;
   private stepsSummary: HTMLElement;
   private stepsList: HTMLUListElement;
 
@@ -29,80 +32,89 @@ export class LongformSettingsTab extends PluginSettingTab {
   }
 
   display(): void {
+    // display() can be re-invoked (locale change, PaperBell refresh); tear down any
+    // subscriptions from the previous render before rebuilding.
+    this.unsubscribeUserScripts?.();
+    this.unsubscribeSettings?.();
+    this.unsubscribeLocale?.();
+
     const settings = get(pluginSettings);
 
     const { containerEl } = this;
 
     containerEl.empty();
 
-    new Setting(containerEl).setName("Composition").setHeading();
-    new Setting(containerEl).setName("New scene template").addSearch((cb) => {
-      new FileSuggest(this.app, cb.inputEl);
-      cb.setPlaceholder("templates/Scene.md")
-        .setValue(settings.sceneTemplate)
-        .onChange((v) => {
-          pluginSettings.update((s) => ({
-            ...s,
-            sceneTemplate: v,
-          }));
+    // ── Language ──────────────────────────────────────────────────────────
+    new Setting(containerEl).setName(t("settings.language.heading")).setHeading();
+    new Setting(containerEl)
+      .setName(t("settings.language.name"))
+      .setDesc(t("settings.language.desc"))
+      .addDropdown((cb) => {
+        cb.addOption("auto", t("settings.language.auto"));
+        cb.addOption("en", t("settings.language.en"));
+        cb.addOption("zh", t("settings.language.zh"));
+        cb.setValue(settings.language ?? "auto");
+        cb.onChange((value: "auto" | "en" | "zh") => {
+          pluginSettings.update((s) => ({ ...s, language: value }));
         });
-    });
+      });
+
+    // ── Composition ───────────────────────────────────────────────────────
+    new Setting(containerEl)
+      .setName(t("settings.composition.heading"))
+      .setHeading();
+    new Setting(containerEl)
+      .setName(t("settings.sceneTemplate.name"))
+      .addSearch((cb) => {
+        new FileSuggest(this.app, cb.inputEl);
+        cb.setPlaceholder("templates/Scene.md")
+          .setValue(settings.sceneTemplate)
+          .onChange((v) => {
+            pluginSettings.update((s) => ({ ...s, sceneTemplate: v }));
+          });
+      });
     containerEl.createEl("p", { cls: "setting-item-description" }, (el) => {
-      el.innerHTML =
-        "This file will be used as a template when creating new scenes via the New Scene… field. If you use a templating plugin (Templater or the core plugin) it will be used to process this template. This setting applies to all projects and can be overridden per-project in the Project > Project Metadata settings in the Longform pane.";
+      el.setText(t("settings.sceneTemplate.desc"));
     });
 
     new Setting(containerEl)
-      .setName("Show scene numbers in Scenes tab")
-      .setDesc(
-        "If on, shows numbers for scenes with subscenes separated by periods, e.g. 1.1.2. Create subscenes by dragging a scene to an indent under an existing scene, or us an indent command."
-      )
+      .setName(t("settings.numberScenes.name"))
+      .setDesc(t("settings.numberScenes.desc"))
       .addToggle((cb) => {
         cb.setValue(settings.numberScenes);
         cb.onChange((value) => {
-          pluginSettings.update((s) => ({
-            ...s,
-            numberScenes: value,
-          }));
+          pluginSettings.update((s) => ({ ...s, numberScenes: value }));
         });
       });
 
     new Setting(containerEl)
-      .setName("Write scene index to frontmatter")
-      .setDesc(
-        "If enabled, will add a scene index, and scene number, to the frontmatter of scene files."
-      )
+      .setName(t("settings.writeProperty.name"))
+      .setDesc(t("settings.writeProperty.desc"))
       .addToggle((toggle) => {
         toggle.setValue(settings.writeProperty);
         toggle.onChange((value) => {
-          pluginSettings.update((settings) => ({
-            ...settings,
-            writeProperty: value,
-          }));
+          pluginSettings.update((s) => ({ ...s, writeProperty: value }));
           if (value) {
             syncSceneIndices(this.app);
           }
         });
       });
 
-    new Setting(containerEl).setName("Compile").setHeading();
+    // ── Compile ───────────────────────────────────────────────────────────
+    new Setting(containerEl).setName(t("settings.compile.heading")).setHeading();
 
     new Setting(containerEl)
-      .setName("Pandoc export")
-      .setDesc(
-        "Settings for the 'Run Pandoc Export' compile step. The Pandoc toolchain (filters, templates, CSL) ships with the plugin, so most fields can stay empty."
-      )
+      .setName(t("settings.pandocExport.name"))
+      .setDesc(t("settings.pandocExport.desc"))
       .addButton((cb) => {
-        cb.setButtonText("Set up Pandoc export…")
+        cb.setButtonText(t("settings.pandocExport.button"))
           .setCta()
           .onClick(() => new PandocSetupModal(this.app).open());
       });
 
     new Setting(containerEl)
-      .setName("Pandoc assets URL")
-      .setDesc(
-        "Link to the Pandoc toolchain .zip (filters/templates/CSL). Used by 'Set up Pandoc export → Download assets'."
-      )
+      .setName(t("settings.pandocUrl.name"))
+      .setDesc(t("settings.pandocUrl.desc"))
       .addText((cb) => {
         cb.setPlaceholder("https://…/pandoc-assets.zip")
           .setValue(settings.pandocAssetsUrl)
@@ -112,10 +124,8 @@ export class LongformSettingsTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
-      .setName("Pandoc assets folder")
-      .setDesc(
-        "Folder containing defaults/ and csl/. Leave empty for the default download location (PaperBell/pandoc). Absolute or vault-relative."
-      )
+      .setName(t("settings.pandocFolder.name"))
+      .setDesc(t("settings.pandocFolder.desc"))
       .addSearch((cb) => {
         new FolderSuggest(this.app, cb.inputEl);
         cb.setPlaceholder("PaperBell/pandoc")
@@ -126,10 +136,8 @@ export class LongformSettingsTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
-      .setName("Pandoc output folder")
-      .setDesc(
-        "Folder to write <acronym>_<date>.pdf into. Vault-relative, or an absolute path to export outside your vault (e.g. ~/Papers — ~ expands to your home folder; it's created if missing). Leave empty to write next to the compiled manuscript."
-      )
+      .setName(t("settings.pandocOutput.name"))
+      .setDesc(t("settings.pandocOutput.desc"))
       .addSearch((cb) => {
         new FolderSuggest(this.app, cb.inputEl);
         cb.setPlaceholder("(next to manuscript, or e.g. ~/Papers)")
@@ -140,10 +148,8 @@ export class LongformSettingsTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
-      .setName("Bibliography")
-      .setDesc(
-        "Path to a .bib for citations. Leave empty to auto-detect references.bib / mybib.bib in the project."
-      )
+      .setName(t("settings.bibliography.name"))
+      .setDesc(t("settings.bibliography.desc"))
       .addSearch((cb) => {
         new FileSuggest(this.app, cb.inputEl);
         cb.setPlaceholder("(auto-detect)")
@@ -154,10 +160,8 @@ export class LongformSettingsTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
-      .setName("Pandoc binary")
-      .setDesc(
-        "Path to the pandoc executable, or just 'pandoc'. Common Homebrew/MacTeX dirs are added to PATH automatically."
-      )
+      .setName(t("settings.pandocBinary.name"))
+      .setDesc(t("settings.pandocBinary.desc"))
       .addText((cb) => {
         cb.setPlaceholder("pandoc")
           .setValue(settings.pandocBinary)
@@ -167,19 +171,14 @@ export class LongformSettingsTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
-      .setName("User script step folder")
-      .setDesc(
-        ".js files in this folder will be available as User Script Steps in the Compile panel."
-      )
+      .setName(t("settings.userScriptFolder.name"))
+      .setDesc(t("settings.userScriptFolder.desc"))
       .addSearch((cb) => {
         new FolderSuggest(this.app, cb.inputEl);
         cb.setPlaceholder("my/script/steps/")
           .setValue(settings.userScriptFolder)
           .onChange((v) => {
-            pluginSettings.update((s) => ({
-              ...s,
-              userScriptFolder: v,
-            }));
+            pluginSettings.update((s) => ({ ...s, userScriptFolder: v }));
           });
       });
 
@@ -189,10 +188,12 @@ export class LongformSettingsTab extends PluginSettingTab {
     });
     this.unsubscribeUserScripts = userScriptSteps.subscribe((steps) => {
       if (steps && steps.length > 0) {
-        this.stepsSummary.innerText = `Loaded ${steps.length} step${steps.length !== 1 ? "s" : ""
-          }:`;
+        this.stepsSummary.innerText = t("settings.userSteps.loaded", {
+          count: steps.length,
+          plural: steps.length !== 1 ? "s" : "",
+        });
       } else {
-        this.stepsSummary.innerText = "No steps loaded.";
+        this.stepsSummary.innerText = t("settings.userSteps.none");
       }
       if (this.stepsList) {
         this.stepsList.empty();
@@ -212,14 +213,16 @@ export class LongformSettingsTab extends PluginSettingTab {
       }
     });
     containerEl.createEl("p", { cls: "setting-item-description" }, (el) => {
-      el.innerHTML =
-        "User Script Steps are automatically loaded from this folder. Changes to .js files in this folder are synced with Longform after a slight delay. If your script does not appear here or in the Compile tab, you may have an error in your script—check the dev console for it.";
+      el.setText(t("settings.userSteps.desc"));
     });
 
-    new Setting(containerEl).setName("Word Counts & Sessions").setHeading();
+    // ── Word Counts & Sessions ────────────────────────────────────────────
     new Setting(containerEl)
-      .setName("Show word counts in status bar")
-      .setDesc("Click the status item to show the focused note’s project.")
+      .setName(t("settings.wordCounts.heading"))
+      .setHeading();
+    new Setting(containerEl)
+      .setName(t("settings.showWordCount.name"))
+      .setDesc(t("settings.showWordCount.desc"))
       .addToggle((cb) => {
         cb.setValue(settings.showWordCountInStatusBar);
         cb.onChange((value) => {
@@ -230,10 +233,8 @@ export class LongformSettingsTab extends PluginSettingTab {
         });
       });
     new Setting(containerEl)
-      .setName("Start new writing sessions each day")
-      .setDesc(
-        "You can always manually start a new session by running the Longform: Start New Writing Session command. Turning this off will cause writing sessions to carry over across multiple days until you manually start a new one."
-      )
+      .setName(t("settings.newSessionDaily.name"))
+      .setDesc(t("settings.newSessionDaily.desc"))
       .addToggle((cb) => {
         cb.setValue(settings.startNewSessionEachDay);
         cb.onChange((value) => {
@@ -244,8 +245,8 @@ export class LongformSettingsTab extends PluginSettingTab {
         });
       });
     new Setting(containerEl)
-      .setName("Session word count goal")
-      .setDesc("A number of words to target for a given writing session.")
+      .setName(t("settings.sessionGoal.name"))
+      .setDesc(t("settings.sessionGoal.desc"))
       .addText((cb) => {
         cb.setValue(settings.sessionGoal.toString());
         cb.onChange((value) => {
@@ -256,21 +257,19 @@ export class LongformSettingsTab extends PluginSettingTab {
         });
       });
     new Setting(containerEl)
-      .setName("Goal applies to")
-      .setDesc(
-        "You can set your word count goal to target all Longform writing, or you can make each project or scene have its own discrete goal."
-      )
+      .setName(t("settings.goalAppliesTo.name"))
+      .setDesc(t("settings.goalAppliesTo.desc"))
       .addDropdown((cb) => {
-        cb.addOption("all", "words written across all projects");
-        cb.addOption("project", "each project individually");
-        cb.addOption("note", "each scene or single-scene project");
+        cb.addOption("all", t("settings.goalAppliesTo.all"));
+        cb.addOption("project", t("settings.goalAppliesTo.project"));
+        cb.addOption("note", t("settings.goalAppliesTo.note"));
         cb.setValue(settings.applyGoalTo);
         cb.onChange((value: "all" | "project" | "note") => {
           pluginSettings.update((s) => ({ ...s, applyGoalTo: value }));
         });
       });
     new Setting(containerEl)
-      .setName("Notify on goal reached")
+      .setName(t("settings.notifyOnGoal.name"))
       .addToggle((cb) => {
         cb.setValue(settings.notifyOnGoal);
         cb.onChange((value) => {
@@ -278,10 +277,8 @@ export class LongformSettingsTab extends PluginSettingTab {
         });
       });
     new Setting(containerEl)
-      .setName("Count deletions against goal")
-      .setDesc(
-        "If on, deleting words will count as negative words written. You cannot go below zero for a session."
-      )
+      .setName(t("settings.countDeletions.name"))
+      .setDesc(t("settings.countDeletions.desc"))
       .addToggle((cb) => {
         cb.setValue(settings.countDeletionsForGoal);
         cb.onChange((value) => {
@@ -292,8 +289,8 @@ export class LongformSettingsTab extends PluginSettingTab {
         });
       });
     new Setting(containerEl)
-      .setName("Sessions to keep")
-      .setDesc("Number of sessions to store locally.")
+      .setName(t("settings.sessionsToKeep.name"))
+      .setDesc(t("settings.sessionsToKeep.desc"))
       .addText((cb) => {
         cb.setValue(settings.keepSessionCount.toString());
         cb.onChange((value) => {
@@ -307,17 +304,12 @@ export class LongformSettingsTab extends PluginSettingTab {
         });
       });
     new Setting(containerEl)
-      .setName("Store session data")
-      .setDesc(
-        "Where your writing session data is stored. By default, data is stored alongside other Longform settings in the plugin’s data.json file. You may instead store it in a separate .json file in the plugin folder, or in a file in your vault. You may want to do this for selective sync or git reasons."
-      )
+      .setName(t("settings.storeSession.name"))
+      .setDesc(t("settings.storeSession.desc"))
       .addDropdown((cb) => {
-        cb.addOption("data", "with Longform settings");
-        cb.addOption(
-          "plugin-folder",
-          "as a .json file in the longform/ plugin folder"
-        );
-        cb.addOption("file", "as a file in your vault");
+        cb.addOption("data", t("settings.storeSession.data"));
+        cb.addOption("plugin-folder", t("settings.storeSession.pluginFolder"));
+        cb.addOption("file", t("settings.storeSession.file"));
         cb.setValue(settings.sessionStorage);
         cb.onChange((value: "data" | "plugin-folder" | "file") => {
           pluginSettings.update((s) => ({ ...s, sessionStorage: value }));
@@ -338,10 +330,8 @@ export class LongformSettingsTab extends PluginSettingTab {
     }, 1000);
 
     const sessionFileStorageSettings = new Setting(containerEl)
-      .setName("Session storage file")
-      .setDesc(
-        "Location in your vault to store session JSON. Created if does not exist, overwritten if it does."
-      )
+      .setName(t("settings.sessionFile.name"))
+      .setDesc(t("settings.sessionFile.desc"))
       .addText((cb) => {
         cb.setPlaceholder(DEFAULT_SESSION_FILE);
         cb.setValue(settings.sessionFile ?? DEFAULT_SESSION_FILE);
@@ -354,37 +344,34 @@ export class LongformSettingsTab extends PluginSettingTab {
         settings.sessionStorage === "file" ? "flex" : "none";
     });
 
-    new Setting(containerEl).setName("Troubleshooting").setHeading();
+    // ── Troubleshooting ───────────────────────────────────────────────────
+    new Setting(containerEl)
+      .setName(t("settings.troubleshooting.heading"))
+      .setHeading();
 
     new Setting(containerEl)
-      .setName("Wait for Obsidian Sync")
-      .setDesc("Prevent Longform from running until Obsidian Sync completes its first sync. If you are using Sync, you may want to enable this if you experience issues with scenes disappearing or falsely being shown as new.")
+      .setName(t("settings.waitForSync.name"))
+      .setDesc(t("settings.waitForSync.desc"))
       .addToggle((cb) => {
         cb.setValue(settings.waitForSync);
         cb.onChange((value) => {
-          pluginSettings.update((s) => ({
-            ...s,
-            waitForSync: value,
-          }));
+          pluginSettings.update((s) => ({ ...s, waitForSync: value }));
         });
       });
 
     new Setting(containerEl)
-      .setName("Enable fallback wait")
-      .setDesc("If sync status cannot be detected, wait for the time specified below before looking for scenes.")
+      .setName(t("settings.fallbackWait.name"))
+      .setDesc(t("settings.fallbackWait.desc"))
       .addToggle((cb) => {
         cb.setValue(settings.fallbackWaitEnabled);
         cb.onChange((value) => {
-          pluginSettings.update((s) => ({
-            ...s,
-            fallbackWaitEnabled: value,
-          }));
+          pluginSettings.update((s) => ({ ...s, fallbackWaitEnabled: value }));
         });
       });
 
     new Setting(containerEl)
-      .setName("Fallback wait time")
-      .setDesc("Time to wait in seconds if sync status cannot be detected.")
+      .setName(t("settings.fallbackWaitTime.name"))
+      .setDesc(t("settings.fallbackWaitTime.desc"))
       .addText((cb) => {
         cb.setValue(settings.fallbackWaitTime.toString());
         cb.onChange((value) => {
@@ -398,24 +385,74 @@ export class LongformSettingsTab extends PluginSettingTab {
         });
       });
 
-    new Setting(containerEl).setName("Credits").setHeading();
+    // ── PaperBell host integration (optional; standalone-safe) ────────────
+    new Setting(containerEl).setName(t("settings.paperbell.heading")).setHeading();
+    const pb = get(paperbell);
+    if (pb.connected) {
+      const account = pb.config?.account;
+      const status = account?.displayName
+        ? t("settings.paperbell.connectedWithName", {
+            name: account.displayName,
+            plan: account.plan ? ` (${account.plan})` : "",
+          })
+        : t("settings.paperbell.connected");
+      containerEl.createEl("p", { cls: "setting-item-description" }, (el) => {
+        el.setText(status);
+      });
+      new Setting(containerEl)
+        .setName(t("settings.paperbell.account.name"))
+        .setDesc(t("settings.paperbell.account.desc"))
+        .addButton((b) =>
+          b
+            .setButtonText(
+              pb.config
+                ? t("settings.paperbell.button.refresh")
+                : t("settings.paperbell.button.connect")
+            )
+            .onClick(async () => {
+              await this.plugin.paperBell.fetchSharedConfig();
+              this.display();
+            })
+        );
+      if (pb.capabilities.includes("llm-invoke")) {
+        containerEl.createEl("p", { cls: "setting-item-description" }, (el) => {
+          el.setText(t("settings.paperbell.aiAvailable"));
+        });
+      }
+    } else {
+      containerEl.createEl("p", { cls: "setting-item-description" }, (el) => {
+        el.setText(t("settings.paperbell.notConnected"));
+      });
+    }
+
+    // ── Credits ───────────────────────────────────────────────────────────
+    new Setting(containerEl).setName(t("settings.credits.heading")).setHeading();
 
     containerEl.createEl("p", {}, (el) => {
-      el.innerHTML =
-        'Longform (PaperBell) — a fork of <a href="https://github.com/kevboh/longform">Longform</a>, originally written by <a href="https://kevinbarrett.org">Kevin Barrett</a>. Maintained by <a href="https://github.com/PaperBell-Org">PaperBell-Org</a>.';
+      el.innerHTML = t("settings.credits.body");
     });
     containerEl.createEl("p", {}, (el) => {
-      el.innerHTML =
-        'Read the source code and report issues at <a href="https://github.com/PaperBell-Org">https://github.com/PaperBell-Org</a>.';
+      el.innerHTML = t("settings.credits.source");
     });
     containerEl.createEl("p", {}, (el) => {
-      el.innerHTML =
-        'Icon made by <a href="https://www.flaticon.com/authors/zlatko-najdenovski" title="Zlatko Najdenovski">Zlatko Najdenovski</a> from <a href="https://www.flaticon.com/" title="Flaticon">www.flaticon.com</a>.';
+      el.innerHTML = t("settings.credits.icon");
+    });
+
+    // Re-render in the new language whenever the resolved locale changes. Skip the
+    // immediate emission svelte stores send on subscribe (we just rendered).
+    let firstLocaleEmission = true;
+    this.unsubscribeLocale = locale.subscribe(() => {
+      if (firstLocaleEmission) {
+        firstLocaleEmission = false;
+        return;
+      }
+      this.display();
     });
   }
 
   hide(): void {
-    this.unsubscribeUserScripts();
-    this.unsubscribeSettings();
+    this.unsubscribeUserScripts?.();
+    this.unsubscribeSettings?.();
+    this.unsubscribeLocale?.();
   }
 }

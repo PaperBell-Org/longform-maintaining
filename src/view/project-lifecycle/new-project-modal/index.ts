@@ -34,7 +34,7 @@ export default class NewProjectModalContainer extends Modal {
         const exists = await this.app.vault.adapter.exists(path);
         if (exists) {
           console.log(
-            `[Longform] Cannot create project at ${path}, already exists.`
+            `[PaperOut] Cannot create project at ${path}, already exists.`
           );
           return;
         }

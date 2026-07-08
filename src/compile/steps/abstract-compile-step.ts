@@ -234,7 +234,7 @@ export function typeMismatchError(
   context: CompileContext
 ): Error {
   return new Error(
-    `[Longform] A compile step received a type it did not expect. It expected "${expected}", but got "${got}" with step kind "${context.kind}"`
+    `[PaperOut] A compile step received a type it did not expect. It expected "${expected}", but got "${got}" with step kind "${context.kind}"`
   );
 }
 

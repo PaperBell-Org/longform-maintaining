@@ -14,6 +14,7 @@ import type { Draft, MultipleSceneDraft } from "src/model/types";
 import AddStepModal from "../compile/add-step-modal";
 import ConfirmActionModal from "../ConfirmActionModal";
 import { ICON_NAME } from "../icon";
+import { translate } from "src/i18n";
 import ExplorerView from "./ExplorerView.svelte";
 import { scenePath } from "src/model/scene-navigation";
 import { migrate } from "src/model/migration";
@@ -48,7 +49,7 @@ export class ExplorerPane extends ItemView {
   }
 
   getDisplayText(): string {
-    return "Longform";
+    return translate("explorer.paneTitle");
   }
 
   getIcon(): string {

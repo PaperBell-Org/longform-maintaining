@@ -4,6 +4,7 @@ import { draftForPath } from "src/model/scene-navigation";
 import { drafts, selectedDraftVaultPath } from "src/model/stores";
 import { get } from "svelte/store";
 import type { CommandBuilder } from "./types";
+import { translate } from "src/i18n";
 import { insertDraftIntoFrontmatter } from "src/model/draft-utils";
 import { fileNameFromPath } from "src/model/note-utils";
 import type {
@@ -26,7 +27,7 @@ const callbackForFormat = (
     return false;
   } else if (draft) {
     console.log(
-      `[Longform] Attempted to insert frontmatter into existing draft at ${file.path}; ignoring.`
+      `[PaperOut] Attempted to insert frontmatter into existing draft at ${file.path}; ignoring.`
     );
   } else if (checking) {
     return true;
@@ -70,7 +71,7 @@ const callbackForFormat = (
 
 export const insertMultiSceneTemplate: CommandBuilder = (_plugin) => ({
   id: "longform-insert-multi-scene",
-  name: "Insert multi-scene frontmatter",
+  name: translate("cmd.insertMultiScene"),
   editorCheckCallback(checking, editor, view) {
     const result = callbackForFormat("scenes", checking, editor, view);
     return result;
@@ -79,7 +80,7 @@ export const insertMultiSceneTemplate: CommandBuilder = (_plugin) => ({
 
 export const insertSingleSceneTemplate: CommandBuilder = (_plugin) => ({
   id: "longform-insert-single-scene",
-  name: "Insert single-scene frontmatter",
+  name: translate("cmd.insertSingleScene"),
   editorCheckCallback(checking, editor, view) {
     return callbackForFormat("single", checking, editor, view);
   },

@@ -41,7 +41,7 @@ const BASE_CONFIG = {
 const DEV_PLUGIN_CONFIG = {
   ...BASE_CONFIG,
   output: {
-    dir: "test-longform-vault/.obsidian/plugins/longform",
+    dir: "test-longform-vault/.obsidian/plugins/longform-paperbell",
     sourcemap: "inline",
     format: "cjs",
     exports: "default",
@@ -51,11 +51,11 @@ const DEV_PLUGIN_CONFIG = {
       targets: [
         {
           src: "manifest.json",
-          dest: "test-longform-vault/.obsidian/plugins/longform/",
+          dest: "test-longform-vault/.obsidian/plugins/longform-paperbell/",
         },
         {
           src: "styles.css",
-          dest: "test-longform-vault/.obsidian/plugins/longform/",
+          dest: "test-longform-vault/.obsidian/plugins/longform-paperbell/",
         },
       ],
       hook: "writeBundle",
