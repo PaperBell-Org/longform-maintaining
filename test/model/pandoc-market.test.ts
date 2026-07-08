@@ -167,6 +167,14 @@ describe("normalizeIndex (assets-repo published shape)", () => {
         sha256: "zzz",
         assets: ["defaults/beamer.yaml", "filters/beamer.lua"],
       },
+      {
+        id: "full", // no same-id recipe → keeps its own title
+        type: "bundle",
+        version: "1.0.0",
+        title: "Full toolchain",
+        url: "https://github.com/O/R/releases/download/1.0.0/full-1.0.0.zip",
+        assets: ["defaults/beamer.yaml"],
+      },
     ],
   } as unknown as MarketIndex;
 
@@ -213,12 +221,23 @@ describe("normalizeIndex (assets-repo published shape)", () => {
     ]);
   });
 
-  it("maps bundle title→name and url→download", () => {
-    const b = norm.bundles[0];
-    expect(b.name).toBe("Beamer — bundle");
-    expect(b.download).toBe(
+  it("maps bundle url→download", () => {
+    expect(norm.bundles[0].download).toBe(
       "https://github.com/O/R/releases/download/1.0.0/beamer-1.0.0.zip"
     );
+  });
+
+  it("reuses a same-id recipe's localized name/description for a bundle", () => {
+    expect(norm.bundles[0].name).toBe("Beamer slides (PDF)"); // recipe's en name
+    expect(norm.bundles[0].description).toBe("Slides.");
+    const zh = normalizeIndex(validateIndex(RAW), "zh");
+    expect(zh.bundles[0].name).toBe("Beamer 幻灯片"); // recipe's zh name
+    expect(zh.bundles[0].description).toBe("幻灯片。");
+  });
+
+  it("keeps a bundle's own title when there is no same-id recipe", () => {
+    const full = norm.bundles.find((b) => b.id === "full");
+    expect(full.name).toBe("Full toolchain");
   });
 
   it("resolves a recipe's dependency closure after normalization", () => {

@@ -175,27 +175,47 @@ export function normalizeIndex(idx: MarketIndex, locale = "en"): MarketIndex {
     readmeUrl: url(a.readmePath),
     previewUrl: url(a.previewPath),
   });
-  const bundle = (b: Record<string, unknown>): MarketBundle => ({
-    id: b.id as string,
-    name: pickLocalized(b.title ?? b.name, locale) ?? (b.id as string),
-    description: pickLocalized(b.description, locale),
-    version: (b.version ?? "0.0.0") as string,
-    author: b.author as string | undefined,
-    tags: b.tags as string[] | undefined,
-    download: (b.download ?? b.url) as string,
-    sha256: b.sha256 as string | undefined,
-    assets: b.assets as string[] | undefined,
-    workflows: b.workflows as MarketBundle["workflows"],
-    tier: b.tier as string | undefined,
-    reviewed: b.reviewed as boolean | undefined,
-    readmePath: b.readmePath as string | undefined,
-    previewPath: b.previewPath as string | undefined,
-    readmeUrl: url(b.readmePath),
-    previewUrl: url(b.previewPath),
-  });
+  const assets = idx.assets.map((a) =>
+    asset(a as unknown as Record<string, unknown>)
+  );
+  // A bundle is a recipe's packaging and shares its id. Upstream only localizes
+  // recipes (bundle title/description stay English), so reuse the same-id recipe's
+  // localized name/description when present; fall back to the bundle's own.
+  const recipeName = new Map<string, string>();
+  const recipeDesc = new Map<string, string | undefined>();
+  for (const a of assets)
+    if (a.type === "recipe") {
+      recipeName.set(a.id, a.name);
+      recipeDesc.set(a.id, a.description);
+    }
+  const bundle = (b: Record<string, unknown>): MarketBundle => {
+    const id = b.id as string;
+    return {
+      id,
+      name:
+        recipeName.get(id) ??
+        pickLocalized(b.title ?? b.name, locale) ??
+        id,
+      description:
+        recipeDesc.get(id) ?? pickLocalized(b.description, locale),
+      version: (b.version ?? "0.0.0") as string,
+      author: b.author as string | undefined,
+      tags: b.tags as string[] | undefined,
+      download: (b.download ?? b.url) as string,
+      sha256: b.sha256 as string | undefined,
+      assets: b.assets as string[] | undefined,
+      workflows: b.workflows as MarketBundle["workflows"],
+      tier: b.tier as string | undefined,
+      reviewed: b.reviewed as boolean | undefined,
+      readmePath: b.readmePath as string | undefined,
+      previewPath: b.previewPath as string | undefined,
+      readmeUrl: url(b.readmePath),
+      previewUrl: url(b.previewPath),
+    };
+  };
   return {
     ...idx,
-    assets: idx.assets.map((a) => asset(a as unknown as Record<string, unknown>)),
+    assets,
     bundles: idx.bundles.map((b) => bundle(b as unknown as Record<string, unknown>)),
   };
 }
