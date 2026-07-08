@@ -76,6 +76,7 @@ export const zh: Messages = {
   "market.assetsIncluded": "个资产",
   "market.requires": "依赖",
   "market.systemDeps": "系统工具",
+  "market.unverified": "未经审核 —— 其 Lua 会在你本机运行。",
   "market.install": "安装",
   "market.update": "更新",
   "market.installed": "已安装",

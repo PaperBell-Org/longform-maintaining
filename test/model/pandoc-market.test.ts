@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 
 import {
   validateIndex,
+  normalizeIndex,
   resolveInstallSet,
   compareVersions,
   installStateFor,
@@ -102,6 +103,112 @@ describe("resolveInstallSet", () => {
     };
     const ids = resolveInstallSet(cyclic, "a").map((x) => x.id).sort();
     expect(ids).toEqual(["a", "b"]);
+  });
+});
+
+describe("normalizeIndex (assets-repo published shape)", () => {
+  // Mirrors the real `build-index.mjs` output: title / url+sourcePath / bundle url.
+  const RAW = {
+    schemaVersion: 1,
+    tag: "1.0.0",
+    assets: [
+      {
+        id: "beamer",
+        type: "recipe",
+        version: "1.0.0",
+        title: "Beamer slides (PDF)",
+        description: "Slides.",
+        sourcePath: "defaults/beamer.yaml",
+        url: "https://raw.githubusercontent.com/O/R/1.0.0/defaults/beamer.yaml",
+        sha256: "aaa",
+        requires: ["filters/beamer.lua", "filters/callout.lua"],
+        systemDeps: ["citeproc"],
+        extraFiles: [],
+        tier: "core",
+        reviewed: true,
+      },
+      {
+        id: "filters/beamer.lua",
+        type: "filter",
+        version: "1.0.0",
+        sourcePath: "filters/beamer.lua",
+        url: "https://raw.githubusercontent.com/O/R/1.0.0/filters/beamer.lua",
+        sha256: "bbb",
+        reviewed: true,
+      },
+      {
+        id: "filters/callout.lua",
+        type: "filter",
+        version: "1.0.0",
+        sourcePath: "filters/callout.lua",
+        url: "https://raw.githubusercontent.com/O/R/1.0.0/filters/callout.lua",
+        reviewed: false,
+      },
+      {
+        id: "templately",
+        type: "template",
+        version: "1.0.0",
+        title: "Tmpl",
+        sourcePath: "templates/t.latex",
+        url: "https://raw.githubusercontent.com/O/R/1.0.0/templates/t.latex",
+        extraFiles: ["templates/t.sty"],
+      },
+    ],
+    bundles: [
+      {
+        id: "beamer",
+        type: "bundle",
+        version: "1.0.0",
+        title: "Beamer — bundle",
+        filename: "beamer-1.0.0.zip",
+        url: "https://github.com/O/R/releases/download/1.0.0/beamer-1.0.0.zip",
+        sha256: "zzz",
+        assets: ["defaults/beamer.yaml", "filters/beamer.lua"],
+      },
+    ],
+  } as unknown as MarketIndex;
+
+  const norm = normalizeIndex(validateIndex(RAW));
+  const byId = (id: string) => norm.assets.find((a) => a.id === id);
+
+  it("maps title→name and url+sourcePath→files[]", () => {
+    const beamer = byId("beamer");
+    expect(beamer.name).toBe("Beamer slides (PDF)");
+    expect(beamer.files).toEqual([
+      {
+        path: "defaults/beamer.yaml",
+        download: "https://raw.githubusercontent.com/O/R/1.0.0/defaults/beamer.yaml",
+        sha256: "aaa",
+      },
+    ]);
+    expect(beamer.reviewed).toBe(true);
+  });
+
+  it("falls back to id for name and carries reviewed=false", () => {
+    const callout = byId("filters/callout.lua");
+    expect(callout.name).toBe("filters/callout.lua");
+    expect(callout.reviewed).toBe(false);
+  });
+
+  it("derives extraFiles' download URL from the main file's base", () => {
+    const tmpl = byId("templately");
+    expect(tmpl.files).toEqual([
+      { path: "templates/t.latex", download: "https://raw.githubusercontent.com/O/R/1.0.0/templates/t.latex", sha256: undefined },
+      { path: "templates/t.sty", download: "https://raw.githubusercontent.com/O/R/1.0.0/templates/t.sty" },
+    ]);
+  });
+
+  it("maps bundle title→name and url→download", () => {
+    const b = norm.bundles[0];
+    expect(b.name).toBe("Beamer — bundle");
+    expect(b.download).toBe(
+      "https://github.com/O/R/releases/download/1.0.0/beamer-1.0.0.zip"
+    );
+  });
+
+  it("resolves a recipe's dependency closure after normalization", () => {
+    const ids = resolveInstallSet(norm, "beamer").map((a) => a.id);
+    expect(ids).toEqual(["filters/beamer.lua", "filters/callout.lua", "beamer"]);
   });
 });
 

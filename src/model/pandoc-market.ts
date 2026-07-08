@@ -9,9 +9,13 @@ import type { SerializedWorkflow } from "./types";
  * See docs/ASSET_MARKETPLACE_SPEC.md for the repo spec.
  */
 
-/** Default marketplace index — a raw `index.json` in the assets repo. Overridable in settings. */
+/**
+ * Default marketplace index — the `index.json` published as a release asset of the
+ * assets repo. `releases/latest/download/…` always resolves to the newest release,
+ * so this URL is stable across versions. Overridable in settings.
+ */
 export const DEFAULT_MARKET_INDEX_URL =
-  "https://raw.githubusercontent.com/PaperBell-Org/paperbell-pandoc-assets/main/index.json";
+  "https://github.com/PaperBell-Org/paperout-assets-market/releases/latest/download/index.json";
 
 /** The index schema version this plugin understands. */
 export const MARKET_SCHEMA_VERSION = 1;
@@ -19,8 +23,10 @@ export const MARKET_SCHEMA_VERSION = 1;
 /** File name of the install manifest, written at the assets root. */
 export const INSTALLED_MANIFEST_NAME = "installed.json";
 
-/** An asset's kind — mirrors the assets-root subdirectory it installs into. */
-export type AssetType = "recipe" | "filter" | "template" | "csl";
+/** An asset's kind — mirrors the assets-root subdirectory it installs into.
+ * `include` is an internal defaults fragment (e.g. crossref.yaml) — a dependency,
+ * not a standalone install. */
+export type AssetType = "recipe" | "filter" | "template" | "csl" | "include";
 
 /** One file an asset installs: a dest-relative path + the raw URL to fetch it. */
 export interface MarketFile {
@@ -47,6 +53,11 @@ export interface MarketAsset {
   requires?: string[];
   /** External system tools (e.g. "pandoc-crossref") — surfaced, never downloaded. */
   systemDeps?: string[];
+  /** Optional index metadata: curation tier, review status, docs, preview image. */
+  tier?: string;
+  reviewed?: boolean;
+  readmePath?: string;
+  previewPath?: string;
 }
 
 /** A pre-packaged suite: one zip laid out as defaults/filters/templates/csl. */
@@ -60,10 +71,15 @@ export interface MarketBundle {
   /** Raw URL of the bundle zip (installed via `downloadPandocAssets`). */
   download: string;
   sha256?: string;
-  /** Asset ids contained in the bundle (for display / "already have it"). */
+  /** Asset ids / file paths contained in the bundle (for display). */
   assets?: string[];
   /** Optional recommended workflows — built-in step ids only, never user scripts. */
   workflows?: SerializedWorkflow[];
+  /** Optional index metadata. */
+  tier?: string;
+  reviewed?: boolean;
+  readmePath?: string;
+  previewPath?: string;
 }
 
 /** The parsed marketplace index. */
@@ -90,6 +106,70 @@ export function validateIndex(parsed: unknown): MarketIndex {
     throw new Error("Marketplace index must have `assets` and `bundles` arrays.");
   }
   return idx;
+}
+
+/**
+ * Normalize an index entry from the assets repo's published shape into the shape
+ * the plugin consumes. The `build-index.mjs` output uses `title`, a single `url` +
+ * `sourcePath` (+ `extraFiles`), and bundle `url`; internally we use `name` and a
+ * `files[]` array with a `download` URL each. Already-internal entries pass through.
+ */
+function normalizeAssetFiles(raw: Record<string, unknown>): MarketFile[] {
+  if (Array.isArray(raw.files)) return raw.files as MarketFile[];
+  const files: MarketFile[] = [];
+  const src = (raw.sourcePath ?? raw.path) as string | undefined;
+  const url = raw.url as string | undefined;
+  if (src && url) {
+    files.push({ path: src, download: url, sha256: raw.sha256 as string | undefined });
+    // extraFiles are bare repo-relative paths; derive their URL from the main
+    // one's base (the `.../<tag>/` prefix before sourcePath).
+    const extra = raw.extraFiles as string[] | undefined;
+    if (Array.isArray(extra) && url.endsWith(src)) {
+      const base = url.slice(0, url.length - src.length);
+      for (const ef of extra) files.push({ path: ef, download: base + ef });
+    }
+  }
+  return files;
+}
+
+export function normalizeIndex(idx: MarketIndex): MarketIndex {
+  const asset = (a: Record<string, unknown>): MarketAsset => ({
+    id: a.id as string,
+    type: a.type as AssetType,
+    name: (a.name ?? a.title ?? a.id) as string,
+    description: a.description as string | undefined,
+    version: (a.version ?? "0.0.0") as string,
+    author: a.author as string | undefined,
+    tags: a.tags as string[] | undefined,
+    files: normalizeAssetFiles(a),
+    requires: a.requires as string[] | undefined,
+    systemDeps: a.systemDeps as string[] | undefined,
+    tier: a.tier as string | undefined,
+    reviewed: a.reviewed as boolean | undefined,
+    readmePath: a.readmePath as string | undefined,
+    previewPath: a.previewPath as string | undefined,
+  });
+  const bundle = (b: Record<string, unknown>): MarketBundle => ({
+    id: b.id as string,
+    name: (b.name ?? b.title ?? b.id) as string,
+    description: b.description as string | undefined,
+    version: (b.version ?? "0.0.0") as string,
+    author: b.author as string | undefined,
+    tags: b.tags as string[] | undefined,
+    download: (b.download ?? b.url) as string,
+    sha256: b.sha256 as string | undefined,
+    assets: b.assets as string[] | undefined,
+    workflows: b.workflows as MarketBundle["workflows"],
+    tier: b.tier as string | undefined,
+    reviewed: b.reviewed as boolean | undefined,
+    readmePath: b.readmePath as string | undefined,
+    previewPath: b.previewPath as string | undefined,
+  });
+  return {
+    ...idx,
+    assets: idx.assets.map((a) => asset(a as unknown as Record<string, unknown>)),
+    bundles: idx.bundles.map((b) => bundle(b as unknown as Record<string, unknown>)),
+  };
 }
 
 /**

@@ -80,6 +80,7 @@ export const en = {
   "market.assetsIncluded": "assets included",
   "market.requires": "Requires",
   "market.systemDeps": "System tools",
+  "market.unverified": "Unverified — its Lua runs on your machine.",
   "market.install": "Install",
   "market.update": "Update",
   "market.installed": "Installed",

@@ -61,8 +61,12 @@
     );
   }
 
+  // Recipes are the user-facing "assets" — filters/templates/csl/include install
+  // automatically as a recipe's dependencies, so they aren't listed individually.
   $: bundles = index ? index.bundles.filter(matches) : [];
-  $: assets = index ? index.assets.filter(matches) : [];
+  $: assets = index
+    ? index.assets.filter((a) => a.type === "recipe" && matches(a))
+    : [];
 
   const stateLabel = (s) =>
     s === "installed"
@@ -196,6 +200,9 @@
               <span class="card-version">v{a.version}</span>
             </div>
             {#if a.description}<p class="card-desc">{a.description}</p>{/if}
+            {#if a.reviewed === false}
+              <div class="card-meta card-sysdep">⚠ {$t("market.unverified")}</div>
+            {/if}
             {#if a.requires?.length}
               <div class="card-meta">
                 {$t("market.requires")}: {a.requires.map(assetName).join(", ")}

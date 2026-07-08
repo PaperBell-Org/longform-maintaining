@@ -4,6 +4,7 @@ import type { App } from "obsidian";
 import { commonTopDir } from "src/compile/steps/pandoc-export-utils";
 import {
   validateIndex,
+  normalizeIndex,
   resolveInstallSet,
   INSTALLED_MANIFEST_NAME,
   type MarketIndex,
@@ -120,7 +121,7 @@ export async function fetchMarketIndex(url: string): Promise<MarketIndex> {
   } catch (e) {
     throw new Error(`Marketplace index is not valid JSON: ${(e as Error).message}`);
   }
-  return validateIndex(parsed);
+  return normalizeIndex(validateIndex(parsed));
 }
 
 /** Read the install manifest at the assets root; missing/corrupt → empty object. */
