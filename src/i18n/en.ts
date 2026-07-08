@@ -88,6 +88,7 @@ export const en = {
   "market.install": "Install",
   "market.update": "Update",
   "market.installed": "Installed",
+  "market.reinstall": "Reinstall",
   "market.installing": "Installing…",
   "market.installedNotice": "Installed",
   "market.failed": "Failed:",

@@ -12,6 +12,7 @@
     installMarketBundle,
     installAssetWithDeps,
     readInstalledManifest,
+    detectPresentIds,
   } from "src/model/pandoc-assets";
   import {
     DEFAULT_MARKET_INDEX_URL,
@@ -36,6 +37,7 @@
   let error = "";
   let index = null;
   let manifest = {};
+  let present = new Set();
   let query = "";
   let busy = {};
 
@@ -45,6 +47,7 @@
     try {
       index = await fetchMarketIndex(indexUrl, get(locale));
       manifest = await readInstalledManifest(app, destFolder);
+      present = await detectPresentIds(app, index, destFolder);
     } catch (e) {
       error = String(e?.message ?? e);
     }
@@ -106,7 +109,10 @@
       ? $t("market.installed")
       : s === "update-available"
       ? $t("market.update")
+      : s === "present"
+      ? $t("market.reinstall")
       : $t("market.install");
+  const isPresent = (s) => s !== "not-installed";
 
   async function installBundle(b) {
     if (busy[b.id]) return;
@@ -192,7 +198,7 @@
       <button class="market-reload" on:click={load}>{$t("market.reload")}</button>
     </div>
   {:else if index && detail}
-    {@const dstate = installStateFor(manifest, detail.id, detail.version)}
+    {@const dstate = installStateFor(manifest, detail.id, detail.version, present)}
     <div class="detail">
       <button class="detail-back" on:click={() => (detail = null)}>
         ← {$t("market.back")}
@@ -201,6 +207,7 @@
         <span class="card-type type-{detail.type ?? 'bundle'}">
           {detail.type ?? "bundle"}
         </span>
+        {#if isPresent(dstate)}<span class="installed-check" title={$t("market.installed")}>✓</span>{/if}
         <span class="detail-name">{detail.name}</span>
         <span class="card-version">v{detail.version}</span>
       </div>
@@ -246,9 +253,10 @@
       <div class="market-section-title">{$t("market.bundles")}</div>
       <div class="market-grid">
         {#each bundles as b (b.id)}
-          {@const state = installStateFor(manifest, b.id, b.version)}
+          {@const state = installStateFor(manifest, b.id, b.version, present)}
           <div class="card card-bundle clickable" on:click={() => openDetail(b)}>
             <div class="card-top">
+              {#if isPresent(state)}<span class="installed-check" title={$t("market.installed")}>✓</span>{/if}
               <span class="card-name">{b.name}</span>
               <span class="card-version">v{b.version}</span>
             </div>
@@ -275,10 +283,11 @@
       <div class="market-section-title">{$t("market.assets")}</div>
       <div class="market-grid">
         {#each assets as a (a.id)}
-          {@const state = installStateFor(manifest, a.id, a.version)}
+          {@const state = installStateFor(manifest, a.id, a.version, present)}
           <div class="card clickable" on:click={() => openDetail(a)}>
             <div class="card-top">
               <span class="card-type type-{a.type}">{a.type}</span>
+              {#if isPresent(state)}<span class="installed-check" title={$t("market.installed")}>✓</span>{/if}
               <span class="card-name">{a.name}</span>
               <span class="card-version">v{a.version}</span>
             </div>
@@ -466,6 +475,11 @@
   .card-install:disabled:not(.is-installed) {
     opacity: 0.6;
     cursor: default;
+  }
+  .installed-check {
+    color: var(--interactive-success);
+    font-weight: 800;
+    font-size: var(--font-ui-smaller);
   }
   .clickable {
     cursor: pointer;

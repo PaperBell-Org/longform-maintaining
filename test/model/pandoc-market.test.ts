@@ -252,6 +252,13 @@ describe("installStateFor", () => {
   it("treats an installed version newer than market as installed", () => {
     expect(installStateFor(manifest, "csl.n", "0.9.0")).toBe("installed");
   });
+  it("flags present (on disk, untracked) and lets the manifest win", () => {
+    const p = new Set(["filter.x", "csl.n"]);
+    expect(installStateFor({}, "filter.x", "1.0.0", p)).toBe("present");
+    expect(installStateFor({}, "other", "1.0.0", p)).toBe("not-installed");
+    // a manifest record takes precedence over mere presence on disk
+    expect(installStateFor(manifest, "csl.n", "1.0.0", p)).toBe("installed");
+  });
 });
 
 describe("mergeMissingWorkflows", () => {

@@ -136,6 +136,38 @@ export async function fetchMarketReadme(url: string): Promise<string> {
   return res.text;
 }
 
+/**
+ * Detect which assets/bundles are already present on disk (files exist under the
+ * assets root) — even if not tracked in the install manifest, e.g. synced or
+ * downloaded via the legacy zip. An asset is "present" when all its files exist;
+ * a bundle when all its listed files exist.
+ */
+export async function detectPresentIds(
+  app: App,
+  index: MarketIndex,
+  destFolder: string
+): Promise<Set<string>> {
+  const adapter = app.vault.adapter;
+  const paths = new Set<string>();
+  for (const a of index.assets) for (const f of a.files ?? []) paths.add(f.path);
+  const onDisk = new Set<string>();
+  await Promise.all(
+    [...paths].map(async (p) => {
+      if (await adapter.exists(`${destFolder}/${p}`)) onDisk.add(p);
+    })
+  );
+  const ids = new Set<string>();
+  for (const a of index.assets) {
+    const files = a.files ?? [];
+    if (files.length > 0 && files.every((f) => onDisk.has(f.path))) ids.add(a.id);
+  }
+  for (const b of index.bundles) {
+    const assets = b.assets ?? [];
+    if (assets.length > 0 && assets.every((p) => onDisk.has(p))) ids.add(b.id);
+  }
+  return ids;
+}
+
 /** Read the install manifest at the assets root; missing/corrupt → empty object. */
 export async function readInstalledManifest(
   app: App,

@@ -261,16 +261,24 @@ export type InstalledManifest = Record<string, InstalledRecord>;
  * Given the index and the install manifest, the display state for an entry.
  * Pure so the UI and tests share one source of truth.
  */
-export type InstallState = "not-installed" | "installed" | "update-available";
+export type InstallState =
+  | "not-installed"
+  | "installed" // tracked in the manifest, up to date
+  | "update-available" // tracked, older than the index
+  | "present"; // files already on disk but not tracked (e.g. synced/legacy)
 
 export function installStateFor(
   manifest: InstalledManifest,
   id: string,
-  marketVersion: string
+  marketVersion: string,
+  presentIds?: Set<string>
 ): InstallState {
   const rec = manifest[id];
-  if (!rec) return "not-installed";
-  return compareVersions(rec.version, marketVersion) < 0
-    ? "update-available"
-    : "installed";
+  if (rec) {
+    return compareVersions(rec.version, marketVersion) < 0
+      ? "update-available"
+      : "installed";
+  }
+  if (presentIds?.has(id)) return "present";
+  return "not-installed";
 }

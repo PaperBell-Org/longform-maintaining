@@ -84,6 +84,7 @@ export const zh: Messages = {
   "market.install": "安装",
   "market.update": "更新",
   "market.installed": "已安装",
+  "market.reinstall": "重装",
   "market.installing": "安装中…",
   "market.installedNotice": "已安装",
   "market.failed": "失败:",
