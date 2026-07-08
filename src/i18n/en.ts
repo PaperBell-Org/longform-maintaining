@@ -42,6 +42,10 @@ export const en = {
   "matrix.run": "Run",
   "matrix.running": "Running…",
   "matrix.skipped": "skipped",
+  "matrix.finished": "Finished",
+  "matrix.workflow": "Compile workflow",
+  "matrix.clickStepHint": "Click a step to view or edit it.",
+  "matrix.noOptions": "This step has no options.",
   "matrix.reorderHint": "Drag rows to set the compile order (top → bottom).",
 
   // ── Explorer pane ───────────────────────────────────────────────────────

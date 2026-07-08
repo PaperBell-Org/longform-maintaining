@@ -39,6 +39,10 @@ export const zh: Messages = {
   "matrix.run": "运行",
   "matrix.running": "运行中…",
   "matrix.skipped": "已跳过",
+  "matrix.finished": "已完成",
+  "matrix.workflow": "编译工作流",
+  "matrix.clickStepHint": "点击步骤圆点可查看或编辑该步骤。",
+  "matrix.noOptions": "该步骤没有可配置项。",
   "matrix.reorderHint": "拖动行来设定编译顺序(从上到下)。",
 
   // ── 资源管理器面板 ────────────────────────────────────────────────────

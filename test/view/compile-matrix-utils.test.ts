@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   applyBatchOverrides,
+  cloneWorkflow,
   statusToRowState,
   draftAbbrev,
   rowProgress,
@@ -62,6 +63,30 @@ describe("applyBatchOverrides", () => {
     ) as never as { optionValues: Record<string, unknown> };
     expect(rpe.optionValues["dry-run"]).toBe(true);
     expect(rpe.optionValues["open-after"]).toBe(true); // unchanged
+  });
+});
+
+describe("cloneWorkflow", () => {
+  it("isolates step option edits from the source workflow", () => {
+    const src = workflow([
+      step("run-pandoc-export", { "dry-run": false, template: "" }),
+    ]);
+    const copy = cloneWorkflow(src);
+    (copy as never as { steps: { optionValues: Record<string, unknown> }[] })
+      .steps[0].optionValues["dry-run"] = true;
+    // Editing the clone must not touch the original.
+    expect(
+      (src as never as { steps: { optionValues: Record<string, unknown> }[] })
+        .steps[0].optionValues["dry-run"]
+    ).toBe(false);
+  });
+
+  it("shares the immutable description by reference", () => {
+    const src = workflow([step("write-to-note")]);
+    const copy = cloneWorkflow(src);
+    const s = (id: number, w: unknown) =>
+      (w as { steps: { description: unknown }[] }).steps[id].description;
+    expect(s(0, copy)).toBe(s(0, src));
   });
 });
 

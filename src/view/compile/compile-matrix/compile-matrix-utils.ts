@@ -41,6 +41,21 @@ export function applyBatchOverrides(
   return { ...workflow, steps };
 }
 
+/**
+ * Deep-clone a workflow so a row can edit its steps' `optionValues` in the matrix
+ * without mutating the user's saved workflow. Steps and their option maps are
+ * copied; the (immutable) `description` is shared by reference.
+ */
+export function cloneWorkflow(workflow: Workflow): Workflow {
+  return {
+    ...workflow,
+    steps: workflow.steps.map((step) => ({
+      ...step,
+      optionValues: { ...step.optionValues },
+    })),
+  };
+}
+
 export type RowStatus = "idle" | "running" | "done" | "error" | "skipped";
 
 export interface RowState {
