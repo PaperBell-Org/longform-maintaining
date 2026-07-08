@@ -35,7 +35,10 @@ function alnum(s: string): string {
  *    ids ending `-end` carry the end line, others the start line.
  *  - `\newlabel{fig:<label>}{{<num>}…}` / `\newlabel{tbl:<label>}{{<num>}…}`.
  */
-export function parseAuxLabels(aux: string): AuxLabels {
+export function parseAuxLabels(
+  aux: string,
+  onWarn?: (msg: string) => void
+): AuxLabels {
   const partial: Record<
     string,
     { sline?: number; eline?: number; page: number }
@@ -58,7 +61,18 @@ export function parseAuxLabels(aux: string): AuxLabels {
   const lines: LinesSidecar = {};
   for (const id of Object.keys(partial)) {
     const e = partial[id];
-    // Fill a missing side from the other so a lone start/end still yields a range.
+    // A lone start/end means one `\linelabel` never reached the .aux — usually a
+    // filter regression (e.g. a paragraph-start `<!--ms:id-->` parsed as a block
+    // RawBlock and dropped, which manuscript_linelabel.lua's relocate() now
+    // handles). We still fill the missing side so the span yields a range, but we
+    // warn — a silent fill produces `sline == eline`, matching the vault
+    // `manuscript-lines.sh` one-sided guard. See docs: 回复信手稿引用规范 §4.
+    if ((e.sline == null) !== (e.eline == null)) {
+      onWarn?.(
+        `manuscript ref "${id}": only a ${e.sline != null ? "start" : "end"} ` +
+          `line label reached the .aux; start and end will be identical.`
+      );
+    }
     const sline = e.sline ?? e.eline;
     const eline = e.eline ?? e.sline;
     if (sline != null && eline != null) {

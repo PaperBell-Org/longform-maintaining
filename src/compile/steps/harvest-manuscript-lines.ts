@@ -193,7 +193,9 @@ async function harvest(
       throw new Error("XeLaTeX produced no .aux (see the manuscript for errors).");
     }
     const aux = fs.readFileSync(auxPath, "utf8");
-    const { lines, figures, tables } = parseAuxLabels(aux);
+    const { lines, figures, tables } = parseAuxLabels(aux, (msg) =>
+      console.warn(`[PaperOut] harvest-manuscript-lines: ${msg}`)
+    );
     // Caption-embedded spans get their figure number (no lineno label in captions).
     const captionFigs = captionSpanFigs(input.contents, figures);
     const allLines: LinesSidecar = { ...lines, ...captionFigs };

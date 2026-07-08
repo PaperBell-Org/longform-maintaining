@@ -40,6 +40,21 @@ describe("parseAuxLabels", () => {
     const { lines: l } = parseAuxLabels("\\newlabel{msl-solo}{{7}{2}}");
     expect(l["solo"]).toEqual({ sline: 7, eline: 7, page: 2 });
   });
+
+  it("warns on a one-sided label but stays silent for a complete span", () => {
+    const warn: string[] = [];
+    parseAuxLabels("\\newlabel{msl-solo-end}{{9}{2}}", (m) => warn.push(m));
+    expect(warn).toHaveLength(1);
+    expect(warn[0]).toContain("solo");
+    expect(warn[0]).toContain("end");
+
+    warn.length = 0;
+    parseAuxLabels(
+      "\\newlabel{msl-ok}{{3}{1}}\\newlabel{msl-ok-end}{{6}{1}}",
+      (m) => warn.push(m)
+    );
+    expect(warn).toHaveLength(0);
+  });
 });
 
 describe("captionSpanFigs", () => {
