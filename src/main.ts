@@ -247,8 +247,25 @@ export default class LongformPlugin extends Plugin {
     let _workflows = settings["workflows"];
 
     if (!_workflows) {
-      console.log("[PaperOut] No workflows found; adding default workflow.");
-      _workflows = DEFAULT_WORKFLOWS;
+      console.log("[PaperOut] No workflows found; adding default workflows.");
+      _workflows = { ...DEFAULT_WORKFLOWS };
+    } else {
+      // Back-fill built-in workflows added in newer versions (e.g. PaperBell
+      // Cover Letter) into an existing vault, without touching the user's own or
+      // customized workflows. Idempotent, so it also self-heals on every load.
+      const missing = Object.keys(DEFAULT_WORKFLOWS).filter(
+        (key) => !(key in (_workflows as Record<string, unknown>))
+      );
+      if (missing.length > 0) {
+        console.log(
+          `[PaperOut] Adding missing built-in workflows: ${missing.join(", ")}.`
+        );
+        _workflows = { ..._workflows };
+        for (const key of missing) {
+          (_workflows as Record<string, SerializedWorkflow>)[key] =
+            DEFAULT_WORKFLOWS[key];
+        }
+      }
     }
 
     const deserializedWorkflows: Record<string, Workflow> = {};
