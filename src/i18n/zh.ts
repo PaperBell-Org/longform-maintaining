@@ -23,12 +23,28 @@ export const zh: Messages = {
   "cmd.startSession": "开始新的写作会话",
   "cmd.markManuscriptSpan": "标记手稿引用片段",
   "cmd.insertManuscriptRef": "插入手稿引用",
+  "cmd.newPaperProject": "新建 PaperBell 论文项目…",
 
   // ── 通知与菜单 ────────────────────────────────────────────────────────
   "notice.pdfExport":
     "PaperOut To-Authors:已支持 PDF 导出。在命令面板运行“设置 Pandoc 导出”以检查前置条件。",
   "notice.goalMet": "已达成写作目标!",
   "menu.createProject": "新建 PaperOut 项目",
+  "menu.newPaperProject": "新建 PaperBell 论文项目…",
+
+  // ── 新建论文脚手架 ────────────────────────────────────────────────────
+  "scaffold.title": "新建 PaperBell 论文项目",
+  "scaffold.desc":
+    "一键搭好完整论文项目——正稿、补充材料(SI)、回复信三个草稿,连同起步内容、元数据、参考文献,以及示例图/表资源,统统放进以标题命名的新文件夹。",
+  "scaffold.nameLabel": "项目标题",
+  "scaffold.nameDesc": "作为项目文件夹名与 Longform 项目名。请勿包含 : \\ 和 / 。",
+  "scaffold.acronymLabel": "缩写",
+  "scaffold.acronymDesc":
+    "用于 PDF 文件名和标签的短代码。默认取标题首字母,之后可在 metadata.json 中修改。",
+  "scaffold.create": "创建项目",
+  "scaffold.invalidName": "请输入不含 : \\ 或 / 的项目标题。",
+  "scaffold.created": "已创建 PaperBell 项目“{title}”。",
+  "scaffold.failed": "创建项目失败:{error}",
 
   // ── 批量编译看板 ──────────────────────────────────────────────────────
   "matrix.title": "批量编译",

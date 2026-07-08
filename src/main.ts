@@ -51,6 +51,7 @@ import { determineMigrationStatus } from "./model/migration";
 import { draftForPath } from "./model/scene-navigation";
 import { WritingSessionTracker } from "./model/writing-session-tracker";
 import NewProjectModal from "./view/project-lifecycle/new-project-modal";
+import NewPaperModal from "./view/project-lifecycle/new-paper-modal";
 import { LongformAPI } from "./api/LongformAPI";
 import { PaperBellClient } from "./paperbell/client";
 import { translate } from "./i18n";
@@ -104,6 +105,14 @@ export default class LongformPlugin extends Plugin {
             .setIcon(ICON_NAME)
             .onClick(() => {
               new NewProjectModal(this.app, file).open();
+            });
+        });
+        menu.addItem((item) => {
+          item
+            .setTitle(translate("menu.newPaperProject"))
+            .setIcon(ICON_NAME)
+            .onClick(() => {
+              new NewPaperModal(this.app, file).open();
             });
         });
       })

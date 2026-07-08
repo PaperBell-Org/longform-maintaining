@@ -20,6 +20,7 @@ import {
 import { startNewSession } from "./word-counts";
 import { setupPandocExport } from "./pandoc";
 import { markManuscriptSpan, insertManuscriptRef } from "./manuscript-refs";
+import { newPaperProject } from "./scaffold";
 
 const commandBuilders = [
   compileCurrent,
@@ -42,6 +43,7 @@ const commandBuilders = [
   startNewSession,
   markManuscriptSpan,
   insertManuscriptRef,
+  newPaperProject,
 ];
 
 export function addCommands(plugin: LongformPlugin) {
