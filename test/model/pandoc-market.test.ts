@@ -110,14 +110,15 @@ describe("normalizeIndex (assets-repo published shape)", () => {
   // Mirrors the real `build-index.mjs` output: title / url+sourcePath / bundle url.
   const RAW = {
     schemaVersion: 1,
+    repo: "O/R",
     tag: "1.0.0",
     assets: [
       {
         id: "beamer",
         type: "recipe",
         version: "1.0.0",
-        title: "Beamer slides (PDF)",
-        description: "Slides.",
+        title: { en: "Beamer slides (PDF)", zh: "Beamer 幻灯片" },
+        description: { en: "Slides.", zh: "幻灯片。" },
         sourcePath: "defaults/beamer.yaml",
         url: "https://raw.githubusercontent.com/O/R/1.0.0/defaults/beamer.yaml",
         sha256: "aaa",
@@ -126,6 +127,7 @@ describe("normalizeIndex (assets-repo published shape)", () => {
         extraFiles: [],
         tier: "core",
         reviewed: true,
+        readmePath: "catalog/recipes/beamer/README.md",
       },
       {
         id: "filters/beamer.lua",
@@ -171,9 +173,9 @@ describe("normalizeIndex (assets-repo published shape)", () => {
   const norm = normalizeIndex(validateIndex(RAW));
   const byId = (id: string) => norm.assets.find((a) => a.id === id);
 
-  it("maps title→name and url+sourcePath→files[]", () => {
+  it("maps title→name (localized) and url+sourcePath→files[]", () => {
     const beamer = byId("beamer");
-    expect(beamer.name).toBe("Beamer slides (PDF)");
+    expect(beamer.name).toBe("Beamer slides (PDF)"); // default locale "en"
     expect(beamer.files).toEqual([
       {
         path: "defaults/beamer.yaml",
@@ -182,6 +184,19 @@ describe("normalizeIndex (assets-repo published shape)", () => {
       },
     ]);
     expect(beamer.reviewed).toBe(true);
+  });
+
+  it("localizes title/description by the requested locale", () => {
+    const zh = normalizeIndex(validateIndex(RAW), "zh");
+    const beamer = zh.assets.find((a) => a.id === "beamer");
+    expect(beamer.name).toBe("Beamer 幻灯片");
+    expect(beamer.description).toBe("幻灯片。");
+  });
+
+  it("resolves readmeUrl from repo + tag + readmePath", () => {
+    expect(byId("beamer").readmeUrl).toBe(
+      "https://raw.githubusercontent.com/O/R/1.0.0/catalog/recipes/beamer/README.md"
+    );
   });
 
   it("falls back to id for name and carries reviewed=false", () => {

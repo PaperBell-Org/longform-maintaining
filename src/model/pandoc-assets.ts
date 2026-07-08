@@ -105,7 +105,10 @@ async function sha256Hex(ab: ArrayBuffer): Promise<string> {
  * Fetch and validate the marketplace index from a raw `index.json` URL. The pure
  * validation/logic lives in `pandoc-market.ts`; this is the obsidian-facing fetch.
  */
-export async function fetchMarketIndex(url: string): Promise<MarketIndex> {
+export async function fetchMarketIndex(
+  url: string,
+  locale = "en"
+): Promise<MarketIndex> {
   if (!url || !/^https?:\/\//.test(url)) {
     throw new Error(
       "No valid marketplace index URL configured. Set it in Longform settings → Compile → Pandoc export."
@@ -121,7 +124,16 @@ export async function fetchMarketIndex(url: string): Promise<MarketIndex> {
   } catch (e) {
     throw new Error(`Marketplace index is not valid JSON: ${(e as Error).message}`);
   }
-  return normalizeIndex(validateIndex(parsed));
+  return normalizeIndex(validateIndex(parsed), locale);
+}
+
+/** Fetch an asset/bundle's README markdown (for the in-modal "how to use" panel). */
+export async function fetchMarketReadme(url: string): Promise<string> {
+  const res = await requestUrl({ url, method: "GET" });
+  if (res.status < 200 || res.status >= 300) {
+    throw new Error(`README fetch failed (HTTP ${res.status}).`);
+  }
+  return res.text;
 }
 
 /** Read the install manifest at the assets root; missing/corrupt → empty object. */

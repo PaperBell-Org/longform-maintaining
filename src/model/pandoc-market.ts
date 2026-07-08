@@ -58,6 +58,9 @@ export interface MarketAsset {
   reviewed?: boolean;
   readmePath?: string;
   previewPath?: string;
+  /** Resolved raw URLs (computed in normalizeIndex from repo/tag + path). */
+  readmeUrl?: string;
+  previewUrl?: string;
 }
 
 /** A pre-packaged suite: one zip laid out as defaults/filters/templates/csl. */
@@ -80,6 +83,8 @@ export interface MarketBundle {
   reviewed?: boolean;
   readmePath?: string;
   previewPath?: string;
+  readmeUrl?: string;
+  previewUrl?: string;
 }
 
 /** The parsed marketplace index. */
@@ -132,12 +137,31 @@ function normalizeAssetFiles(raw: Record<string, unknown>): MarketFile[] {
   return files;
 }
 
-export function normalizeIndex(idx: MarketIndex): MarketIndex {
+/** Pick a localized string from a plain string or a `{ locale: string }` map. */
+export function pickLocalized(v: unknown, locale: string): string | undefined {
+  if (v == null) return undefined;
+  if (typeof v === "string") return v;
+  if (typeof v === "object") {
+    const o = v as Record<string, string>;
+    return o[locale] ?? o.en ?? Object.values(o)[0];
+  }
+  return String(v);
+}
+
+export function normalizeIndex(idx: MarketIndex, locale = "en"): MarketIndex {
+  const raw = idx as unknown as Record<string, unknown>;
+  const repo = raw.repo as string | undefined;
+  const tag = raw.tag as string | undefined;
+  const rawBase =
+    repo && tag ? `https://raw.githubusercontent.com/${repo}/${tag}/` : "";
+  const url = (path: unknown) =>
+    typeof path === "string" && rawBase ? rawBase + path : undefined;
+
   const asset = (a: Record<string, unknown>): MarketAsset => ({
     id: a.id as string,
     type: a.type as AssetType,
-    name: (a.name ?? a.title ?? a.id) as string,
-    description: a.description as string | undefined,
+    name: pickLocalized(a.title ?? a.name, locale) ?? (a.id as string),
+    description: pickLocalized(a.description, locale),
     version: (a.version ?? "0.0.0") as string,
     author: a.author as string | undefined,
     tags: a.tags as string[] | undefined,
@@ -148,11 +172,13 @@ export function normalizeIndex(idx: MarketIndex): MarketIndex {
     reviewed: a.reviewed as boolean | undefined,
     readmePath: a.readmePath as string | undefined,
     previewPath: a.previewPath as string | undefined,
+    readmeUrl: url(a.readmePath),
+    previewUrl: url(a.previewPath),
   });
   const bundle = (b: Record<string, unknown>): MarketBundle => ({
     id: b.id as string,
-    name: (b.name ?? b.title ?? b.id) as string,
-    description: b.description as string | undefined,
+    name: pickLocalized(b.title ?? b.name, locale) ?? (b.id as string),
+    description: pickLocalized(b.description, locale),
     version: (b.version ?? "0.0.0") as string,
     author: b.author as string | undefined,
     tags: b.tags as string[] | undefined,
@@ -164,6 +190,8 @@ export function normalizeIndex(idx: MarketIndex): MarketIndex {
     reviewed: b.reviewed as boolean | undefined,
     readmePath: b.readmePath as string | undefined,
     previewPath: b.previewPath as string | undefined,
+    readmeUrl: url(b.readmePath),
+    previewUrl: url(b.previewPath),
   });
   return {
     ...idx,

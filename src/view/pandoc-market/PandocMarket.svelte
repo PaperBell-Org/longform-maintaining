@@ -2,12 +2,13 @@
   // @ts-nocheck
   import { onMount, getContext } from "svelte";
   import { get } from "svelte/store";
-  import { Notice, Platform } from "obsidian";
+  import { Component, MarkdownRenderer, Notice, Platform } from "obsidian";
 
   import { pluginSettings } from "src/model/stores";
   import { DEFAULT_ASSETS_DIR } from "src/compile/steps/pandoc-export-utils";
   import {
     fetchMarketIndex,
+    fetchMarketReadme,
     installMarketBundle,
     installAssetWithDeps,
     readInstalledManifest,
@@ -17,7 +18,7 @@
     installStateFor,
   } from "src/model/pandoc-market";
   import { useApp } from "../utils";
-  import { t } from "src/i18n";
+  import { t, locale } from "src/i18n";
 
   const app = useApp();
   const close: () => void = getContext("close");
@@ -42,7 +43,7 @@
     loading = true;
     error = "";
     try {
-      index = await fetchMarketIndex(indexUrl);
+      index = await fetchMarketIndex(indexUrl, get(locale));
       manifest = await readInstalledManifest(app, destFolder);
     } catch (e) {
       error = String(e?.message ?? e);
@@ -50,6 +51,38 @@
     loading = false;
   }
   onMount(load);
+
+  // ── Asset detail ("how to use") ─────────────────────────────────────────
+  let detail = null; // the asset/bundle whose README is shown, or null for the grid
+  let readme = "";
+  let readmeState = ""; // "loading" | "ok" | "none" | "error"
+
+  async function openDetail(item) {
+    detail = item;
+    readme = "";
+    if (!item.readmeUrl) {
+      readmeState = "none";
+      return;
+    }
+    readmeState = "loading";
+    try {
+      readme = await fetchMarketReadme(item.readmeUrl);
+      readmeState = "ok";
+    } catch (e) {
+      readmeState = "error";
+    }
+  }
+
+  // Svelte action: render markdown into a node via Obsidian's renderer.
+  function renderMarkdown(node, md) {
+    const comp = new Component();
+    const draw = (m) => {
+      node.innerHTML = "";
+      if (m) MarkdownRenderer.renderMarkdown(m, node, "", comp);
+    };
+    draw(md);
+    return { update: draw, destroy: () => comp.unload() };
+  }
 
   function matches(x) {
     const q = query.trim().toLowerCase();
@@ -158,13 +191,63 @@
       <p class="market-error-detail">{error}</p>
       <button class="market-reload" on:click={load}>{$t("market.reload")}</button>
     </div>
+  {:else if index && detail}
+    {@const dstate = installStateFor(manifest, detail.id, detail.version)}
+    <div class="detail">
+      <button class="detail-back" on:click={() => (detail = null)}>
+        ← {$t("market.back")}
+      </button>
+      <div class="detail-head">
+        <span class="card-type type-{detail.type ?? 'bundle'}">
+          {detail.type ?? "bundle"}
+        </span>
+        <span class="detail-name">{detail.name}</span>
+        <span class="card-version">v{detail.version}</span>
+      </div>
+      {#if detail.description}<p class="detail-desc">{detail.description}</p>{/if}
+      {#if detail.reviewed === false}
+        <div class="card-meta card-sysdep">⚠ {$t("market.unverified")}</div>
+      {/if}
+      {#if detail.requires?.length}
+        <div class="card-meta">
+          {$t("market.requires")}: {detail.requires.map(assetName).join(", ")}
+        </div>
+      {/if}
+      {#if detail.systemDeps?.length}
+        <div class="card-meta card-sysdep">
+          {$t("market.systemDeps")}: {detail.systemDeps.join(", ")}
+        </div>
+      {/if}
+      <div class="detail-readme">
+        {#if readmeState === "loading"}
+          <span class="market-spinner"></span>
+        {:else if readmeState === "ok"}
+          <div class="markdown-rendered" use:renderMarkdown={readme}></div>
+        {:else if readmeState === "error"}
+          <p class="card-meta card-sysdep">{$t("market.readmeError")}</p>
+        {:else}
+          <p class="card-meta">{$t("market.noReadme")}</p>
+        {/if}
+      </div>
+      <div class="detail-actions">
+        <button
+          class="card-install"
+          class:is-installed={dstate === "installed"}
+          disabled={busy[detail.id] || dstate === "installed"}
+          on:click={() =>
+            detail.download ? installBundle(detail) : installAsset(detail)}
+        >
+          {busy[detail.id] ? $t("market.installing") : stateLabel(dstate)}
+        </button>
+      </div>
+    </div>
   {:else if index}
     {#if bundles.length}
       <div class="market-section-title">{$t("market.bundles")}</div>
       <div class="market-grid">
         {#each bundles as b (b.id)}
           {@const state = installStateFor(manifest, b.id, b.version)}
-          <div class="card card-bundle">
+          <div class="card card-bundle clickable" on:click={() => openDetail(b)}>
             <div class="card-top">
               <span class="card-name">{b.name}</span>
               <span class="card-version">v{b.version}</span>
@@ -178,7 +261,7 @@
                 class="card-install"
                 class:is-installed={state === "installed"}
                 disabled={busy[b.id] || state === "installed"}
-                on:click={() => installBundle(b)}
+                on:click|stopPropagation={() => installBundle(b)}
               >
                 {busy[b.id] ? $t("market.installing") : stateLabel(state)}
               </button>
@@ -193,7 +276,7 @@
       <div class="market-grid">
         {#each assets as a (a.id)}
           {@const state = installStateFor(manifest, a.id, a.version)}
-          <div class="card">
+          <div class="card clickable" on:click={() => openDetail(a)}>
             <div class="card-top">
               <span class="card-type type-{a.type}">{a.type}</span>
               <span class="card-name">{a.name}</span>
@@ -203,22 +286,18 @@
             {#if a.reviewed === false}
               <div class="card-meta card-sysdep">⚠ {$t("market.unverified")}</div>
             {/if}
-            {#if a.requires?.length}
-              <div class="card-meta">
-                {$t("market.requires")}: {a.requires.map(assetName).join(", ")}
-              </div>
-            {/if}
             {#if a.systemDeps?.length}
               <div class="card-meta card-sysdep">
                 {$t("market.systemDeps")}: {a.systemDeps.join(", ")}
               </div>
             {/if}
+            <div class="card-hint">{$t("market.clickForDetails")}</div>
             <div class="card-actions">
               <button
                 class="card-install"
                 class:is-installed={state === "installed"}
                 disabled={busy[a.id] || state === "installed"}
-                on:click={() => installAsset(a)}
+                on:click|stopPropagation={() => installAsset(a)}
               >
                 {busy[a.id] ? $t("market.installing") : stateLabel(state)}
               </button>
@@ -388,6 +467,76 @@
     opacity: 0.6;
     cursor: default;
   }
+  .clickable {
+    cursor: pointer;
+    transition: border-color 0.15s, transform 0.1s;
+  }
+  .clickable:hover {
+    border-color: var(--text-accent);
+  }
+  .card-hint {
+    font-size: var(--font-smallest);
+    color: var(--text-faint);
+    font-style: italic;
+  }
+
+  /* ── asset detail ("how to use") ── */
+  .detail {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-2-3);
+  }
+  .detail-back {
+    align-self: flex-start;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 2px 0;
+    font-size: var(--font-ui-smaller);
+  }
+  .detail-back:hover {
+    color: var(--text-normal);
+  }
+  .detail-head {
+    display: flex;
+    align-items: baseline;
+    gap: var(--size-2-2);
+    flex-wrap: wrap;
+  }
+  .detail-name {
+    font-weight: 700;
+    font-size: var(--font-ui-large);
+    color: var(--text-normal);
+  }
+  .detail-desc {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: var(--font-ui-small);
+  }
+  .detail-readme {
+    border-top: 1px solid var(--background-modifier-border);
+    padding-top: var(--size-4-2);
+    margin-top: var(--size-2-2);
+    max-height: 52vh;
+    overflow-y: auto;
+  }
+  .detail-readme :global(h1),
+  .detail-readme :global(h2),
+  .detail-readme :global(h3) {
+    margin-top: var(--size-4-3);
+  }
+  .detail-readme :global(pre) {
+    overflow-x: auto;
+  }
+  .detail-readme :global(img) {
+    max-width: 100%;
+  }
+  .detail-actions {
+    display: flex;
+    justify-content: flex-end;
+  }
+
   .market-state {
     display: flex;
     flex-direction: column;
