@@ -27,6 +27,7 @@ export const en = {
   "cmd.markManuscriptSpan": "Mark manuscript reference span",
   "cmd.insertManuscriptRef": "Insert manuscript reference",
   "cmd.newPaperProject": "New PaperBell paper project…",
+  "cmd.openMarket": "Browse Pandoc asset marketplace",
 
   // ── Notices & menus ─────────────────────────────────────────────────────
   "notice.pdfExport":
@@ -64,6 +65,27 @@ export const en = {
   "matrix.clickStepHint": "Click a step to view or edit it.",
   "matrix.noOptions": "This step has no options.",
   "matrix.reorderHint": "Drag rows to set the compile order (top → bottom).",
+
+  // ── Pandoc asset marketplace ────────────────────────────────────────────
+  "market.title": "Pandoc asset marketplace",
+  "market.items": "items",
+  "market.search": "Search assets…",
+  "market.reload": "Reload",
+  "market.desktopNote":
+    "You can browse and download on mobile, but the template list and PDF export need the desktop app.",
+  "market.loadError": "Couldn’t load the marketplace index.",
+  "market.empty": "No assets match your search.",
+  "market.bundles": "Bundles",
+  "market.assets": "Individual assets",
+  "market.assetsIncluded": "assets included",
+  "market.requires": "Requires",
+  "market.systemDeps": "System tools",
+  "market.install": "Install",
+  "market.update": "Update",
+  "market.installed": "Installed",
+  "market.installing": "Installing…",
+  "market.installedNotice": "Installed",
+  "market.failed": "Failed:",
 
   // ── Explorer pane ───────────────────────────────────────────────────────
   "explorer.paneTitle": "PaperOut To-Authors",
@@ -105,6 +127,13 @@ export const en = {
   "settings.pandocExport.desc":
     "Settings for the ‘Run Pandoc Export’ compile step. The Pandoc toolchain (filters, templates, CSL) is downloaded on demand, so most fields can stay empty.",
   "settings.pandocExport.button": "Set up Pandoc export…",
+  "settings.market.name": "Pandoc asset marketplace",
+  "settings.market.desc":
+    "Browse, download, and install Pandoc recipes, filters, templates, and CSL styles from the assets repository.",
+  "settings.market.button": "Browse marketplace…",
+  "settings.market.url.name": "Marketplace index URL",
+  "settings.market.url.desc":
+    "Link to the assets repository’s index.json. Leave empty for the built-in default.",
   "settings.pandocUrl.name": "Pandoc assets URL",
   "settings.pandocUrl.desc":
     "Link to the Pandoc toolchain .zip (filters/templates/CSL). Used by ‘Set up Pandoc export → Download assets’.",

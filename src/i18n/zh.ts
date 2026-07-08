@@ -24,6 +24,7 @@ export const zh: Messages = {
   "cmd.markManuscriptSpan": "标记手稿引用片段",
   "cmd.insertManuscriptRef": "插入手稿引用",
   "cmd.newPaperProject": "新建 PaperBell 论文项目…",
+  "cmd.openMarket": "浏览 Pandoc 资产市场",
 
   // ── 通知与菜单 ────────────────────────────────────────────────────────
   "notice.pdfExport":
@@ -60,6 +61,27 @@ export const zh: Messages = {
   "matrix.clickStepHint": "点击步骤圆点可查看或编辑该步骤。",
   "matrix.noOptions": "该步骤没有可配置项。",
   "matrix.reorderHint": "拖动行来设定编译顺序(从上到下)。",
+
+  // ── Pandoc 资产市场 ──────────────────────────────────────────────────
+  "market.title": "Pandoc 资产市场",
+  "market.items": "项",
+  "market.search": "搜索资产…",
+  "market.reload": "重新加载",
+  "market.desktopNote":
+    "移动端可浏览与下载,但模板列表和 PDF 导出需要桌面端。",
+  "market.loadError": "无法加载市场目录。",
+  "market.empty": "没有匹配搜索的资产。",
+  "market.bundles": "套件",
+  "market.assets": "单个资产",
+  "market.assetsIncluded": "个资产",
+  "market.requires": "依赖",
+  "market.systemDeps": "系统工具",
+  "market.install": "安装",
+  "market.update": "更新",
+  "market.installed": "已安装",
+  "market.installing": "安装中…",
+  "market.installedNotice": "已安装",
+  "market.failed": "失败:",
 
   // ── 资源管理器面板 ────────────────────────────────────────────────────
   "explorer.paneTitle": "PaperOut To-Authors",
@@ -100,6 +122,13 @@ export const zh: Messages = {
   "settings.pandocExport.desc":
     "“运行 Pandoc 导出”编译步骤的设置。Pandoc 工具链(过滤器、模板、CSL)按需下载,因此大多数字段可以留空。",
   "settings.pandocExport.button": "设置 Pandoc 导出…",
+  "settings.market.name": "Pandoc 资产市场",
+  "settings.market.desc":
+    "从资产仓库浏览、下载并安装 Pandoc 配方、过滤器、模板与 CSL 样式。",
+  "settings.market.button": "浏览资产市场…",
+  "settings.market.url.name": "市场目录 URL",
+  "settings.market.url.desc":
+    "指向资产仓库 index.json 的链接。留空则使用内置默认。",
   "settings.pandocUrl.name": "Pandoc 资源包 URL",
   "settings.pandocUrl.desc":
     "指向 Pandoc 工具链 .zip(过滤器/模板/CSL)的链接。“设置 Pandoc 导出 → 下载资源”会用到它。",

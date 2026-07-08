@@ -108,6 +108,7 @@ export interface LongformPluginSettings {
   pandocBinary: string; // "pandoc" or an absolute path
   pandocBibliography: string; // "" = auto-detect project references.bib/mybib.bib
   pandocSetupDismissed: boolean; // true once the user has seen the setup prompt
+  pandocMarketIndexUrl: string; // "" = the built-in default marketplace index
   // DEPRECATED. To be removed in future, needed now for migrations.
   projects: {
     [path: string]: {
@@ -148,6 +149,7 @@ export const DEFAULT_SETTINGS: LongformPluginSettings = {
   pandocBinary: "pandoc",
   pandocBibliography: "",
   pandocSetupDismissed: false,
+  pandocMarketIndexUrl: "",
 };
 
 export const TRACKED_SETTINGS_PATHS: (keyof LongformPluginSettings)[] = [
@@ -178,6 +180,7 @@ export const TRACKED_SETTINGS_PATHS: (keyof LongformPluginSettings)[] = [
   "pandocBinary",
   "pandocBibliography",
   "pandocSetupDismissed",
+  "pandocMarketIndexUrl",
 ];
 
 export const PASSTHROUGH_SAVE_SETTINGS_PATHS: (keyof LongformPluginSettings)[] =
@@ -205,4 +208,5 @@ export const PASSTHROUGH_SAVE_SETTINGS_PATHS: (keyof LongformPluginSettings)[] =
     "pandocBinary",
     "pandocBibliography",
     "pandocSetupDismissed",
+    "pandocMarketIndexUrl",
   ];

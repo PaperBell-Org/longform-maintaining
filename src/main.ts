@@ -35,6 +35,7 @@ import {
 } from "./compile/serialization";
 import type { Workflow } from "./compile";
 import { DEFAULT_WORKFLOWS } from "./compile";
+import { mergeMissingWorkflows } from "./compile/workflow-backfill";
 import { UserScriptObserver } from "./model/user-script-observer";
 import { StoreVaultSync } from "./model/store-vault-sync";
 import {
@@ -253,18 +254,15 @@ export default class LongformPlugin extends Plugin {
       // Back-fill built-in workflows added in newer versions (e.g. PaperBell
       // Cover Letter) into an existing vault, without touching the user's own or
       // customized workflows. Idempotent, so it also self-heals on every load.
-      const missing = Object.keys(DEFAULT_WORKFLOWS).filter(
-        (key) => !(key in (_workflows as Record<string, unknown>))
+      const { workflows: merged, added } = mergeMissingWorkflows(
+        _workflows,
+        DEFAULT_WORKFLOWS
       );
-      if (missing.length > 0) {
+      if (added.length > 0) {
         console.log(
-          `[PaperOut] Adding missing built-in workflows: ${missing.join(", ")}.`
+          `[PaperOut] Adding missing built-in workflows: ${added.join(", ")}.`
         );
-        _workflows = { ..._workflows };
-        for (const key of missing) {
-          (_workflows as Record<string, SerializedWorkflow>)[key] =
-            DEFAULT_WORKFLOWS[key];
-        }
+        _workflows = merged;
       }
     }
 
