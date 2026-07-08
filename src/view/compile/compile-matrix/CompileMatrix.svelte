@@ -41,6 +41,11 @@
   let harvest = true;
   let running = false;
 
+  // Which step node the pointer/focus is on, so the fixed caption can preview it.
+  let hovered = { id: null, i: -1 };
+  const hoverStep = (row, i) => (hovered = { id: row.id, i });
+  const clearHover = () => (hovered = { id: null, i: -1 });
+
   const wfsSnapshot = get(workflows);
   const allWorkflowNames = Object.keys(wfsSnapshot).sort();
 
@@ -246,10 +251,15 @@
                   type="button"
                   class="node {nodeClass(item.state, i)}"
                   class:is-open={item.openStep === i}
-                  title={s.name}
-                  aria-label={s.name}
+                  class:is-hovered={hovered.id === item.id && hovered.i === i}
+                  title="{i + 1}. {s.name}"
+                  aria-label="Step {i + 1}: {s.name}"
                   aria-expanded={item.openStep === i}
                   on:click={() => toggleStep(item, i)}
+                  on:mouseenter={() => hoverStep(item, i)}
+                  on:mouseleave={clearHover}
+                  on:focus={() => hoverStep(item, i)}
+                  on:blur={clearHover}
                 >
                   {#if nodeClass(item.state, i) === "is-active"}
                     <span class="node-spinner"></span>
@@ -257,11 +267,12 @@
                     <span class="node-glyph">✓</span>
                   {:else if nodeClass(item.state, i) === "is-error"}
                     <span class="node-glyph">✕</span>
+                  {:else}
+                    <span class="node-num">{i + 1}</span>
                   {/if}
                 </button>
               {/each}
             </div>
-            <div class="runway-arrow">→</div>
           {:else}
             <div class="matrix-skip" title={item.skipReason}>
               {$t("matrix.skipped")} — {item.skipReason}
@@ -272,7 +283,12 @@
           <!-- Fixed caption: never jumps to the active node, so fast early steps
                don't make it flicker across the runway. -->
           <div class="runway-caption">
-            {#if item.state.status === "running" && item.steps[item.state.activeStep]}
+            {#if hovered.id === item.id && item.steps[hovered.i]}
+              <span class="caption-counter"
+                >{hovered.i + 1}/{item.steps.length}</span
+              >
+              <span class="caption-name">{item.steps[hovered.i].name}</span>
+            {:else if item.state.status === "running" && item.steps[item.state.activeStep]}
               <span class="caption-counter"
                 >{item.state.activeStep + 1}/{item.steps.length}</span
               >
@@ -581,7 +597,7 @@
   .runway-track {
     position: absolute;
     left: var(--size-4-2);
-    right: var(--size-4-4);
+    right: var(--size-4-2);
     top: 50%;
     height: 2px;
     transform: translateY(-50%);
@@ -591,9 +607,9 @@
   .runway-fill {
     position: absolute;
     left: var(--size-4-2);
-    right: var(--size-4-4);
+    right: var(--size-4-2);
     top: 50%;
-    height: 2px;
+    height: 3px;
     transform-origin: left center;
     transform: translateY(-50%) scaleX(0);
     background: var(--interactive-accent);
@@ -609,8 +625,8 @@
     align-items: center;
   }
   .node {
-    width: 16px;
-    height: 16px;
+    width: 20px;
+    height: 20px;
     padding: 0;
     border-radius: 50%;
     display: inline-flex;
@@ -619,13 +635,16 @@
     box-sizing: border-box;
     background: var(--background-primary);
     border: 2px solid var(--background-modifier-border);
+    color: var(--text-faint);
     cursor: pointer;
     transition: background-color 0.2s, border-color 0.2s, transform 0.2s,
-      box-shadow 0.2s;
+      box-shadow 0.2s, color 0.2s;
   }
-  .node:hover {
+  .node:hover,
+  .node.is-hovered {
     border-color: var(--text-accent);
-    transform: scale(1.15);
+    color: var(--text-accent);
+    transform: scale(1.12);
   }
   .node.is-open {
     box-shadow: 0 0 0 2px
@@ -638,6 +657,7 @@
   .node.is-done {
     background: var(--interactive-accent);
     border-color: var(--interactive-accent);
+    color: var(--text-on-accent);
     animation: node-pop 0.25s ease;
   }
   .node.is-active {
@@ -648,31 +668,30 @@
   .node.is-error {
     background: var(--text-error);
     border-color: var(--text-error);
+    color: var(--text-on-accent);
+  }
+  .node-num {
+    font-size: 10px;
+    line-height: 1;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
   }
   .node-glyph {
-    font-size: 9px;
+    font-size: 11px;
     line-height: 1;
     color: var(--text-on-accent);
     font-weight: 800;
   }
   .node-spinner {
-    width: 12px;
-    height: 12px;
+    width: 14px;
+    height: 14px;
     border-radius: 50%;
     border: 2px solid transparent;
     border-top-color: var(--text-accent);
     border-right-color: var(--text-accent);
     animation: matrix-spin 0.7s linear infinite;
   }
-  .runway-arrow {
-    position: absolute;
-    right: 0;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--text-faint);
-    font-size: 1.1em;
-    line-height: 1;
-  }
+  /* No end-arrow: ascending step numbers + the accent fill convey order. */
   /* fixed caption under the runway — always left-anchored, never jumps */
   .runway-caption {
     display: flex;
