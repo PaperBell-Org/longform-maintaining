@@ -464,11 +464,9 @@ export const DEFAULT_WORKFLOWS: Record<string, SerializedWorkflow> = {
   },
   "PaperBell Cover Letter": {
     name: "PaperBell Cover Letter",
-    description: "Compile a submission cover letter (moderncv letterhead).",
+    description:
+      "Export a single-file cover letter to PDF via the cover_letter preset (moderncv letterhead). Keeps the note's own to/date/manuscript/enclosure frontmatter; journal/title/corresponding author come from metadata.json via cover_letter.lua.",
     steps: [
-      { id: "strip-frontmatter", optionValues: {} },
-      { id: "concatenate-text", optionValues: { separator: "\\n\\n" } },
-      { id: "write-to-note", optionValues: { target: "$1_Cover.md", "open-after": true } },
       {
         id: "run-pandoc-export",
         optionValues: {

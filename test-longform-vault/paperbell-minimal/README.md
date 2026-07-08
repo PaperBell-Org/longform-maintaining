@@ -19,8 +19,12 @@ paperbell-minimal/
 │   ├── introduction.md         # §4 emphasis/==highlight==/footnote, §8 [@key], {{ }} from metadata.json
 │   ├── methods.md              # §5 inline/display math, {{ }} from results.json
 │   └── results.md              # §6 figure + Figure \ref{}, §7 xlsx-table + Table \ref{}
+├── Response Letter (Index).md  # draft 2 (sceneFolder: response)
+├── response/
+│   └── response.md             # ```manuscript @id reference-sync (Page/Line + figure number)
+├── Cover Letter.md             # draft 3 (single-file; own to/date/manuscript frontmatter → cover_letter.lua)
 └── supplementary/
-    ├── Supplementary (Index).md   # draft 2 (same title → same project)
+    ├── Supplementary (Index).md   # draft 4 (same title → same project)
     ├── metadata.json              # nearest-wins override adding supplementary: true → S-numbering
     └── supplementary results.md   # §10 supplementary figure/table (Figure S1 / Table S1)
 ```

@@ -26,12 +26,29 @@ export const en = {
   "cmd.startSession": "Start new writing session",
   "cmd.markManuscriptSpan": "Mark manuscript reference span",
   "cmd.insertManuscriptRef": "Insert manuscript reference",
+  "cmd.newPaperProject": "New PaperBell paper project…",
 
   // ── Notices & menus ─────────────────────────────────────────────────────
   "notice.pdfExport":
     "PaperOut To-Authors: PDF export is available. Run “Set up Pandoc export” from the command palette to check prerequisites.",
   "notice.goalMet": "Writing goal met!",
   "menu.createProject": "Create PaperOut Project",
+  "menu.newPaperProject": "New PaperBell paper project…",
+
+  // ── New paper scaffold ──────────────────────────────────────────────────
+  "scaffold.title": "New PaperBell paper project",
+  "scaffold.desc":
+    "Scaffolds a full paper project — Main Manuscript, Supplementary, and Response Letter drafts with starter content, metadata, references, and example figure/table assets — in a new folder named after the title.",
+  "scaffold.nameLabel": "Project title",
+  "scaffold.nameDesc":
+    "Names the project folder and Longform project. Avoid : \\ and /.",
+  "scaffold.acronymLabel": "Acronym",
+  "scaffold.acronymDesc":
+    "Short code used for the PDF name and labels. Defaults to the title’s initials; editable later in metadata.json.",
+  "scaffold.create": "Create project",
+  "scaffold.invalidName": "Enter a project title without : \\ or / characters.",
+  "scaffold.created": "Created PaperBell project “{title}”.",
+  "scaffold.failed": "Could not create project: {error}",
 
   // ── Compile matrix ──────────────────────────────────────────────────────
   "matrix.title": "Compile All Drafts",

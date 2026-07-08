@@ -31,6 +31,6 @@
       "Roe, Rick": ["Center for Placeholder Studies"]
     },
     "corresponding": ["Song, Shuang"],
-    "extra_yaml": "numbersections: true\n"
+    "extra_yaml": "corresponding_email: song@gea.mpg.de\nnumbersections: true\n"
   }
 }
