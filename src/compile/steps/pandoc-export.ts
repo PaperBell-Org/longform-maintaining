@@ -154,7 +154,7 @@ export const RunPandocExportStep = makeBuiltinStep({
         "CSL style — " + cslFile,
         cslOk
           ? ""
-          : `csl is "${csl}" (metadata _longform.csl). Add csl/${csl}.csl or fix the csl.`
+          : `csl is "${csl}" (metadata _longform.csl). Install the "${csl}" CSL from the asset marketplace, add csl/${csl}.csl, or fix the csl.`
       ),
       line(
         bibOk,

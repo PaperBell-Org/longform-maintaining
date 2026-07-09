@@ -97,11 +97,15 @@
     );
   }
 
-  // Recipes are the user-facing "assets" — filters/templates/csl/include install
-  // automatically as a recipe's dependencies, so they aren't listed individually.
+  // User-facing assets are recipes and CSL styles. Filters/templates/include
+  // install automatically as a recipe's dependencies, so they aren't listed; CSL
+  // is listed because recipes don't declare a csl dependency (it's injected via
+  // --csl), so a style must be installable on its own.
   $: bundles = index ? index.bundles.filter(matches) : [];
   $: assets = index
-    ? index.assets.filter((a) => a.type === "recipe" && matches(a))
+    ? index.assets.filter(
+        (a) => (a.type === "recipe" || a.type === "csl") && matches(a)
+      )
     : [];
 
   const stateLabel = (s) =>
