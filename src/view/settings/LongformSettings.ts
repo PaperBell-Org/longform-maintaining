@@ -17,6 +17,8 @@ import { DEFAULT_SESSION_FILE } from "src/model/types";
 import { FileSuggest } from "./file-suggest";
 import { syncSceneIndices } from "src/model/store-vault-sync";
 import { PandocSetupModal } from "../pandoc-setup-modal";
+import PandocMarketModal from "../pandoc-market";
+import { DEFAULT_MARKET_INDEX_URL } from "src/model/pandoc-market";
 
 export class LongformSettingsTab extends PluginSettingTab {
   plugin: LongformPlugin;
@@ -109,7 +111,27 @@ export class LongformSettingsTab extends PluginSettingTab {
       .addButton((cb) => {
         cb.setButtonText(t("settings.pandocExport.button"))
           .setCta()
-          .onClick(() => new PandocSetupModal(this.app).open());
+          .onClick(() => new PandocSetupModal(this.app, this.plugin).open());
+      });
+
+    new Setting(containerEl)
+      .setName(t("settings.market.name"))
+      .setDesc(t("settings.market.desc"))
+      .addButton((cb) => {
+        cb.setButtonText(t("settings.market.button"))
+          .setCta()
+          .onClick(() => new PandocMarketModal(this.app, this.plugin).open());
+      });
+
+    new Setting(containerEl)
+      .setName(t("settings.market.url.name"))
+      .setDesc(t("settings.market.url.desc"))
+      .addText((cb) => {
+        cb.setPlaceholder(DEFAULT_MARKET_INDEX_URL)
+          .setValue(settings.pandocMarketIndexUrl)
+          .onChange((v) => {
+            pluginSettings.update((s) => ({ ...s, pandocMarketIndexUrl: v }));
+          });
       });
 
     new Setting(containerEl)

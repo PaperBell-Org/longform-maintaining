@@ -6,6 +6,6 @@ export const setupPandocExport: CommandBuilder = (plugin) => ({
   id: "longform-setup-pandoc-export",
   name: translate("cmd.setupPandoc"),
   callback: () => {
-    new PandocSetupModal(plugin.app).open();
+    new PandocSetupModal(plugin.app, plugin).open();
   },
 });

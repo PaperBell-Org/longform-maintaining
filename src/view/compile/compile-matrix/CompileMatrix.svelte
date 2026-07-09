@@ -21,7 +21,7 @@
   import { draftTitle } from "src/model/draft-utils";
   import { projectRootPath } from "src/model/project-resources";
   import { useApp } from "../../utils";
-  import { t } from "src/i18n";
+  import { t, translate } from "src/i18n";
   import SortableList from "../../sortable/SortableList.svelte";
   import {
     applyBatchOverrides,
@@ -40,6 +40,15 @@
   let openAfter = false;
   let harvest = true;
   let running = false;
+
+  // Which failed row's full-error panel is expanded.
+  let openError = null;
+  const toggleError = (row) =>
+    (openError = openError === row.id ? null : row.id);
+  async function copyError(text) {
+    await navigator.clipboard.writeText(text ?? "");
+    new Notice(translate("matrix.errorCopied"));
+  }
 
   // Which step node the pointer/focus is on, so the fixed caption can preview it.
   let hovered = { id: null, i: -1 };
@@ -296,9 +305,17 @@
             {:else if item.state.status === "done"}
               <span class="caption-name">{$t("matrix.finished")}</span>
             {:else if item.state.status === "error"}
-              <span class="caption-name caption-error"
-                >{item.steps[item.state.activeStep]?.name ?? ""} — {item.state.error}</span
+              <button
+                class="caption-error-btn"
+                on:click={() => toggleError(item)}
+                title={$t("matrix.viewError")}
               >
+                <span class="caption-name caption-error"
+                  >{item.steps[item.state.activeStep]?.name ?? ""} — {$t(
+                    "matrix.viewError"
+                  )}</span
+                >
+              </button>
             {:else}
               <span class="caption-hint">{$t("matrix.clickStepHint")}</span>
             {/if}
@@ -318,6 +335,18 @@
         {/if}
       </div>
     </div>
+
+    {#if item.state.status === "error" && openError === item.id}
+      <div class="error-panel">
+        <div class="error-panel-head">
+          <span>{item.title} — {$t("matrix.errorTitle")}</span>
+          <button class="error-copy" on:click={() => copyError(item.state.error)}>
+            {$t("matrix.copyError")}
+          </button>
+        </div>
+        <pre class="error-panel-body">{item.state.error}</pre>
+      </div>
+    {/if}
 
     {#if item.runnable && item.openStep >= 0 && item.workflow.steps[item.openStep]}
       {@const step = item.workflow.steps[item.openStep]}
@@ -869,6 +898,64 @@
       opacity: 1;
       transform: none;
     }
+  }
+
+  .caption-error-btn {
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    text-align: left;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .caption-error-btn:hover .caption-error {
+    text-decoration: underline;
+  }
+  .error-panel {
+    margin: calc(-1 * var(--size-2-2)) 0 var(--size-2-3) 0;
+    padding: var(--size-4-2) var(--size-4-3);
+    background: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+    border-top: 2px solid var(--text-error);
+    border-radius: 0 0 var(--radius-m, 8px) var(--radius-m, 8px);
+  }
+  .error-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--size-2-3);
+    margin-bottom: var(--size-2-2);
+    font-size: var(--font-ui-smaller);
+    font-weight: 600;
+    color: var(--text-error);
+  }
+  .error-copy {
+    flex: none;
+    font-size: var(--font-smallest);
+    color: var(--text-muted);
+    background: var(--background-secondary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--radius-s);
+    padding: 2px var(--size-2-3);
+    cursor: pointer;
+  }
+  .error-copy:hover {
+    color: var(--text-normal);
+    border-color: var(--text-accent);
+  }
+  .error-panel-body {
+    margin: 0;
+    max-height: 40vh;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: var(--font-monospace);
+    font-size: var(--font-smallest);
+    color: var(--text-muted);
+    user-select: text;
   }
 
   @keyframes matrix-in {

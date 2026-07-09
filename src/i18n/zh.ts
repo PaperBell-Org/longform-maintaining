@@ -24,6 +24,7 @@ export const zh: Messages = {
   "cmd.markManuscriptSpan": "标记手稿引用片段",
   "cmd.insertManuscriptRef": "插入手稿引用",
   "cmd.newPaperProject": "新建 PaperBell 论文项目…",
+  "cmd.openMarket": "浏览 Pandoc 资产市场",
 
   // ── 通知与菜单 ────────────────────────────────────────────────────────
   "notice.pdfExport":
@@ -55,11 +56,74 @@ export const zh: Messages = {
   "matrix.run": "运行",
   "matrix.running": "运行中…",
   "matrix.skipped": "已跳过",
+  "matrix.viewError": "查看错误",
+  "matrix.errorTitle": "错误详情",
+  "matrix.copyError": "复制",
+  "matrix.errorCopied": "错误已复制到剪贴板。",
   "matrix.finished": "已完成",
   "matrix.workflow": "编译工作流",
   "matrix.clickStepHint": "点击步骤圆点可查看或编辑该步骤。",
   "matrix.noOptions": "该步骤没有可配置项。",
   "matrix.reorderHint": "拖动行来设定编译顺序(从上到下)。",
+
+  // ── Pandoc 资产市场 ──────────────────────────────────────────────────
+  "market.title": "Pandoc 资产市场",
+  "market.items": "项",
+  "market.search": "搜索资产…",
+  "market.reload": "重新加载",
+  "market.desktopNote":
+    "移动端可浏览与下载,但模板列表和 PDF 导出需要桌面端。",
+  "market.loadError": "无法加载市场目录。",
+  "market.empty": "没有匹配搜索的资产。",
+  "market.bundles": "套件",
+  "market.assets": "单个资产",
+  "market.assetsIncluded": "个资产",
+  "market.requires": "依赖",
+  "market.systemDeps": "系统工具",
+  "market.unverified": "未经审核 —— 其 Lua 会在你本机运行。",
+  "market.back": "返回",
+  "market.clickForDetails": "点击查看说明与用法",
+  "market.readmeError": "无法加载该资产的说明文档。",
+  "market.noReadme": "该资产暂无使用说明。",
+
+  // ── 设置 Pandoc 导出 ──────────────────────────────────────────────────
+  "setup.title": "设置 Pandoc 导出",
+  "setup.intro":
+    "PDF 导出需要三个系统工具,外加 PaperBell 的 Pandoc 工具链(过滤器、模板、CSL)。可在下方的资产市场安装工具链,或粘贴一个工具链 .zip 链接。",
+  "setup.notFound": "未找到",
+  "setup.pdfEngine": "PDF 引擎",
+  "setup.assets": "Pandoc 资产",
+  "setup.assetsOk": "已找到 defaults/ 与 csl/。",
+  "setup.assetsMissing": "尚未下载。可从资产市场安装,或在下方填写资产 URL。",
+  "setup.market.name": "资产市场",
+  "setup.market.desc": "浏览并安装配方、过滤器、模板与 CSL 样式 —— 更省心的方式。",
+  "setup.market.button": "浏览资产市场…",
+  "setup.url.name": "资产 URL(高级)",
+  "setup.url.desc":
+    "指向工具链 .zip(release 资产)的链接。上面的资产市场更方便。",
+  "setup.download.name": "下载 / 更新资产",
+  "setup.download.desc":
+    "把工具链下载并解压到 {folder}。你在那里的修改不会被插件更新覆盖。",
+  "setup.download.button": "下载资产",
+  "setup.recheck": "重新检查",
+  "setup.copyReport": "复制报告",
+  "setup.copied": "已复制!",
+  "setup.done": "完成",
+  "setup.downloading": "正在下载 Pandoc 资产…",
+  "setup.downloaded": "已下载 {count} 个资产文件到 {dest}。",
+  "setup.downloadFailed": "资产下载失败:{error}",
+  "market.install": "安装",
+  "market.update": "更新",
+  "market.installed": "已安装",
+  "market.reinstall": "重装",
+  "market.uninstall": "卸载",
+  "market.uninstalling": "正在卸载",
+  "market.uninstalled": "已卸载",
+  "market.confirmUninstall":
+    "删除「{name}」?其文件会从资产目录中移除(之后可重新安装)。",
+  "market.installing": "安装中…",
+  "market.installedNotice": "已安装",
+  "market.failed": "失败:",
 
   // ── 资源管理器面板 ────────────────────────────────────────────────────
   "explorer.paneTitle": "PaperOut To-Authors",
@@ -100,6 +164,13 @@ export const zh: Messages = {
   "settings.pandocExport.desc":
     "“运行 Pandoc 导出”编译步骤的设置。Pandoc 工具链(过滤器、模板、CSL)按需下载,因此大多数字段可以留空。",
   "settings.pandocExport.button": "设置 Pandoc 导出…",
+  "settings.market.name": "Pandoc 资产市场",
+  "settings.market.desc":
+    "从资产仓库浏览、下载并安装 Pandoc 配方、过滤器、模板与 CSL 样式。",
+  "settings.market.button": "浏览资产市场…",
+  "settings.market.url.name": "市场目录 URL",
+  "settings.market.url.desc":
+    "指向资产仓库 index.json 的链接。留空则使用内置默认。",
   "settings.pandocUrl.name": "Pandoc 资源包 URL",
   "settings.pandocUrl.desc":
     "指向 Pandoc 工具链 .zip(过滤器/模板/CSL)的链接。“设置 Pandoc 导出 → 下载资源”会用到它。",

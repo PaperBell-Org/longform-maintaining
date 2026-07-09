@@ -27,6 +27,7 @@ export const en = {
   "cmd.markManuscriptSpan": "Mark manuscript reference span",
   "cmd.insertManuscriptRef": "Insert manuscript reference",
   "cmd.newPaperProject": "New PaperBell paper project…",
+  "cmd.openMarket": "Browse Pandoc asset marketplace",
 
   // ── Notices & menus ─────────────────────────────────────────────────────
   "notice.pdfExport":
@@ -59,11 +60,76 @@ export const en = {
   "matrix.run": "Run",
   "matrix.running": "Running…",
   "matrix.skipped": "skipped",
+  "matrix.viewError": "View error",
+  "matrix.errorTitle": "Error",
+  "matrix.copyError": "Copy",
+  "matrix.errorCopied": "Error copied to clipboard.",
   "matrix.finished": "Finished",
   "matrix.workflow": "Compile workflow",
   "matrix.clickStepHint": "Click a step to view or edit it.",
   "matrix.noOptions": "This step has no options.",
   "matrix.reorderHint": "Drag rows to set the compile order (top → bottom).",
+
+  // ── Pandoc asset marketplace ────────────────────────────────────────────
+  "market.title": "Pandoc asset marketplace",
+  "market.items": "items",
+  "market.search": "Search assets…",
+  "market.reload": "Reload",
+  "market.desktopNote":
+    "You can browse and download on mobile, but the template list and PDF export need the desktop app.",
+  "market.loadError": "Couldn’t load the marketplace index.",
+  "market.empty": "No assets match your search.",
+  "market.bundles": "Bundles",
+  "market.assets": "Individual assets",
+  "market.assetsIncluded": "assets included",
+  "market.requires": "Requires",
+  "market.systemDeps": "System tools",
+  "market.unverified": "Unverified — its Lua runs on your machine.",
+  "market.back": "Back",
+  "market.clickForDetails": "Click for details & usage",
+  "market.readmeError": "Couldn’t load this asset’s docs.",
+  "market.noReadme": "This asset has no usage docs yet.",
+
+  // ── Set up Pandoc export ────────────────────────────────────────────────
+  "setup.title": "Set up Pandoc export",
+  "setup.intro":
+    "PDF export needs three system tools plus the PaperBell Pandoc toolchain (filters, templates, CSL). Get the toolchain from the asset marketplace below, or paste a toolchain .zip URL.",
+  "setup.notFound": "not found",
+  "setup.pdfEngine": "PDF engine",
+  "setup.assets": "Pandoc assets",
+  "setup.assetsOk": "defaults/ and csl/ found.",
+  "setup.assetsMissing":
+    "Not downloaded yet. Install from the marketplace, or set the assets URL below.",
+  "setup.market.name": "Asset marketplace",
+  "setup.market.desc":
+    "Browse and install recipes, filters, templates, and CSL styles — the easy way.",
+  "setup.market.button": "Browse marketplace…",
+  "setup.url.name": "Assets URL (advanced)",
+  "setup.url.desc":
+    "Link to a toolchain .zip (a release asset). The marketplace above is the easier way.",
+  "setup.download.name": "Download / update assets",
+  "setup.download.desc":
+    "Downloads and extracts the toolchain into {folder}. Your edits there survive plugin updates.",
+  "setup.download.button": "Download assets",
+  "setup.recheck": "Recheck",
+  "setup.copyReport": "Copy report",
+  "setup.copied": "Copied!",
+  "setup.done": "Done",
+  "setup.downloading": "Downloading Pandoc assets…",
+  "setup.downloaded": "Downloaded {count} asset files to {dest}.",
+  "setup.downloadFailed": "Assets download failed: {error}",
+  "market.install": "Install",
+  "market.update": "Update",
+  "market.installed": "Installed",
+  "market.reinstall": "Reinstall",
+  "market.uninstall": "Uninstall",
+  "market.uninstalling": "Uninstalling",
+  "market.uninstalled": "Uninstalled",
+  "market.confirmUninstall":
+    "Remove “{name}”? Its files will be deleted from the assets folder (you can reinstall it later).",
+  "market.installing": "Installing…",
+  "market.installedNotice": "Installed",
+  "market.failed": "Failed:",
 
   // ── Explorer pane ───────────────────────────────────────────────────────
   "explorer.paneTitle": "PaperOut To-Authors",
@@ -105,6 +171,13 @@ export const en = {
   "settings.pandocExport.desc":
     "Settings for the ‘Run Pandoc Export’ compile step. The Pandoc toolchain (filters, templates, CSL) is downloaded on demand, so most fields can stay empty.",
   "settings.pandocExport.button": "Set up Pandoc export…",
+  "settings.market.name": "Pandoc asset marketplace",
+  "settings.market.desc":
+    "Browse, download, and install Pandoc recipes, filters, templates, and CSL styles from the assets repository.",
+  "settings.market.button": "Browse marketplace…",
+  "settings.market.url.name": "Marketplace index URL",
+  "settings.market.url.desc":
+    "Link to the assets repository’s index.json. Leave empty for the built-in default.",
   "settings.pandocUrl.name": "Pandoc assets URL",
   "settings.pandocUrl.desc":
     "Link to the Pandoc toolchain .zip (filters/templates/CSL). Used by ‘Set up Pandoc export → Download assets’.",

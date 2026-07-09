@@ -12,6 +12,9 @@ import {
 } from "src/compile/steps/pandoc-export-utils";
 import { downloadPandocAssets } from "src/model/pandoc-assets";
 import { refreshPandocTemplates } from "src/model/pandoc-templates";
+import { translate } from "src/i18n";
+import PandocMarketModal from "./pandoc-market";
+import type LongformPlugin from "src/main";
 
 type Check = { ok: boolean; label: string; detail: string };
 
@@ -31,8 +34,11 @@ function installHint(bin: string): string {
 }
 
 export class PandocSetupModal extends Modal {
-  constructor(app: App) {
+  private plugin?: LongformPlugin;
+
+  constructor(app: App, plugin?: LongformPlugin) {
     super(app);
+    this.plugin = plugin;
   }
 
   private assetsFolderRel(): string {
@@ -55,6 +61,7 @@ export class PandocSetupModal extends Modal {
     const home = os.homedir();
     const dirs = binSearchDirs(home);
     const settings = get(pluginSettings);
+    const nf = translate("setup.notFound");
     const pandoc = resolveBinary(
       (settings.pandocBinary ?? "pandoc").trim() || "pandoc",
       fs.existsSync,
@@ -70,25 +77,25 @@ export class PandocSetupModal extends Modal {
     const checks: Check[] = [
       {
         ok: !!pandoc,
-        label: "pandoc — " + (pandoc || "not found"),
+        label: "pandoc — " + (pandoc || nf),
         detail: pandoc ? "" : installHint("pandoc"),
       },
       {
         ok: !!xelatex,
-        label: "xelatex (PDF engine) — " + (xelatex || "not found"),
+        label: `xelatex (${translate("setup.pdfEngine")}) — ` + (xelatex || nf),
         detail: xelatex ? "" : installHint("xelatex"),
       },
       {
         ok: !!crossref,
-        label: "pandoc-crossref — " + (crossref || "not found"),
+        label: "pandoc-crossref — " + (crossref || nf),
         detail: crossref ? "" : installHint("pandoc-crossref"),
       },
       {
         ok: assetsOk,
-        label: "Pandoc assets — " + assets,
+        label: translate("setup.assets") + " — " + assets,
         detail: assetsOk
-          ? "defaults/ and csl/ found."
-          : "Not downloaded yet. Set the assets URL below and click Download.",
+          ? translate("setup.assetsOk")
+          : translate("setup.assetsMissing"),
       },
     ];
     return { checks, assets };
@@ -113,13 +120,10 @@ export class PandocSetupModal extends Modal {
 
   private render(): void {
     const { contentEl, titleEl } = this;
-    titleEl.setText("Set up Pandoc export");
+    titleEl.setText(translate("setup.title"));
     contentEl.empty();
 
-    contentEl.createEl("p", {
-      text:
-        "PDF export needs three system tools plus the PaperBell Pandoc toolchain (filters, templates, CSL). The toolchain lives in a separate assets repository — download it once with the button below.",
-    });
+    contentEl.createEl("p", { text: translate("setup.intro") });
 
     const { checks } = this.gatherChecks();
 
@@ -136,11 +140,25 @@ export class PandocSetupModal extends Modal {
       }
     }
 
+    // Primary path: the asset marketplace (needs the plugin for its modal).
+    if (this.plugin) {
+      new Setting(contentEl)
+        .setName(translate("setup.market.name"))
+        .setDesc(translate("setup.market.desc"))
+        .addButton((cb) =>
+          cb
+            .setButtonText(translate("setup.market.button"))
+            .setCta()
+            .onClick(() => {
+              this.close();
+              new PandocMarketModal(this.app, this.plugin as LongformPlugin).open();
+            })
+        );
+    }
+
     new Setting(contentEl)
-      .setName("Assets URL")
-      .setDesc(
-        "Link to the PaperBell Pandoc toolchain .zip (a release asset of your assets repository)."
-      )
+      .setName(translate("setup.url.name"))
+      .setDesc(translate("setup.url.desc"))
       .addText((cb) => {
         cb.setPlaceholder("https://…/pandoc-assets.zip")
           .setValue(get(pluginSettings).pandocAssetsUrl)
@@ -150,26 +168,31 @@ export class PandocSetupModal extends Modal {
       });
 
     new Setting(contentEl)
-      .setName("Download / update assets")
+      .setName(translate("setup.download.name"))
       .setDesc(
-        `Downloads and extracts the toolchain into ${this.assetsFolderRel()} in your vault. Your edits there survive plugin updates.`
+        translate("setup.download.desc", { folder: this.assetsFolderRel() })
       )
       .addButton((cb) =>
-        cb.setButtonText("Download assets").setCta().onClick(async () => {
-          await this.download();
-        })
+        cb
+          .setButtonText(translate("setup.download.button"))
+          .onClick(async () => {
+            await this.download();
+          })
       );
 
     const buttons = contentEl.createDiv({ cls: "longform-error-modal-buttons" });
-    const recheck = buttons.createEl("button", { text: "Recheck" });
+    const recheck = buttons.createEl("button", { text: translate("setup.recheck") });
     recheck.addEventListener("click", () => this.render());
-    const copy = buttons.createEl("button", { text: "Copy report" });
+    const copy = buttons.createEl("button", { text: translate("setup.copyReport") });
     copy.addEventListener("click", async () => {
       await navigator.clipboard.writeText(this.reportText(checks));
-      copy.setText("Copied!");
-      window.setTimeout(() => copy.setText("Copy report"), 1500);
+      copy.setText(translate("setup.copied"));
+      window.setTimeout(() => copy.setText(translate("setup.copyReport")), 1500);
     });
-    const done = buttons.createEl("button", { text: "Done", cls: "mod-cta" });
+    const done = buttons.createEl("button", {
+      text: translate("setup.done"),
+      cls: "mod-cta",
+    });
     done.addEventListener("click", () => {
       pluginSettings.update((s) => ({ ...s, pandocSetupDismissed: true }));
       this.close();
@@ -179,17 +202,20 @@ export class PandocSetupModal extends Modal {
   private async download(): Promise<void> {
     const url = (get(pluginSettings).pandocAssetsUrl ?? "").trim();
     const dest = DEFAULT_ASSETS_DIR;
-    const notice = new Notice("Downloading Pandoc assets…", 0);
+    const notice = new Notice(translate("setup.downloading"), 0);
     try {
       const { count } = await downloadPandocAssets(this.app, url, dest);
       pluginSettings.update((s) => ({ ...s, pandocAssetsFolder: dest }));
       refreshPandocTemplates(this.app);
       notice.hide();
-      new Notice(`Downloaded ${count} asset files to ${dest}.`);
+      new Notice(translate("setup.downloaded", { count: String(count), dest }));
       this.render();
     } catch (e) {
       notice.hide();
-      new Notice("Assets download failed: " + (e as Error).message, 8000);
+      new Notice(
+        translate("setup.downloadFailed", { error: (e as Error).message }),
+        8000
+      );
     }
   }
 
