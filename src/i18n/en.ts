@@ -122,6 +122,11 @@ export const en = {
   "market.update": "Update",
   "market.installed": "Installed",
   "market.reinstall": "Reinstall",
+  "market.uninstall": "Uninstall",
+  "market.uninstalling": "Uninstalling",
+  "market.uninstalled": "Uninstalled",
+  "market.confirmUninstall":
+    "Remove “{name}”? Its files will be deleted from the assets folder (you can reinstall it later).",
   "market.installing": "Installing…",
   "market.installedNotice": "Installed",
   "market.failed": "Failed:",

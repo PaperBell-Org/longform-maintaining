@@ -272,21 +272,32 @@ export async function installMarketBundle(
   return rec;
 }
 
-/** Remove a previously-installed asset/bundle's files and its manifest record. */
+/**
+ * Remove an installed asset/bundle's files and its manifest record. If the item
+ * isn't tracked in the manifest (present on disk but untracked), `fallbackFiles`
+ * (e.g. the index's declared file paths) are removed instead. Returns how many
+ * files were deleted.
+ */
 export async function uninstallMarketItem(
   app: App,
   destFolder: string,
-  id: string
-): Promise<void> {
+  id: string,
+  fallbackFiles: string[] = []
+): Promise<number> {
   const manifest = await readInstalledManifest(app, destFolder);
   const rec = manifest[id];
-  if (!rec) return;
-  for (const rel of rec.files) {
+  const files = rec ? rec.files : fallbackFiles;
+  let removed = 0;
+  for (const rel of files) {
     const full = `${destFolder}/${rel}`;
     if (await app.vault.adapter.exists(full)) {
       await app.vault.adapter.remove(full);
+      removed += 1;
     }
   }
-  delete manifest[id];
-  await writeInstalledManifest(app, destFolder, manifest);
+  if (rec) {
+    delete manifest[id];
+    await writeInstalledManifest(app, destFolder, manifest);
+  }
+  return removed;
 }

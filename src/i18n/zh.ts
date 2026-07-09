@@ -116,6 +116,11 @@ export const zh: Messages = {
   "market.update": "更新",
   "market.installed": "已安装",
   "market.reinstall": "重装",
+  "market.uninstall": "卸载",
+  "market.uninstalling": "正在卸载",
+  "market.uninstalled": "已卸载",
+  "market.confirmUninstall":
+    "删除「{name}」?其文件会从资产目录中移除(之后可重新安装)。",
   "market.installing": "安装中…",
   "market.installedNotice": "已安装",
   "market.failed": "失败:",

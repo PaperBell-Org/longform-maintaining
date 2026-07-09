@@ -11,6 +11,7 @@
     fetchMarketReadme,
     installMarketBundle,
     installAssetWithDeps,
+    uninstallMarketItem,
     readInstalledManifest,
     detectPresentIds,
   } from "src/model/pandoc-assets";
@@ -19,7 +20,7 @@
     installStateFor,
   } from "src/model/pandoc-market";
   import { useApp } from "../utils";
-  import { t, locale } from "src/i18n";
+  import { t, locale, translate } from "src/i18n";
 
   const app = useApp();
   const close: () => void = getContext("close");
@@ -164,6 +165,31 @@
     }
   }
 
+  async function uninstall(item) {
+    if (busy[item.id]) return;
+    if (!window.confirm(translate("market.confirmUninstall", { name: item.name })))
+      return;
+    busy = { ...busy, [item.id]: true };
+    const n = new Notice(translate("market.uninstalling") + " " + item.name, 0);
+    try {
+      // For a bundle we only know its listed file paths; for an asset, its files[].
+      const files = item.download
+        ? item.assets ?? []
+        : (item.files ?? []).map((f) => f.path);
+      await uninstallMarketItem(app, destFolder, item.id, files);
+      delete manifest[item.id];
+      manifest = { ...manifest };
+      present = new Set([...present].filter((x) => x !== item.id));
+      refresh();
+      new Notice(translate("market.uninstalled") + " " + item.name);
+    } catch (e) {
+      new Notice(translate("market.failed") + " " + String(e?.message ?? e));
+    } finally {
+      n.hide();
+      busy = { ...busy, [item.id]: false };
+    }
+  }
+
   const assetName = (id) => index?.assets.find((a) => a.id === id)?.name ?? id;
 </script>
 
@@ -241,6 +267,15 @@
         {/if}
       </div>
       <div class="detail-actions">
+        {#if dstate !== "not-installed"}
+          <button
+            class="detail-uninstall"
+            disabled={busy[detail.id]}
+            on:click={() => uninstall(detail)}
+          >
+            {$t("market.uninstall")}
+          </button>
+        {/if}
         <button
           class="card-install"
           class:is-installed={dstate === "installed"}
@@ -553,6 +588,25 @@
   .detail-actions {
     display: flex;
     justify-content: flex-end;
+    align-items: center;
+    gap: var(--size-2-3);
+  }
+  .detail-uninstall {
+    margin-right: auto;
+    font-size: var(--font-ui-smaller);
+    color: var(--text-error);
+    background: transparent;
+    border: 1px solid color-mix(in srgb, var(--text-error) 45%, transparent);
+    border-radius: var(--radius-s);
+    padding: 4px var(--size-4-3);
+    cursor: pointer;
+  }
+  .detail-uninstall:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--text-error) 12%, transparent);
+  }
+  .detail-uninstall:disabled {
+    opacity: 0.5;
+    cursor: default;
   }
 
   .market-state {
