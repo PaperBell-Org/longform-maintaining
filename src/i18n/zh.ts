@@ -81,6 +81,33 @@ export const zh: Messages = {
   "market.clickForDetails": "点击查看说明与用法",
   "market.readmeError": "无法加载该资产的说明文档。",
   "market.noReadme": "该资产暂无使用说明。",
+
+  // ── 设置 Pandoc 导出 ──────────────────────────────────────────────────
+  "setup.title": "设置 Pandoc 导出",
+  "setup.intro":
+    "PDF 导出需要三个系统工具,外加 PaperBell 的 Pandoc 工具链(过滤器、模板、CSL)。可在下方的资产市场安装工具链,或粘贴一个工具链 .zip 链接。",
+  "setup.notFound": "未找到",
+  "setup.pdfEngine": "PDF 引擎",
+  "setup.assets": "Pandoc 资产",
+  "setup.assetsOk": "已找到 defaults/ 与 csl/。",
+  "setup.assetsMissing": "尚未下载。可从资产市场安装,或在下方填写资产 URL。",
+  "setup.market.name": "资产市场",
+  "setup.market.desc": "浏览并安装配方、过滤器、模板与 CSL 样式 —— 更省心的方式。",
+  "setup.market.button": "浏览资产市场…",
+  "setup.url.name": "资产 URL(高级)",
+  "setup.url.desc":
+    "指向工具链 .zip(release 资产)的链接。上面的资产市场更方便。",
+  "setup.download.name": "下载 / 更新资产",
+  "setup.download.desc":
+    "把工具链下载并解压到 {folder}。你在那里的修改不会被插件更新覆盖。",
+  "setup.download.button": "下载资产",
+  "setup.recheck": "重新检查",
+  "setup.copyReport": "复制报告",
+  "setup.copied": "已复制!",
+  "setup.done": "完成",
+  "setup.downloading": "正在下载 Pandoc 资产…",
+  "setup.downloaded": "已下载 {count} 个资产文件到 {dest}。",
+  "setup.downloadFailed": "资产下载失败:{error}",
   "market.install": "安装",
   "market.update": "更新",
   "market.installed": "已安装",

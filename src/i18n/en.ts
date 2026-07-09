@@ -85,6 +85,35 @@ export const en = {
   "market.clickForDetails": "Click for details & usage",
   "market.readmeError": "Couldn’t load this asset’s docs.",
   "market.noReadme": "This asset has no usage docs yet.",
+
+  // ── Set up Pandoc export ────────────────────────────────────────────────
+  "setup.title": "Set up Pandoc export",
+  "setup.intro":
+    "PDF export needs three system tools plus the PaperBell Pandoc toolchain (filters, templates, CSL). Get the toolchain from the asset marketplace below, or paste a toolchain .zip URL.",
+  "setup.notFound": "not found",
+  "setup.pdfEngine": "PDF engine",
+  "setup.assets": "Pandoc assets",
+  "setup.assetsOk": "defaults/ and csl/ found.",
+  "setup.assetsMissing":
+    "Not downloaded yet. Install from the marketplace, or set the assets URL below.",
+  "setup.market.name": "Asset marketplace",
+  "setup.market.desc":
+    "Browse and install recipes, filters, templates, and CSL styles — the easy way.",
+  "setup.market.button": "Browse marketplace…",
+  "setup.url.name": "Assets URL (advanced)",
+  "setup.url.desc":
+    "Link to a toolchain .zip (a release asset). The marketplace above is the easier way.",
+  "setup.download.name": "Download / update assets",
+  "setup.download.desc":
+    "Downloads and extracts the toolchain into {folder}. Your edits there survive plugin updates.",
+  "setup.download.button": "Download assets",
+  "setup.recheck": "Recheck",
+  "setup.copyReport": "Copy report",
+  "setup.copied": "Copied!",
+  "setup.done": "Done",
+  "setup.downloading": "Downloading Pandoc assets…",
+  "setup.downloaded": "Downloaded {count} asset files to {dest}.",
+  "setup.downloadFailed": "Assets download failed: {error}",
   "market.install": "Install",
   "market.update": "Update",
   "market.installed": "Installed",

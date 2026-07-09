@@ -111,7 +111,7 @@ export class LongformSettingsTab extends PluginSettingTab {
       .addButton((cb) => {
         cb.setButtonText(t("settings.pandocExport.button"))
           .setCta()
-          .onClick(() => new PandocSetupModal(this.app).open());
+          .onClick(() => new PandocSetupModal(this.app, this.plugin).open());
       });
 
     new Setting(containerEl)
