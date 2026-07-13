@@ -1,9 +1,9 @@
 import { App, TFile } from "obsidian";
 import { get } from "svelte/store";
 import { drafts, projects } from "./stores";
-import { draftForPath } from "./scene-navigation";
+import { draftForPath, sceneFolderPath } from "./scene-navigation";
 import {
-  draftParentFolder,
+  draftIndexFolder,
   projectResourceCandidatePaths,
   projectRootPath,
 } from "./project-resources";
@@ -34,7 +34,14 @@ export async function resolveProjectMetadataFile(
 
   const projectDrafts = get(projects)[draft.title] ?? [draft];
   const root = projectRootPath(projectDrafts);
-  const startDir = draftParentFolder(draft.vaultPath);
+  // Start the nearest-wins walk from the draft's own folder. For a project
+  // asset (all assets share one index at the project root) start instead from
+  // its scene folder, so a nearer `metadata.json` (e.g. supplementary/) still
+  // wins. Legacy drafts keep their own index folder — unchanged behavior.
+  const startDir =
+    draft.format === "scenes" && draft.indexPath
+      ? sceneFolderPath(draft, app.vault)
+      : draftIndexFolder(draft);
   const candidatePaths = projectResourceCandidatePaths(
     startDir,
     root,

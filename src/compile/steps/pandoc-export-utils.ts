@@ -184,8 +184,65 @@ export type PandocArgPaths = {
   cslFile: string;
   projectAbs: string;
   outputPath: string;
-  bibliography?: string | null;
+  /** Zero or more .bib paths; pandoc merges them (earlier ones win on dupes). */
+  bibliographies?: string[] | null;
 };
+
+/**
+ * Split a user-entered bibliography list into individual paths. Accepts commas
+ * and/or newlines as separators; blank entries are dropped. Used for the
+ * vault-wide "Global bibliography" setting, which may name more than one .bib.
+ */
+export function splitBibList(raw: string | null | undefined): string[] {
+  return (raw ?? "")
+    .split(/[\n,]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/**
+ * The BibTeX cite keys declared in a `.bib` file's text — the `key` in
+ * `@article{key, …}`. Skips `@string`/`@preamble`/`@comment`, which aren't
+ * reference entries. Used to warn about keys that collide across merged bibs.
+ */
+export function extractCiteKeys(bib: string): string[] {
+  const keys: string[] = [];
+  const re = /@(\w+)\s*\{\s*([^,\s}]+)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(bib))) {
+    const type = m[1].toLowerCase();
+    if (type === "string" || type === "preamble" || type === "comment") {
+      continue;
+    }
+    keys.push(m[2]);
+  }
+  return keys;
+}
+
+/**
+ * Cite keys defined in more than one of the given bib files. pandoc silently
+ * lets the LAST `--bibliography` win on a collision, so we surface these so the
+ * user knows an override happened. `paths` is in the order given; the winner is
+ * the last one (each file is counted once per key).
+ */
+export function findDuplicateCiteKeys(
+  bibs: { path: string; content: string }[]
+): { key: string; paths: string[] }[] {
+  const byKey = new Map<string, string[]>();
+  for (const { path: p, content } of bibs) {
+    const seen = new Set<string>();
+    for (const key of extractCiteKeys(content)) {
+      if (seen.has(key)) continue;
+      seen.add(key);
+      byKey.set(key, [...(byKey.get(key) ?? []), p]);
+    }
+  }
+  const dups: { key: string; paths: string[] }[] = [];
+  for (const [key, paths] of byKey) {
+    if (paths.length > 1) dups.push({ key, paths });
+  }
+  return dups;
+}
 
 /**
  * Determine a single common top-level directory shared by every entry (e.g. the
@@ -237,8 +294,8 @@ export function buildPandocArgs(p: PandocArgPaths): string[] {
     "--resource-path=" + path.join(p.projectAbs, "figs"),
     "--resource-path=" + path.join(p.projectAbs, "..", "figs"),
   ];
-  if (p.bibliography) {
-    args.push("--bibliography=" + p.bibliography);
+  for (const bib of p.bibliographies ?? []) {
+    args.push("--bibliography=" + bib);
   }
   args.push("-o", p.outputPath);
   return args;

@@ -214,6 +214,20 @@ export class LongformSettingsTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
+      .setName(t("settings.globalBibliography.name"))
+      .setDesc(t("settings.globalBibliography.desc"))
+      .addTextArea((cb) => {
+        cb.setPlaceholder("Library/global.bib\nLibrary/methods-refs.bib")
+          .setValue(settings.pandocGlobalBibliography ?? "")
+          .onChange((v) => {
+            pluginSettings.update((s) => ({
+              ...s,
+              pandocGlobalBibliography: v,
+            }));
+          });
+      });
+
+    new Setting(containerEl)
       .setName(t("settings.pandocBinary.name"))
       .setDesc(t("settings.pandocBinary.desc"))
       .addText((cb) => {

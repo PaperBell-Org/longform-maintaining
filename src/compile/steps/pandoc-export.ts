@@ -1,4 +1,4 @@
-import { FileSystemAdapter, requestUrl } from "obsidian";
+import { FileSystemAdapter, Notice, requestUrl } from "obsidian";
 import { execFile } from "child_process";
 import * as fs from "fs";
 import * as os from "os";
@@ -17,11 +17,13 @@ import {
   buildExportFilename,
   buildPandocArgs,
   DEFAULT_ASSETS_DIR,
+  findDuplicateCiteKeys,
   hasCitations,
   officialCslUrls,
   parseExportFrontmatter,
   resolveBinary,
   resolveUserPath,
+  splitBibList,
   zoteroStylesDir,
 } from "./pandoc-export-utils";
 import { pluginSettings } from "src/model/stores";
@@ -174,9 +176,45 @@ export const RunPandocExportStep = makeBuiltinStep({
     const defaultsOk = fs.existsSync(defaultsFile);
     const cslOk = !!resolvedCsl;
 
-    const bibliography = resolveBibliography(settings, context, base, home);
+    const bibliographies = resolveBibliography(settings, context, base, home);
     const needsBib = hasCitations(input.contents);
-    const bibOk = !needsBib || !!bibliography;
+    const bibOk = !needsBib || bibliographies.length > 0;
+
+    // pandoc silently lets the LAST --bibliography win on a duplicate cite key.
+    // Detect collisions across the merged bibs and warn — the project bib is
+    // listed last, so it is the winner (that is the intended override).
+    let bibDupWarning = "";
+    if (needsBib && bibliographies.length > 1) {
+      const loaded = bibliographies
+        .map((p) => {
+          try {
+            return { path: p, content: fs.readFileSync(p, "utf8") };
+          } catch {
+            return null;
+          }
+        })
+        .filter((x): x is { path: string; content: string } => x !== null);
+      const dups = findDuplicateCiteKeys(loaded);
+      if (dups.length > 0) {
+        const detail = dups
+          .map(
+            (d) =>
+              `  @${d.key}: in ${d.paths.join(" , ")} → using ${
+                d.paths[d.paths.length - 1]
+              }`
+          )
+          .join("\n");
+        bibDupWarning =
+          `${dups.length} cite key(s) defined in more than one .bib; ` +
+          `pandoc uses the last (your project bib overrides the global):\n${detail}`;
+        console.warn("[Pandoc Export] " + bibDupWarning);
+        new Notice(
+          `PaperOut: ${dups.length} duplicate cite key(s) across bibliographies — ` +
+            `the project bib wins. See console for the list.`,
+          8000
+        );
+      }
+    }
 
     const checklist = [
       line(
@@ -209,10 +247,15 @@ export const RunPandocExportStep = makeBuiltinStep({
       ),
       line(
         bibOk,
-        "bibliography — " + (bibliography || (needsBib ? "not found" : "not needed")),
+        "bibliography — " +
+          (bibliographies.length
+            ? bibliographies.join(", ")
+            : needsBib
+            ? "not found"
+            : "not needed"),
         bibOk
           ? ""
-          : "Your manuscript has [@citations] but no .bib was found. Add references.bib to the project, or set a Bibliography path in settings."
+          : "Your manuscript has [@citations] but no .bib was found. Add references.bib to the project, set a Bibliography path, or add a Global bibliography in settings."
       ),
       line(
         !!xelatexBin,
@@ -272,7 +315,7 @@ export const RunPandocExportStep = makeBuiltinStep({
       cslFile,
       projectAbs,
       outputPath,
-      bibliography,
+      bibliographies,
     });
     const env = { ...process.env, PATH: buildExecPath(process.env.PATH ?? "", home) };
 
@@ -281,6 +324,7 @@ export const RunPandocExportStep = makeBuiltinStep({
       console.log(
         "[Pandoc Export] DRY RUN — checklist:\n" +
           checklist.join("\n") +
+          (bibDupWarning ? "\n\n⚠ " + bibDupWarning : "") +
           "\n\nWould run (cwd=" +
           cwd +
           "):\n" +
@@ -355,31 +399,63 @@ export const RunPandocExportStep = makeBuiltinStep({
 });
 
 /**
- * Resolve a bibliography for `--bibliography`: the configured path if set and
- * present, else the nearest `references.bib`/`mybib.bib` searched from the
- * draft folder up to the project root. Returns null when none is found.
+ * Resolve the bibliographies for `--bibliography`, merged so pandoc can draw
+ * citations from several `.bib` files at once. Ordered:
+ *
+ *   1. every existing vault-wide bib listed in `pandocGlobalBibliography`;
+ *   2. the project-specific bib — the configured `pandocBibliography` path if
+ *      set and present, else the nearest `references.bib`/`mybib.bib` searched
+ *      from the draft folder up to the project root.
+ *
+ * The project bib comes LAST on purpose: pandoc lets the last `--bibliography`
+ * win on duplicate cite keys, so a project's own entries override the global
+ * one(s). Returns `[]` when nothing is found.
  */
 export function resolveBibliography(
-  settings: { pandocBibliography?: string | null },
+  settings: {
+    pandocBibliography?: string | null;
+    pandocGlobalBibliography?: string | null;
+  },
   context: CompileContext,
   base: string,
   home: string
-): string | null {
+): string[] {
+  const result: string[] = [];
+
+  // 1) vault-wide global bibliographies, in listed order
+  for (const entry of splitBibList(settings.pandocGlobalBibliography)) {
+    const abs = resolveUserPath(entry, base, home);
+    if (fs.existsSync(abs) && !result.includes(abs)) {
+      result.push(abs);
+    }
+  }
+
+  // 2) project-specific bibliography, appended last so it wins on dupes
+  let projectBib: string | null = null;
   const configured = (settings.pandocBibliography ?? "").trim();
   if (configured) {
     const abs = resolveUserPath(configured, base, home);
-    return fs.existsSync(abs) ? abs : null;
-  }
-  const root = context.projectRoot ?? context.projectPath;
-  for (const name of ["references.bib", "mybib.bib"]) {
-    for (const rel of projectResourceCandidatePaths(
-      context.projectPath,
-      root,
-      name
-    )) {
-      const abs = path.join(base, rel);
-      if (fs.existsSync(abs)) return abs;
+    if (fs.existsSync(abs)) projectBib = abs;
+  } else {
+    const root = context.projectRoot ?? context.projectPath;
+    const names = ["references.bib", "mybib.bib"];
+    findProjectBib: for (const name of names) {
+      for (const rel of projectResourceCandidatePaths(
+        context.projectPath,
+        root,
+        name
+      )) {
+        const abs = path.join(base, rel);
+        if (fs.existsSync(abs)) {
+          projectBib = abs;
+          break findProjectBib;
+        }
+      }
     }
   }
-  return null;
+  if (projectBib && !result.includes(projectBib)) {
+    result.push(projectBib);
+  }
+
+  return result;
 }
