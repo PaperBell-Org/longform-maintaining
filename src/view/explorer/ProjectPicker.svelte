@@ -9,10 +9,18 @@
   import { last } from "lodash";
   import { getContext } from "svelte";
   import { draftTitle } from "src/model/draft-utils";
+  import { draftNotePath } from "src/model/project-resources";
+  import type { Draft } from "src/model/types";
   import { Keymap, type PaneType } from "obsidian";
 
   const openFileAtPath: (path: string, paneType: PaneType | boolean) => void =
     getContext("onSceneClick");
+
+  // The real note to open/show for a draft — never the synthetic vaultPath of a
+  // project asset, which is not a real file on disk.
+  function openablePath(draft: Draft | null): string | null {
+    return draft ? draftNotePath(draft) : null;
+  }
 
   // Map current projects to options for select element
   let projectOptions: string[] = [];
@@ -46,14 +54,14 @@
     } else {
       draftPath = newProject[0].vaultPath;
       if (newProject[0].format === "single") {
-        openFileAtPath(draftPath, false);
+        openFileAtPath(openablePath(newProject[0]), false);
       }
     }
     $selectedDraftVaultPath = draftPath;
   }
 
   function onDraftClick(e: MouseEvent) {
-    openFileAtPath($selectedDraft.vaultPath, Keymap.isModEvent(e));
+    openFileAtPath(openablePath($selectedDraft), Keymap.isModEvent(e));
   }
 </script>
 
@@ -86,7 +94,7 @@
     </div>
     {#if $selectedDraft}
       <div class="current-draft-path" on:click={(e) => onDraftClick(e)}>
-        {$selectedDraft.vaultPath}
+        {openablePath($selectedDraft)}
       </div>
     {/if}
   {:else}

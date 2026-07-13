@@ -6,6 +6,32 @@ export function draftParentFolder(vaultPath: string): string {
 }
 
 /**
+ * The real index file backing a draft. For an asset of a single-file
+ * `format: project` index this is the shared index path; for a legacy draft
+ * (whose own file is the index) it collapses to `vaultPath`. Use this — never
+ * the raw `vaultPath`, which may be a synthetic `<indexPath>::<assetId>` key —
+ * for any filesystem access (folder derivation, frontmatter reads/writes).
+ */
+export function draftIndexPath(draft: Draft): string {
+  return draft.indexPath ?? draft.vaultPath;
+}
+
+/** The folder containing a draft's real index file. */
+export function draftIndexFolder(draft: Draft): string {
+  return draftParentFolder(draftIndexPath(draft));
+}
+
+/**
+ * The real note to open/reveal for a draft: a single asset's external body
+ * note if it has one, otherwise its index file. Never the synthetic `vaultPath`
+ * of a project asset, which is not a real file on disk.
+ */
+export function draftNotePath(draft: Draft): string {
+  if (draft.format === "single" && draft.bodyPath) return draft.bodyPath;
+  return draftIndexPath(draft);
+}
+
+/**
  * The lowest common ancestor folder shared by a set of folder paths, computed
  * segment-wise. Returns "" (the vault root) when there is no shared prefix.
  */
@@ -30,7 +56,7 @@ export function lowestCommonAncestorFolder(folders: string[]): string {
  */
 export function projectRootPath(projectDrafts: Draft[]): string {
   return lowestCommonAncestorFolder(
-    projectDrafts.map((d) => draftParentFolder(d.vaultPath))
+    projectDrafts.map((d) => draftIndexFolder(d))
   );
 }
 

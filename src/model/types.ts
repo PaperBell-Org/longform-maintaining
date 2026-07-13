@@ -18,6 +18,14 @@ export type MultipleSceneDraft = {
   ignoredFiles: string[] | null;
   unknownFiles: string[];
   sceneTemplate: string | null;
+  /**
+   * When this draft is one asset of a single-file `format: project` index,
+   * the real path of that shared index file. `null`/absent for a legacy draft
+   * whose own file *is* the index. See {@link draftIndexPath}.
+   */
+  indexPath?: string | null;
+  /** Stable id of this asset within its project index (`null` for legacy). */
+  assetId?: string | null;
 };
 
 export type SingleSceneDraft = {
@@ -27,9 +35,52 @@ export type SingleSceneDraft = {
   draftTitle: string | null;
   vaultPath: string;
   workflow: string | null;
+  /** See {@link MultipleSceneDraft.indexPath}. */
+  indexPath?: string | null;
+  /** See {@link MultipleSceneDraft.assetId}. */
+  assetId?: string | null;
+  /**
+   * For a single asset of a `format: project` index, the real path of the
+   * external body note this asset exports. `null`/absent for a legacy single
+   * draft whose own index file *is* the body.
+   */
+  bodyPath?: string | null;
 };
 
 export type Draft = MultipleSceneDraft | SingleSceneDraft;
+
+/**
+ * On-disk shape of a `format: project` index's `longform` frontmatter and its
+ * `assets` entries. These are the parsed-YAML types — NOT `Draft`s. A project
+ * index is not itself a draft; it expands into one `Draft` per asset (see
+ * `expandProjectIndex` in `draft-utils.ts`).
+ */
+export type ProjectScenesAsset = {
+  name: string;
+  id?: string;
+  format: "scenes";
+  folder: string;
+  workflow?: string | null;
+  scenes?: unknown[];
+  sceneTemplate?: string | null;
+  ignoredFiles?: string[] | null;
+};
+
+export type ProjectSingleAsset = {
+  name: string;
+  id?: string;
+  format: "single";
+  file: string;
+  workflow?: string | null;
+};
+
+export type ProjectAsset = ProjectScenesAsset | ProjectSingleAsset;
+
+export type ProjectIndexEntry = {
+  format: "project";
+  title: string;
+  assets: ProjectAsset[];
+};
 
 export type SerializedStep = {
   id: string;
@@ -107,6 +158,7 @@ export interface LongformPluginSettings {
   pandocOutputFolder: string; // "" = write next to the manuscript
   pandocBinary: string; // "pandoc" or an absolute path
   pandocBibliography: string; // "" = auto-detect project references.bib/mybib.bib
+  pandocGlobalBibliography: string; // vault-wide bib(s), comma/newline separated, merged into every export
   pandocSetupDismissed: boolean; // true once the user has seen the setup prompt
   pandocMarketIndexUrl: string; // "" = the built-in default marketplace index
   // DEPRECATED. To be removed in future, needed now for migrations.
@@ -148,6 +200,7 @@ export const DEFAULT_SETTINGS: LongformPluginSettings = {
   pandocOutputFolder: "",
   pandocBinary: "pandoc",
   pandocBibliography: "",
+  pandocGlobalBibliography: "",
   pandocSetupDismissed: false,
   pandocMarketIndexUrl: "",
 };
@@ -179,6 +232,7 @@ export const TRACKED_SETTINGS_PATHS: (keyof LongformPluginSettings)[] = [
   "pandocOutputFolder",
   "pandocBinary",
   "pandocBibliography",
+  "pandocGlobalBibliography",
   "pandocSetupDismissed",
   "pandocMarketIndexUrl",
 ];

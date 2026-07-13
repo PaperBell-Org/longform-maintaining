@@ -1,15 +1,16 @@
 import { normalizePath, type Vault } from "obsidian";
 import type { Draft, MultipleSceneDraft } from "./types";
+import { draftIndexFolder, draftIndexPath } from "./project-resources";
 
 export function projectFolderPath(draft: Draft, vault: Vault): string {
-  return vault.getAbstractFileByPath(draft.vaultPath).parent.path;
+  return vault.getAbstractFileByPath(draftIndexPath(draft)).parent.path;
 }
 
 export function sceneFolderPath(
   draft: MultipleSceneDraft,
   vault: Vault
 ): string {
-  const root = vault.getAbstractFileByPath(draft.vaultPath).parent.path;
+  const root = vault.getAbstractFileByPath(draftIndexPath(draft)).parent.path;
   return normalizePath(`${root}/${draft.sceneFolder}`);
 }
 
@@ -35,7 +36,7 @@ export function findScene(
 ): { draft: Draft; index: number; currentIndent: number } | null {
   for (const draft of drafts) {
     if (draft.format === "scenes") {
-      const parentPath = draft.vaultPath.split("/").slice(0, -1).join("/");
+      const parentPath = draftIndexFolder(draft);
       if (parentPath !== "" && !parentPath) {
         continue;
       }
@@ -54,7 +55,13 @@ export function findScene(
 
 export function draftForPath(path: string, drafts: Draft[]): Draft | null {
   for (const draft of drafts) {
-    if (draft.vaultPath === path) {
+    // The real index file, or a single asset's external body note, both map to
+    // their draft directly; multi-scene drafts are matched by scene below.
+    if (
+      draft.vaultPath === path ||
+      draftIndexPath(draft) === path ||
+      (draft.format === "single" && draft.bodyPath === path)
+    ) {
       return draft;
     } else {
       const found = findScene(path, drafts);
@@ -79,7 +86,8 @@ export function scenePathForLocation(
 ): string | null {
   for (const draft of drafts) {
     if (draft.format === "scenes") {
-      const root = vault.getAbstractFileByPath(draft.vaultPath).parent.path;
+      const root = vault.getAbstractFileByPath(draftIndexPath(draft)).parent
+        .path;
       const index = draft.scenes.findIndex(
         (s) =>
           normalizePath(`${root}/${draft.sceneFolder}/${s.title}.md`) === path

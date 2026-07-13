@@ -147,7 +147,7 @@ async function harvest(
   if (!fs.existsSync(defaultsFile) || !fs.existsSync(cslFile)) {
     throw new Error(`missing preset/csl (${template}.yaml / ${csl}.csl).`);
   }
-  const bibliography = resolveBibliography(settings, context, base, home);
+  const bibliographies = resolveBibliography(settings, context, base, home);
 
   const env = {
     ...process.env,
@@ -167,7 +167,7 @@ async function harvest(
       cslFile,
       projectAbs,
       texOutput,
-      bibliography,
+      bibliographies,
     });
     const p = await run(pandocBin, pandocArgs, assetsAbs, env);
     if (!p.ok || !fs.existsSync(texOutput)) {

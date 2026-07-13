@@ -113,16 +113,19 @@ describe("buildCaptureArgs", () => {
     expect(args).toContain("--defaults=/a/defaults/paperbell.yaml");
     expect(args).toContain("--csl=/a/csl/nature.csl");
   });
-  it("appends bibliography when given", () => {
+  it("appends one --bibliography per bib, in order", () => {
     const withBib = buildCaptureArgs({
       inputFile: "/p/x.md",
       defaultsFile: "/a/d.yaml",
       cslFile: "/a/c.csl",
       projectAbs: "/p",
       texOutput: "/t/o.tex",
-      bibliography: "/p/refs.bib",
+      bibliographies: ["/p/refs.bib", "/v/Library/global.bib"],
     });
-    expect(withBib).toContain("--bibliography=/p/refs.bib");
+    expect(withBib.filter((a) => a.startsWith("--bibliography="))).toEqual([
+      "--bibliography=/p/refs.bib",
+      "--bibliography=/v/Library/global.bib",
+    ]);
   });
 });
 

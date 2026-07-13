@@ -191,7 +191,9 @@ export async function compile(
   let currentInput: any;
 
   if (draft.format === "single") {
-    const path = draft.vaultPath;
+    // A project single asset exports its external body note (bodyPath); a legacy
+    // single draft's own index file is the body (vaultPath).
+    const path = draft.bodyPath ?? draft.vaultPath;
     const contents = await app.vault.adapter.read(path);
     const metadata = app.metadataCache.getCache(path);
 

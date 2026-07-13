@@ -18,6 +18,7 @@ import {
   scenePathForLocation,
   type SceneNavigationLocation,
 } from "src/model/scene-navigation";
+import { draftNotePath } from "src/model/project-resources";
 import { VIEW_TYPE_LONGFORM_EXPLORER } from "src/view/explorer/ExplorerPane";
 import type LongformPlugin from "src/main";
 import type { Draft } from "src/model/types";
@@ -151,7 +152,7 @@ export const jumpToProject: CommandBuilder = (plugin) => ({
           const draft = project[0];
           selectedDraftVaultPath.set(draft.vaultPath);
           showLeaf(plugin);
-          plugin.app.workspace.openLinkText(draft.vaultPath, "/", false);
+          plugin.app.workspace.openLinkText(draftNotePath(draft), "/", false);
         } else {
           const items = new Map<string, string>();
 

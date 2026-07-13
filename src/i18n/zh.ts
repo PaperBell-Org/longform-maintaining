@@ -24,6 +24,7 @@ export const zh: Messages = {
   "cmd.markManuscriptSpan": "标记手稿引用片段",
   "cmd.insertManuscriptRef": "插入手稿引用",
   "cmd.newPaperProject": "新建 PaperBell 论文项目…",
+  "cmd.convertToProject": "转换为单一 Index 项目…",
   "cmd.openMarket": "浏览 Pandoc 资产市场",
 
   // ── 通知与菜单 ────────────────────────────────────────────────────────
@@ -186,6 +187,9 @@ export const zh: Messages = {
   "settings.bibliography.name": "参考文献库",
   "settings.bibliography.desc":
     "用于引用的 .bib 文件路径。留空则在项目中自动探测 references.bib / mybib.bib。",
+  "settings.globalBibliography.name": "全局参考文献库",
+  "settings.globalBibliography.desc":
+    "在每个项目自带 .bib 之外,额外合并进每次导出的 .bib 文件(可多个)。每行一个路径(或用逗号分隔);可填库内相对路径或绝对路径。遇到重复 cite key 时,项目自带的优先。",
   "settings.pandocBinary.name": "Pandoc 可执行文件",
   "settings.pandocBinary.desc":
     "pandoc 可执行文件的路径,或直接填 “pandoc”。常见的 Homebrew/MacTeX 目录会自动加入 PATH。",

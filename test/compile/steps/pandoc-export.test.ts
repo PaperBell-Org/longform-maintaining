@@ -6,6 +6,8 @@ import {
   buildPandocArgs,
   commonTopDir,
   COMMON_BIN_DIRS,
+  extractCiteKeys,
+  findDuplicateCiteKeys,
   hasCitations,
   normalizeCslId,
   officialCslUrls,
@@ -14,6 +16,7 @@ import {
   sanitizeExportFilename,
   resolveBinary,
   resolveUserPath,
+  splitBibList,
   zoteroStylesDir,
 } from "src/compile/steps/pandoc-export-utils";
 
@@ -178,7 +181,10 @@ describe("buildPandocArgs", () => {
   };
 
   it("mirrors the PaperBell §11 command and appends bibliography when given", () => {
-    const args = buildPandocArgs({ ...base, bibliography: "/v/p/references.bib" });
+    const args = buildPandocArgs({
+      ...base,
+      bibliographies: ["/v/p/references.bib"],
+    });
     expect(args).toEqual([
       "/v/p/.tmp.md",
       "--defaults=/a/defaults/undefined.yaml",
@@ -192,9 +198,70 @@ describe("buildPandocArgs", () => {
     ]);
   });
 
+  it("appends one --bibliography per bib, in order (project first, then global)", () => {
+    const args = buildPandocArgs({
+      ...base,
+      bibliographies: ["/v/p/references.bib", "/v/Library/global.bib"],
+    });
+    expect(args.filter((a) => a.startsWith("--bibliography="))).toEqual([
+      "--bibliography=/v/p/references.bib",
+      "--bibliography=/v/Library/global.bib",
+    ]);
+  });
+
   it("omits --bibliography when none is provided", () => {
-    const args = buildPandocArgs({ ...base, bibliography: null });
-    expect(args.some((a) => a.startsWith("--bibliography="))).toBe(false);
+    const empties: (string[] | null | undefined)[] = [null, undefined, []];
+    for (const bibliographies of empties) {
+      const args = buildPandocArgs({ ...base, bibliographies });
+      expect(args.some((a) => a.startsWith("--bibliography="))).toBe(false);
+    }
+  });
+});
+
+describe("splitBibList", () => {
+  it("splits on commas and newlines and drops blanks", () => {
+    expect(splitBibList("a.bib, b.bib\n c.bib \n\n")).toEqual([
+      "a.bib",
+      "b.bib",
+      "c.bib",
+    ]);
+  });
+  it("returns [] for empty / nullish input", () => {
+    expect(splitBibList("")).toEqual([]);
+    expect(splitBibList(null)).toEqual([]);
+    expect(splitBibList(undefined)).toEqual([]);
+  });
+});
+
+describe("extractCiteKeys", () => {
+  it("pulls entry keys and skips @string/@comment/@preamble", () => {
+    const bib = `
+      @string{acme = "ACME"}
+      @comment{ignore me}
+      @article{smith2020, title={A}}
+      @book{ jones2019 , title={B}}
+    `;
+    expect(extractCiteKeys(bib)).toEqual(["smith2020", "jones2019"]);
+  });
+});
+
+describe("findDuplicateCiteKeys", () => {
+  it("reports keys defined in more than one file, winner last", () => {
+    const dups = findDuplicateCiteKeys([
+      { path: "global.bib", content: "@article{dup, t={G}}\n@article{g, t={x}}" },
+      { path: "project.bib", content: "@article{dup, t={P}}\n@article{p, t={y}}" },
+    ]);
+    expect(dups).toEqual([{ key: "dup", paths: ["global.bib", "project.bib"] }]);
+    // winner is the last path — the project bib in our merge order
+    expect(dups[0].paths[dups[0].paths.length - 1]).toBe("project.bib");
+  });
+  it("returns [] when there are no cross-file collisions", () => {
+    expect(
+      findDuplicateCiteKeys([
+        { path: "a.bib", content: "@article{a1, t={x}}" },
+        { path: "b.bib", content: "@article{b1, t={y}}" },
+      ])
+    ).toEqual([]);
   });
 });
 

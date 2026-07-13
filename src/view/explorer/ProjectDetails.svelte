@@ -2,6 +2,7 @@
   import { last } from "lodash";
   import { normalizePath } from "obsidian";
   import { draftForPath, projectFolderPath } from "src/model/scene-navigation";
+  import { draftIndexPath } from "src/model/project-resources";
   import { pluginSettings, projects } from "src/model/stores";
   import {
     drafts,
@@ -40,7 +41,7 @@
 
         if (newTitle.length === 0) {
           newTitle = last(
-            _drafts[currentDraftIndex].vaultPath.split("/")
+            draftIndexPath(_drafts[currentDraftIndex]).split("/")
           ).split(".md")[0];
           titleInFrontmatter = false;
         }
@@ -70,8 +71,7 @@
     if (newFolder.length <= 0 || !$selectedDraft) {
       return;
     }
-    const root = app.vault.getAbstractFileByPath($selectedDraft.vaultPath)
-      .parent.path;
+    const root = projectFolderPath($selectedDraft, app.vault);
     const path = normalizePath(`${root}/${newFolder}`);
     const exists = await app.vault.adapter.exists(path);
     if (exists) {

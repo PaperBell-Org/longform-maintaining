@@ -21,6 +21,7 @@ import { startNewSession } from "./word-counts";
 import { setupPandocExport } from "./pandoc";
 import { markManuscriptSpan, insertManuscriptRef } from "./manuscript-refs";
 import { newPaperProject } from "./scaffold";
+import { convertToProject } from "./convert-to-project";
 import { openPandocMarket } from "./pandoc-market";
 
 const commandBuilders = [
@@ -45,6 +46,7 @@ const commandBuilders = [
   markManuscriptSpan,
   insertManuscriptRef,
   newPaperProject,
+  convertToProject,
   openPandocMarket,
 ];
 
