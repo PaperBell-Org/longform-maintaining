@@ -1,4 +1,4 @@
-import { FileSystemAdapter } from "obsidian";
+import { FileSystemAdapter, requestUrl } from "obsidian";
 import { execFile } from "child_process";
 import * as fs from "fs";
 import * as os from "os";
@@ -18,15 +18,62 @@ import {
   buildPandocArgs,
   DEFAULT_ASSETS_DIR,
   hasCitations,
+  officialCslUrls,
   parseExportFrontmatter,
   resolveBinary,
   resolveUserPath,
+  zoteroStylesDir,
 } from "./pandoc-export-utils";
 import { pluginSettings } from "src/model/stores";
 import { projectResourceCandidatePaths } from "src/model/project-resources";
 
 function line(ok: boolean, label: string, detail: string): string {
   return `[${ok ? "✓" : "✗"}] ${label}` + (detail ? `\n       ${detail}` : "");
+}
+
+/**
+ * Resolve a CSL style into the assets `csl/` folder and return its absolute path,
+ * or null if it can't be found anywhere. Resolution order:
+ *   1. Already in the assets `csl/<id>.csl` (installed / synced) — used as-is.
+ *   2. Zotero's local styles dir (most users have Zotero, which ships hundreds of
+ *      styles) — copied into the assets folder so later runs are self-contained.
+ *   3. The official CSL styles repo — fetched and cached into the assets folder.
+ * Steps 2 and 3 mean the plugin's own marketplace no longer has to carry CSL.
+ */
+async function ensureCsl(
+  csl: string,
+  cslDir: string,
+  home: string
+): Promise<string | null> {
+  const target = path.join(cslDir, csl + ".csl");
+  if (fs.existsSync(target)) return target;
+
+  // 2. Zotero's local styles directory.
+  const zoteroFile = path.join(zoteroStylesDir(home), csl + ".csl");
+  try {
+    if (fs.existsSync(zoteroFile)) {
+      fs.mkdirSync(cslDir, { recursive: true });
+      fs.copyFileSync(zoteroFile, target);
+      return target;
+    }
+  } catch (e) {
+    console.warn(`[PaperOut] Could not copy CSL from Zotero (${zoteroFile}):`, e);
+  }
+
+  // 3. The official CSL styles repository.
+  for (const url of officialCslUrls(csl)) {
+    try {
+      const res = await requestUrl({ url, method: "GET" });
+      if (res.status >= 200 && res.status < 300 && res.text.includes("<style")) {
+        fs.mkdirSync(cslDir, { recursive: true });
+        fs.writeFileSync(target, res.text, "utf8");
+        return target;
+      }
+    } catch (e) {
+      // 404 / offline — try the next URL, then fall through to a clear error.
+    }
+  }
+  return null;
 }
 
 export const RunPandocExportStep = makeBuiltinStep({
@@ -118,10 +165,14 @@ export const RunPandocExportStep = makeBuiltinStep({
     const crossrefBin = resolveBinary("pandoc-crossref", fs.existsSync, dirs);
 
     const defaultsFile = path.join(defaultsDir, template + ".yaml");
-    const cslFile = path.join(cslDir, csl + ".csl");
+    // Resolve the CSL style: assets folder → Zotero's local styles → the official
+    // CSL repo (cached into the assets folder). So exports work even when the CSL
+    // isn't in the plugin's marketplace.
+    const resolvedCsl = await ensureCsl(csl, cslDir, home);
+    const cslFile = resolvedCsl ?? path.join(cslDir, csl + ".csl");
     const assetsOk = fs.existsSync(assetsAbs);
     const defaultsOk = fs.existsSync(defaultsFile);
-    const cslOk = fs.existsSync(cslFile);
+    const cslOk = !!resolvedCsl;
 
     const bibliography = resolveBibliography(settings, context, base, home);
     const needsBib = hasCitations(input.contents);
@@ -154,7 +205,7 @@ export const RunPandocExportStep = makeBuiltinStep({
         "CSL style — " + cslFile,
         cslOk
           ? ""
-          : `csl is "${csl}" (metadata _longform.csl). Install the "${csl}" CSL from the asset marketplace, add csl/${csl}.csl, or fix the csl.`
+          : `csl is "${csl}" (metadata _longform.csl). Not in the assets folder, in Zotero's styles (~/Zotero/styles/${csl}.csl), or the official CSL repo. Install Zotero's "${csl}" style, add csl/${csl}.csl, or set _longform.csl to a valid style id (see github.com/citation-style-language/styles).`
       ),
       line(
         bibOk,
