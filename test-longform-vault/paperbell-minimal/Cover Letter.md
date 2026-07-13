@@ -1,9 +1,4 @@
 ---
-longform:
-  format: single
-  title: PaperBell Minimal
-  draftTitle: Cover Letter
-  workflow: PaperBell Cover Letter
 title: Cover letter
 manuscript: A Minimal PaperBell Manuscript
 acronym: PBMIN
