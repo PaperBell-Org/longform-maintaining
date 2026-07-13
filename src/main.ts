@@ -62,6 +62,12 @@ import { refreshPandocTemplates } from "./model/pandoc-templates";
 
 const LONGFORM_LEAF_CLASS = "longform-leaf";
 
+// The explorer's view type before it was made unique to this fork (so it could
+// coexist with the original `longform` plugin). A workspace saved by an older
+// build still references this string; Obsidian renders such a leaf as an orphaned
+// "plugin no longer active" tab. We detach any of them once on load.
+const LEGACY_VIEW_TYPE_LONGFORM_EXPLORER = "VIEW_TYPE_LONGFORM_EXPLORER";
+
 // TODO: Try and abstract away more logic from actual plugin hooks here
 
 export default class LongformPlugin extends Plugin {
@@ -448,6 +454,7 @@ export default class LongformPlugin extends Plugin {
       }
     );
 
+    this.detachLegacyExplorerLeaves();
     this.initLeaf();
     refreshPandocTemplates(this.app);
 
@@ -458,6 +465,19 @@ export default class LongformPlugin extends Plugin {
     this.paperBell.init();
 
     initialized.set(true);
+  }
+
+  /**
+   * Detach any explorer leaves left over from a build that used the old shared
+   * view type, so users don't see an orphaned "plugin no longer active" tab after
+   * updating. One-time cleanup; harmless once no such leaves remain.
+   */
+  private detachLegacyExplorerLeaves(): void {
+    this.app.workspace.iterateAllLeaves((leaf) => {
+      if (leaf.getViewState()?.type === LEGACY_VIEW_TYPE_LONGFORM_EXPLORER) {
+        leaf.detach();
+      }
+    });
   }
 
   initLeaf(): void {

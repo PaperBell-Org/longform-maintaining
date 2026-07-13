@@ -7,11 +7,14 @@ import {
   commonTopDir,
   COMMON_BIN_DIRS,
   hasCitations,
+  normalizeCslId,
+  officialCslUrls,
   parseExportFrontmatter,
   renderFilenamePattern,
   sanitizeExportFilename,
   resolveBinary,
   resolveUserPath,
+  zoteroStylesDir,
 } from "src/compile/steps/pandoc-export-utils";
 
 describe("parseExportFrontmatter", () => {
@@ -192,6 +195,26 @@ describe("buildPandocArgs", () => {
   it("omits --bibliography when none is provided", () => {
     const args = buildPandocArgs({ ...base, bibliography: null });
     expect(args.some((a) => a.startsWith("--bibliography="))).toBe(false);
+  });
+});
+
+describe("CSL resolution helpers", () => {
+  it("normalizeCslId strips a .csl suffix and path separators", () => {
+    expect(normalizeCslId("nature")).toBe("nature");
+    expect(normalizeCslId(" nature.csl ")).toBe("nature");
+    expect(normalizeCslId("NATURE.CSL")).toBe("NATURE");
+    expect(normalizeCslId("../../etc/passwd")).toBe("....etcpasswd");
+  });
+
+  it("zoteroStylesDir points at ~/Zotero/styles", () => {
+    expect(zoteroStylesDir("/Users/me")).toBe("/Users/me/Zotero/styles");
+  });
+
+  it("officialCslUrls tries the repo root then dependent/", () => {
+    expect(officialCslUrls("nature.csl")).toEqual([
+      "https://raw.githubusercontent.com/citation-style-language/styles/master/nature.csl",
+      "https://raw.githubusercontent.com/citation-style-language/styles/master/dependent/nature.csl",
+    ]);
   });
 });
 

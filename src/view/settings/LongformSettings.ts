@@ -13,7 +13,8 @@ import { pluginSettings, userScriptSteps } from "src/model/stores";
 import { paperbell } from "src/paperbell/store";
 import { locale, translate as t } from "src/i18n";
 import { FolderSuggest } from "./folder-suggest";
-import { DEFAULT_SESSION_FILE } from "src/model/types";
+import { DEFAULT_SESSION_FILE, DEFAULT_SETTINGS } from "src/model/types";
+import type { LongformPluginSettings } from "src/model/types";
 import { FileSuggest } from "./file-suggest";
 import { syncSceneIndices } from "src/model/store-vault-sync";
 import { PandocSetupModal } from "../pandoc-setup-modal";
@@ -40,12 +41,43 @@ export class LongformSettingsTab extends PluginSettingTab {
     this.unsubscribeSettings?.();
     this.unsubscribeLocale?.();
 
-    const settings = get(pluginSettings);
+    // Never deref a null store (defensive: settings are loaded at onload, but a
+    // re-entrant display() must not blow up on a transient null).
+    const settings = get(pluginSettings) ?? DEFAULT_SETTINGS;
 
     const { containerEl } = this;
 
     containerEl.empty();
 
+    // Build the whole panel defensively: if any single control throws, we render a
+    // friendly line instead of leaving the tab permanently blank (which previously
+    // required an Obsidian reload to recover from).
+    try {
+      this.renderSettings(settings, containerEl);
+    } catch (e) {
+      console.error("[PaperOut] Failed to render settings:", e);
+      containerEl.empty();
+      containerEl.createEl("p", { cls: "setting-item-description" }, (el) => {
+        el.setText(t("settings.renderError"));
+      });
+    }
+
+    // Re-render in the new language whenever the resolved locale changes. Skip the
+    // immediate emission svelte stores send on subscribe (we just rendered).
+    let firstLocaleEmission = true;
+    this.unsubscribeLocale = locale.subscribe(() => {
+      if (firstLocaleEmission) {
+        firstLocaleEmission = false;
+        return;
+      }
+      this.display();
+    });
+  }
+
+  private renderSettings(
+    settings: LongformPluginSettings,
+    containerEl: HTMLElement
+  ): void {
     // ── Language ──────────────────────────────────────────────────────────
     new Setting(containerEl).setName(t("settings.language.heading")).setHeading();
     new Setting(containerEl)
@@ -70,7 +102,7 @@ export class LongformSettingsTab extends PluginSettingTab {
       .addSearch((cb) => {
         new FileSuggest(this.app, cb.inputEl);
         cb.setPlaceholder("templates/Scene.md")
-          .setValue(settings.sceneTemplate)
+          .setValue(settings.sceneTemplate ?? "")
           .onChange((v) => {
             pluginSettings.update((s) => ({ ...s, sceneTemplate: v }));
           });
@@ -128,7 +160,7 @@ export class LongformSettingsTab extends PluginSettingTab {
       .setDesc(t("settings.market.url.desc"))
       .addText((cb) => {
         cb.setPlaceholder(DEFAULT_MARKET_INDEX_URL)
-          .setValue(settings.pandocMarketIndexUrl)
+          .setValue(settings.pandocMarketIndexUrl ?? "")
           .onChange((v) => {
             pluginSettings.update((s) => ({ ...s, pandocMarketIndexUrl: v }));
           });
@@ -139,7 +171,7 @@ export class LongformSettingsTab extends PluginSettingTab {
       .setDesc(t("settings.pandocUrl.desc"))
       .addText((cb) => {
         cb.setPlaceholder("https://…/pandoc-assets.zip")
-          .setValue(settings.pandocAssetsUrl)
+          .setValue(settings.pandocAssetsUrl ?? "")
           .onChange((v) => {
             pluginSettings.update((s) => ({ ...s, pandocAssetsUrl: v }));
           });
@@ -151,7 +183,7 @@ export class LongformSettingsTab extends PluginSettingTab {
       .addSearch((cb) => {
         new FolderSuggest(this.app, cb.inputEl);
         cb.setPlaceholder("PaperBell/pandoc")
-          .setValue(settings.pandocAssetsFolder)
+          .setValue(settings.pandocAssetsFolder ?? "")
           .onChange((v) => {
             pluginSettings.update((s) => ({ ...s, pandocAssetsFolder: v }));
           });
@@ -163,7 +195,7 @@ export class LongformSettingsTab extends PluginSettingTab {
       .addSearch((cb) => {
         new FolderSuggest(this.app, cb.inputEl);
         cb.setPlaceholder("(next to manuscript, or e.g. ~/Papers)")
-          .setValue(settings.pandocOutputFolder)
+          .setValue(settings.pandocOutputFolder ?? "")
           .onChange((v) => {
             pluginSettings.update((s) => ({ ...s, pandocOutputFolder: v }));
           });
@@ -175,7 +207,7 @@ export class LongformSettingsTab extends PluginSettingTab {
       .addSearch((cb) => {
         new FileSuggest(this.app, cb.inputEl);
         cb.setPlaceholder("(auto-detect)")
-          .setValue(settings.pandocBibliography)
+          .setValue(settings.pandocBibliography ?? "")
           .onChange((v) => {
             pluginSettings.update((s) => ({ ...s, pandocBibliography: v }));
           });
@@ -186,7 +218,7 @@ export class LongformSettingsTab extends PluginSettingTab {
       .setDesc(t("settings.pandocBinary.desc"))
       .addText((cb) => {
         cb.setPlaceholder("pandoc")
-          .setValue(settings.pandocBinary)
+          .setValue(settings.pandocBinary ?? "")
           .onChange((v) => {
             pluginSettings.update((s) => ({ ...s, pandocBinary: v }));
           });
@@ -198,7 +230,7 @@ export class LongformSettingsTab extends PluginSettingTab {
       .addSearch((cb) => {
         new FolderSuggest(this.app, cb.inputEl);
         cb.setPlaceholder("my/script/steps/")
-          .setValue(settings.userScriptFolder)
+          .setValue(settings.userScriptFolder ?? "")
           .onChange((v) => {
             pluginSettings.update((s) => ({ ...s, userScriptFolder: v }));
           });
@@ -270,7 +302,7 @@ export class LongformSettingsTab extends PluginSettingTab {
       .setName(t("settings.sessionGoal.name"))
       .setDesc(t("settings.sessionGoal.desc"))
       .addText((cb) => {
-        cb.setValue(settings.sessionGoal.toString());
+        cb.setValue(String(settings.sessionGoal ?? DEFAULT_SETTINGS.sessionGoal));
         cb.onChange((value) => {
           const numberValue = +value;
           if (numberValue && numberValue > 0) {
@@ -314,7 +346,9 @@ export class LongformSettingsTab extends PluginSettingTab {
       .setName(t("settings.sessionsToKeep.name"))
       .setDesc(t("settings.sessionsToKeep.desc"))
       .addText((cb) => {
-        cb.setValue(settings.keepSessionCount.toString());
+        cb.setValue(
+          String(settings.keepSessionCount ?? DEFAULT_SETTINGS.keepSessionCount)
+        );
         cb.onChange((value) => {
           const numberValue = +value;
           if (numberValue && numberValue > 0) {
@@ -395,7 +429,9 @@ export class LongformSettingsTab extends PluginSettingTab {
       .setName(t("settings.fallbackWaitTime.name"))
       .setDesc(t("settings.fallbackWaitTime.desc"))
       .addText((cb) => {
-        cb.setValue(settings.fallbackWaitTime.toString());
+        cb.setValue(
+          String(settings.fallbackWaitTime ?? DEFAULT_SETTINGS.fallbackWaitTime)
+        );
         cb.onChange((value) => {
           const numberValue = parseInt(value);
           if (!isNaN(numberValue) && numberValue > 0) {
@@ -458,17 +494,6 @@ export class LongformSettingsTab extends PluginSettingTab {
     });
     containerEl.createEl("p", {}, (el) => {
       el.innerHTML = t("settings.credits.icon");
-    });
-
-    // Re-render in the new language whenever the resolved locale changes. Skip the
-    // immediate emission svelte stores send on subscribe (we just rendered).
-    let firstLocaleEmission = true;
-    this.unsubscribeLocale = locale.subscribe(() => {
-      if (firstLocaleEmission) {
-        firstLocaleEmission = false;
-        return;
-      }
-      this.display();
     });
   }
 

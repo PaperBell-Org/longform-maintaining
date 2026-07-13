@@ -137,6 +137,9 @@ export const zh: Messages = {
   "explorer.migration.button": "开始迁移",
   "explorer.syncWaiting": "正在等待 Obsidian Sync 完成同步…",
 
+  "settings.renderError":
+    "渲染设置时出错了。关闭并重新打开本标签页即可重试——详细信息见开发者控制台。",
+
   // ── 设置:语言 ────────────────────────────────────────────────────────
   "settings.language.heading": "语言",
   "settings.language.name": "显示语言",

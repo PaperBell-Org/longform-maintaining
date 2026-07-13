@@ -199,6 +199,34 @@ export function commonTopDir(paths: string[]): string {
   return paths.every((p) => p.startsWith(first)) ? first : "";
 }
 
+/** Normalize a CSL style id: drop any `.csl` suffix and path separators. */
+export function normalizeCslId(csl: string): string {
+  return (csl || "")
+    .trim()
+    .replace(/\.csl$/i, "")
+    .replace(/[\\/]/g, "");
+}
+
+/**
+ * Zotero's default styles directory. Zotero stores every installed CSL style as
+ * `<dataDir>/styles/<id>.csl`, and its default data dir is `~/Zotero` on every
+ * platform. (A relocated data dir isn't auto-detected.)
+ */
+export function zoteroStylesDir(home: string): string {
+  return path.join(home, "Zotero", "styles");
+}
+
+/**
+ * Candidate raw URLs for a style in the official CSL styles repository
+ * (https://github.com/citation-style-language/styles). Independent styles live
+ * at the repo root; dependent styles under `dependent/`, so try both.
+ */
+export function officialCslUrls(csl: string): string[] {
+  const id = normalizeCslId(csl);
+  const raw = "https://raw.githubusercontent.com/citation-style-language/styles/master";
+  return [`${raw}/${id}.csl`, `${raw}/dependent/${id}.csl`];
+}
+
 /** Build the pandoc argument vector, mirroring PaperBell spec §11. */
 export function buildPandocArgs(p: PandocArgPaths): string[] {
   const args = [
