@@ -144,6 +144,9 @@ export const en = {
   "explorer.migration.button": "Migrate",
   "explorer.syncWaiting": "Waiting for Obsidian Sync to complete...",
 
+  "settings.renderError":
+    "Something went wrong rendering these settings. Close and reopen this tab to try again — the details are in the developer console.",
+
   // ── Settings: Language ──────────────────────────────────────────────────
   "settings.language.heading": "Language",
   "settings.language.name": "Display language",

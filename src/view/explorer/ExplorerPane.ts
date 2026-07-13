@@ -33,7 +33,10 @@ import { UndoManager } from "../undo/undo-manager";
 import { ignoreScene } from "./scene-menu-items";
 import { appContext } from "../utils";
 
-export const VIEW_TYPE_LONGFORM_EXPLORER = "VIEW_TYPE_LONGFORM_EXPLORER";
+// Unique to this fork so it never collides with the original `longform` plugin's
+// view type (Obsidian's registerView throws on a duplicate type, which would abort
+// whichever plugin loads second). The exported name is kept for import stability.
+export const VIEW_TYPE_LONGFORM_EXPLORER = "paperout-explorer";
 
 export class ExplorerPane extends ItemView {
   private explorerView: ExplorerView;
