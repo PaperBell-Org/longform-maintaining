@@ -9,6 +9,15 @@ import {
 } from "src/model/scene-navigation";
 import { createNoteWithPotentialTemplate } from "./note-utils";
 import { pluginSettings } from "./stores";
+import {
+  indentedScenesToArrays,
+  arraysToIndentedScenes,
+} from "./project-index";
+
+// Re-exported from the obsidian-free `project-index` module (moved there so it
+// and its tests don't transitively import obsidian). Kept here for the many
+// existing call sites that import them from `draft-utils`.
+export { indentedScenesToArrays, arraysToIndentedScenes };
 
 export function draftTitle(draft: Draft): string {
   return draft.draftTitle ?? draft.vaultPath;
@@ -109,63 +118,6 @@ export function setDraftOnFrontmatterObject(
       obj["longform"]["sceneTemplate"] = draft.sceneTemplate;
     }
     obj["longform"]["ignoredFiles"] = draft.ignoredFiles;
-  }
-}
-
-export function indentedScenesToArrays(indented: IndentedScene[]) {
-  const result: any = [];
-  // track our current indentation level
-  let currentIndent = 0;
-  // array for the current indentation level
-  let currentNesting = result;
-  // memoized arrays so that later, lesser indents can use earlier-created array
-  const nestingAt: Record<number, any> = {};
-  nestingAt[0] = currentNesting;
-
-  indented.forEach(({ title, indent }) => {
-    if (indent > currentIndent) {
-      // we're at a deeper indentation level than current,
-      // so build up a nest and memoize it
-      while (currentIndent < indent) {
-        currentIndent = currentIndent + 1;
-        const newNesting: any = [];
-        currentNesting.push(newNesting);
-        nestingAt[currentIndent] = newNesting;
-        currentNesting = newNesting;
-      }
-    } else if (indent < currentIndent) {
-      // we're at a lesser indentation level than current,
-      // so drop back to previously memoized nesting
-      currentNesting = nestingAt[indent];
-      currentIndent = indent;
-    }
-
-    // actually insert the value
-    currentNesting.push(title);
-  });
-  return result;
-}
-
-export function arraysToIndentedScenes(
-  arr: any,
-  result: IndentedScene[] = [],
-  currentIndent = -1
-): IndentedScene[] {
-  if (arr instanceof Array) {
-    if (arr.length === 0) {
-      return result;
-    }
-
-    const next = arr.shift();
-    const inner = arraysToIndentedScenes(next, [], currentIndent + 1);
-    return arraysToIndentedScenes(arr, [...result, ...inner], currentIndent);
-  } else {
-    return [
-      {
-        title: arr,
-        indent: currentIndent,
-      },
-    ];
   }
 }
 

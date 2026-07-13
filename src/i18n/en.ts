@@ -27,6 +27,7 @@ export const en = {
   "cmd.markManuscriptSpan": "Mark manuscript reference span",
   "cmd.insertManuscriptRef": "Insert manuscript reference",
   "cmd.newPaperProject": "New PaperBell paper project…",
+  "cmd.convertToProject": "Convert project to single index…",
   "cmd.openMarket": "Browse Pandoc asset marketplace",
 
   // ── Notices & menus ─────────────────────────────────────────────────────
@@ -193,6 +194,9 @@ export const en = {
   "settings.bibliography.name": "Bibliography",
   "settings.bibliography.desc":
     "Path to a .bib for citations. Leave empty to auto-detect references.bib / mybib.bib in the project.",
+  "settings.globalBibliography.name": "Global bibliography",
+  "settings.globalBibliography.desc":
+    "Extra .bib file(s) merged into every export, on top of each project's own. One path per line (or comma-separated); vault-relative or absolute. The project's bibliography wins on duplicate cite keys.",
   "settings.pandocBinary.name": "Pandoc binary",
   "settings.pandocBinary.desc":
     "Path to the pandoc executable, or just ‘pandoc’. Common Homebrew/MacTeX dirs are added to PATH automatically.",

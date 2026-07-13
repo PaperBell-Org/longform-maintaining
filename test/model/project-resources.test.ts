@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  draftIndexFolder,
+  draftIndexPath,
   draftParentFolder,
   lowestCommonAncestorFolder,
   projectResourceCandidatePaths,
@@ -32,6 +34,36 @@ describe("draftParentFolder", () => {
 
   it("returns empty string for a vault-root index", () => {
     expect(draftParentFolder("index.md")).toBe("");
+  });
+});
+
+describe("draftIndexPath / draftIndexFolder", () => {
+  it("uses the draft's own path for a legacy draft", () => {
+    const d = draftAt("project/Index.md");
+    expect(draftIndexPath(d)).toBe("project/Index.md");
+    expect(draftIndexFolder(d)).toBe("project");
+  });
+
+  it("uses the shared index path for a project asset (synthetic vaultPath)", () => {
+    const d = {
+      ...draftAt("project/Index.md::main"),
+      indexPath: "project/Index.md",
+      assetId: "main",
+    } as Draft;
+    expect(draftIndexPath(d)).toBe("project/Index.md");
+    expect(draftIndexFolder(d)).toBe("project");
+  });
+});
+
+describe("projectRootPath over project assets", () => {
+  it("is the index folder shared by every asset", () => {
+    const asset = (id: string): Draft =>
+      ({
+        ...draftAt(`project/Index.md::${id}`),
+        indexPath: "project/Index.md",
+        assetId: id,
+      } as Draft);
+    expect(projectRootPath([asset("main"), asset("supp")])).toBe("project");
   });
 });
 

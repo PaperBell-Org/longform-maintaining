@@ -162,7 +162,8 @@ export type CaptureArgPaths = {
   cslFile: string;
   projectAbs: string;
   texOutput: string;
-  bibliography?: string | null;
+  /** Zero or more .bib paths; pandoc merges them (earlier ones win on dupes). */
+  bibliographies?: string[] | null;
 };
 
 /**
@@ -181,8 +182,8 @@ export function buildCaptureArgs(p: CaptureArgPaths): string[] {
     "--resource-path=" + path.join(p.projectAbs, "figs"),
     "--resource-path=" + path.join(p.projectAbs, "..", "figs"),
   ];
-  if (p.bibliography) {
-    args.push("--bibliography=" + p.bibliography);
+  for (const bib of p.bibliographies ?? []) {
+    args.push("--bibliography=" + bib);
   }
   args.push("-t", "latex", "-s", "-o", p.texOutput);
   return args;

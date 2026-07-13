@@ -17,12 +17,21 @@ import {
   selectedDraftVaultPath,
 } from "./stores";
 import {
-  arraysToIndentedScenes,
   formatSceneNumber,
   numberScenes,
   scenesForCompileNumbering,
   setDraftOnFrontmatterObject,
 } from "src/model/draft-utils";
+import {
+  expandProjectIndex,
+  setProjectAssetsOnFrontmatterObject,
+  syntheticAssetPath,
+} from "./project-index";
+import {
+  draftIndexFolder,
+  draftIndexPath,
+  draftParentFolder,
+} from "./project-resources";
 import { fileNameFromPath } from "./note-utils";
 import { findScene, sceneFolderPath, scenePath } from "./scene-navigation";
 
@@ -169,19 +178,26 @@ export class StoreVaultSync {
     );
     const draftFiles = resolvedFiles.filter((f) => f !== null);
 
-    const possibleDrafts = await Promise.all(
-      draftFiles.map((f) => this.draftFor(f))
-    );
-    const drafts = possibleDrafts.filter((d) => d !== null);
-
-    // Write dirty drafts back to their index files
-    const dirtyDrafts = drafts.filter((d) => d.dirty);
-    for (const d of dirtyDrafts) {
-      await this.writeDraftFrontmatter(d.draft);
-    }
+    // Each file yields one draft (legacy) or many (a `format: project` index).
+    const perFile = await Promise.all(draftFiles.map((f) => this.draftsFor(f)));
+    const drafts: { draft: Draft; dirty: boolean }[] = ([] as {
+      draft: Draft;
+      dirty: boolean;
+    }[]).concat(...perFile);
 
     // Write discovered drafts to draft store
     const draftsToWrite = drafts.map((d) => d.draft);
+
+    // Write dirty drafts back to their index files — once per index file, since
+    // a project index's assets all share one file.
+    const dirtyIndexes = new Set<string>();
+    for (const d of drafts) {
+      if (!d.dirty) continue;
+      const indexPath = draftIndexPath(d.draft);
+      if (dirtyIndexes.has(indexPath)) continue;
+      dirtyIndexes.add(indexPath);
+      await this.writeDraftFrontmatter(d.draft, draftsToWrite);
+    }
 
     this.lastKnownDraftsByPath = cloneDeep(
       draftsToWrite.reduce((acc: Record<string, Draft>, d) => {
@@ -207,36 +223,38 @@ export class StoreVaultSync {
       return;
     }
 
-    const result = await this.draftFor({ file, metadata: cache });
-    if (!result) {
-      const testDeletedDraft = this.lastKnownDraftsByPath[file.path];
-      if (testDeletedDraft) {
-        // a draft's YAML was removed, remove it from drafts
-        draftsStore.update((drafts) => {
-          return drafts.filter((d) => d.vaultPath !== file.path);
-        });
+    // One index file yields one draft (legacy) or many (a project index); we
+    // reconcile all drafts belonging to this index at once.
+    const results = await this.draftsFor({ file, metadata: cache });
+    const newDrafts = results.map((r) => r.draft);
+    const current = get(draftsStore);
+    const oldForIndex = current.filter(
+      (d) => draftIndexPath(d) === file.path
+    );
+
+    if (newDrafts.length === 0) {
+      if (oldForIndex.length > 0) {
+        // this file's `longform` YAML was removed or became invalid
+        draftsStore.update((drafts) =>
+          drafts.filter((d) => draftIndexPath(d) !== file.path)
+        );
       }
       return;
     }
 
-    const { draft } = result;
-
-    const old = this.lastKnownDraftsByPath[draft.vaultPath];
-    if (!old || !isEqual(draft, old)) {
-      this.lastKnownDraftsByPath[draft.vaultPath] = draft;
-      draftsStore.update((drafts) => {
-        const indexOfDraft = drafts.findIndex(
-          (d) => d.vaultPath === draft.vaultPath
-        );
-        if (indexOfDraft < 0) {
-          //new draft
-          drafts.push(draft);
-        } else {
-          drafts[indexOfDraft] = draft;
-        }
-        return drafts;
-      });
+    const byPath = (arr: Draft[]) =>
+      [...arr].sort((a, b) => a.vaultPath.localeCompare(b.vaultPath));
+    if (isEqual(byPath(oldForIndex), byPath(newDrafts))) {
+      return;
     }
+
+    for (const d of newDrafts) {
+      this.lastKnownDraftsByPath[d.vaultPath] = d;
+    }
+    draftsStore.update((drafts) => {
+      const others = drafts.filter((d) => draftIndexPath(d) !== file.path);
+      return [...others, ...newDrafts];
+    });
   }
 
   async fileCreated(file: TFile) {
@@ -249,8 +267,7 @@ export class StoreVaultSync {
       if (d.format !== "scenes") {
         return false;
       }
-      const parentPath = this.vault.getAbstractFileByPath(d.vaultPath).parent
-        .path;
+      const parentPath = draftIndexFolder(d);
       const targetPath = normalizePath(`${parentPath}/${d.sceneFolder}`);
       return (
         // file is in the scene folder
@@ -278,18 +295,18 @@ export class StoreVaultSync {
   async fileDeleted(file: TFile) {
     if (this.isInitializing) return;
     const drafts = get(draftsStore);
-    const draftIndex = drafts.findIndex((d) => d.vaultPath === file.path);
-    if (draftIndex >= 0) {
-      // index file deletion = delete draft from store
-      const newDrafts = cloneDeep(drafts);
-      newDrafts.splice(draftIndex, 1);
+    // index file deletion = delete every draft backed by that index (all the
+    // assets of a project index, or the single legacy draft).
+    const removedPaths = new Set(
+      drafts.filter((d) => draftIndexPath(d) === file.path).map((d) => d.vaultPath)
+    );
+    if (removedPaths.size > 0) {
+      const newDrafts = drafts.filter((d) => !removedPaths.has(d.vaultPath));
       draftsStore.set(newDrafts);
-      if (get(selectedDraftVaultPath) === file.path) {
-        if (newDrafts.length > 0) {
-          selectedDraftVaultPath.set(newDrafts[0].vaultPath);
-        } else {
-          selectedDraftVaultPath.set(null);
-        }
+      if (removedPaths.has(get(selectedDraftVaultPath))) {
+        selectedDraftVaultPath.set(
+          newDrafts.length > 0 ? newDrafts[0].vaultPath : null
+        );
       }
     } else {
       // scene deletion = remove scene from draft
@@ -333,20 +350,47 @@ export class StoreVaultSync {
   async fileRenamed(file: TFile, oldPath: string) {
     if (this.isInitializing) return;
     const drafts = get(draftsStore);
-    const draftIndex = drafts.findIndex((d) => d.vaultPath === oldPath);
-    if (draftIndex >= 0) {
-      // index file renamed
+    const indexDrafts = drafts.filter((d) => draftIndexPath(d) === oldPath);
+    if (indexDrafts.length > 0) {
+      // index file renamed/moved — rekey every draft it backs. For a project
+      // index that means rebuilding each asset's synthetic vaultPath and
+      // rebasing single-asset body paths so they follow the index folder.
+      const oldFolder = draftParentFolder(oldPath);
+      const newFolder = draftParentFolder(file.path);
+      const selected = get(selectedDraftVaultPath);
+      let newSelected = selected;
       draftsStore.update((_drafts) => {
-        const d = _drafts[draftIndex];
-        d.vaultPath = file.path;
-        if (!d.titleInFrontmatter) {
-          d.title = fileNameFromPath(file.path);
-        }
-        _drafts[draftIndex] = d;
-        return _drafts;
+        return _drafts.map((d) => {
+          if (draftIndexPath(d) !== oldPath) return d;
+          const oldVaultPath = d.vaultPath;
+          if (d.indexPath) {
+            // asset of a project index
+            const updated: Draft = {
+              ...d,
+              indexPath: file.path,
+              vaultPath: syntheticAssetPath(file.path, d.assetId ?? ""),
+            };
+            if (updated.format === "single" && updated.bodyPath) {
+              updated.bodyPath = rebasePath(
+                updated.bodyPath,
+                oldFolder,
+                newFolder
+              );
+            }
+            if (selected === oldVaultPath) newSelected = updated.vaultPath;
+            return updated;
+          }
+          // legacy single-file index
+          const updated: Draft = { ...d, vaultPath: file.path };
+          if (!updated.titleInFrontmatter) {
+            updated.title = fileNameFromPath(file.path);
+          }
+          if (selected === oldVaultPath) newSelected = file.path;
+          return updated;
+        });
       });
-      if (get(selectedDraftVaultPath) === oldPath) {
-        selectedDraftVaultPath.set(file.path);
+      if (newSelected !== selected) {
+        selectedDraftVaultPath.set(newSelected);
       }
     } else {
       // scene renamed
@@ -419,11 +463,19 @@ export class StoreVaultSync {
   }
 
   async draftsStoreChanged(newValue: Draft[]) {
+    // Write each backing index file at most once per flush: a project index's
+    // assets share one file, so N changed assets must not trigger N rewrites
+    // (and N re-parses). We ignore the next change on the *index* path, which is
+    // the file actually written — never the synthetic per-asset vaultPath.
+    const writtenIndexes = new Set<string>();
     for (const draft of newValue) {
       const old = this.lastKnownDraftsByPath[draft.vaultPath];
       if (!old || !isEqual(draft, old)) {
-        this.pathsToIgnoreNextChange.add(draft.vaultPath);
-        await this.writeDraftFrontmatter(draft);
+        const indexPath = draftIndexPath(draft);
+        if (writtenIndexes.has(indexPath)) continue;
+        writtenIndexes.add(indexPath);
+        this.pathsToIgnoreNextChange.add(indexPath);
+        await this.writeDraftFrontmatter(draft, newValue);
       }
     }
 
@@ -435,192 +487,187 @@ export class StoreVaultSync {
     );
   }
 
-  // if dirty, draft is modified from reality of index file
-  // and should be written back to index file
-  private async draftFor(
+  // Expand an index file into its draft(s): one for a legacy scenes/single
+  // index, several for a `format: project` index. Each scenes draft is
+  // reconciled against its real scene folder; a scenes draft is "dirty" when the
+  // frontmatter lists scenes that no longer exist on disk and must be rewritten.
+  private async draftsFor(
     fileWithMetadata: FileWithMetadata
-  ): Promise<{ draft: Draft; dirty: boolean } | null> {
-    if (!fileWithMetadata.metadata.frontmatter) {
-      return null;
-    }
+  ): Promise<{ draft: Draft; dirty: boolean }[]> {
+    if (!fileWithMetadata.metadata.frontmatter) return [];
     const longformEntry = fileWithMetadata.metadata.frontmatter["longform"];
-    if (!longformEntry) {
-      return null;
-    }
-    const format = longformEntry["format"];
-    const vaultPath = fileWithMetadata.file.path;
-    let title = longformEntry["title"];
-    let titleInFrontmatter = true;
-    if (!title) {
-      titleInFrontmatter = false;
-      title = fileNameFromPath(vaultPath);
-    }
-    const workflow = longformEntry["workflow"] ?? null;
-    const draftTitle = longformEntry["draftTitle"] ?? null;
+    if (!longformEntry) return [];
 
-    if (format === "scenes") {
-      let rawScenes: any = longformEntry["scenes"] ?? [];
+    const indexPath = fileWithMetadata.file.path;
+    const fallbackTitle = fileNameFromPath(indexPath);
 
-      if (rawScenes.length === 0) {
-        // fallback for issue where the metadata cache seems to fail to recognize yaml arrays.
-        // in this case, it reports the array as empty when it's not,
-        // so we will parse out the yaml directly from the file contents, just in case.
-        // discord discussion: https://discord.com/channels/686053708261228577/840286264964022302/994589562082951219
-
-        // 2023-01-03: Confirmed this issue is still present; using new processFrontMatter function
-        // seems to read correctly, though!
-
-        let fm = null;
-        try {
-          await this.app.fileManager.processFrontMatter(
-            fileWithMetadata.file,
-            (_fm) => {
-              fm = _fm;
-            }
-          );
-        } catch (error) {
-          console.error(
-            "[PaperOut] error manually loading frontmatter:",
-            error
-          );
-        }
-
-        if (fm) {
-          rawScenes = fm["longform"]["scenes"];
-        }
-      }
-
-      // Convert to indented scenes
-      const scenes = arraysToIndentedScenes(rawScenes);
-      const sceneFolder = longformEntry["sceneFolder"] ?? "/";
-      const sceneTemplate = longformEntry["sceneTemplate"] ?? null;
-      const ignoredFiles: string[] = longformEntry["ignoredFiles"] ?? [];
-      const normalizedSceneFolder = normalizePath(
-        `${fileWithMetadata.file.parent.path}/${sceneFolder}`
-      );
-
-      let filenamesInSceneFolder: string[] = [];
-      if (await this.vault.adapter.exists(normalizedSceneFolder)) {
-        filenamesInSceneFolder = (
-          await this.vault.adapter.list(normalizedSceneFolder)
-        ).files
-          .filter((f) => f !== fileWithMetadata.file.path && f.endsWith(".md"))
-          .map((f) => this.vault.getAbstractFileByPath(f)?.name.slice(0, -3))
-          .filter(
-            (maybeName) => maybeName !== null && maybeName !== undefined
-          ) as string[];
-      }
-
-      // Filter removed scenes
-      const knownScenes = scenes.filter(({ title }) =>
-        filenamesInSceneFolder.contains(title)
-      );
-
-      const dirty = knownScenes.length !== scenes.length;
-
-      const sceneTitles = new Set(scenes.map((s) => s.title));
-      const newScenes = filenamesInSceneFolder.filter(
-        (s) => !sceneTitles.has(s)
-      );
-
-      // ignore all new scenes that are known-to-ignore per ignoredFiles
-      const ignoredRegexes = ignoredFiles.filter(n => n).map((p) => ignoredPatternToRegex(p));
-      const unknownFiles = newScenes.filter(
-        (s) => ignoredRegexes.find((r) => r.test(s)) === undefined
-      );
-
-      return {
-        draft: {
-          format: "scenes",
-          title,
-          titleInFrontmatter,
-          draftTitle,
-          vaultPath,
-          sceneFolder,
-          scenes: knownScenes,
-          ignoredFiles,
-          unknownFiles,
-          sceneTemplate,
-          workflow,
-        },
-        dirty,
-      };
-    } else if (format === "single") {
-      return {
-        draft: {
-          format: "single",
-          title,
-          titleInFrontmatter,
-          draftTitle,
-          vaultPath,
-          workflow,
-        },
-        dirty: false,
-      };
-    } else {
+    let baseDrafts = expandProjectIndex(longformEntry, indexPath, fallbackTitle);
+    if (baseDrafts.length === 0) {
       console.log(
-        `[PaperOut] Error loading draft at ${fileWithMetadata.file.path}: invalid longform.format. Ignoring.`
+        `[PaperOut] Error loading draft at ${indexPath}: invalid longform.format. Ignoring.`
       );
-      return null;
+      return [];
     }
+
+    // Metadata-cache quirk: it sometimes reports a scenes YAML array as empty.
+    // If any scenes draft came back empty, re-read the frontmatter directly and
+    // re-expand (covers legacy `scenes` and every asset of a project index).
+    // discord: https://discord.com/channels/686053708261228577/840286264964022302/994589562082951219
+    const anyEmptyScenes = baseDrafts.some(
+      (d) => d.format === "scenes" && d.scenes.length === 0
+    );
+    if (anyEmptyScenes) {
+      let fm: any = null;
+      try {
+        await this.app.fileManager.processFrontMatter(
+          fileWithMetadata.file,
+          (_fm) => {
+            fm = _fm;
+          }
+        );
+      } catch (error) {
+        console.error("[PaperOut] error manually loading frontmatter:", error);
+      }
+      if (fm && fm["longform"]) {
+        baseDrafts = expandProjectIndex(
+          fm["longform"],
+          indexPath,
+          fallbackTitle
+        );
+      }
+    }
+
+    const results: { draft: Draft; dirty: boolean }[] = [];
+    for (const base of baseDrafts) {
+      if (base.format === "scenes") {
+        results.push(await this.reconcileScenesDraft(base, indexPath));
+      } else {
+        results.push({ draft: base, dirty: false });
+      }
+    }
+    return results;
   }
 
-  private async writeDraftFrontmatter(draft: Draft) {
-    const file = this.app.vault.getAbstractFileByPath(draft.vaultPath);
+  // Reconcile a scenes draft's frontmatter scene list against the files that
+  // actually exist in its scene folder: drop removed scenes (marking the draft
+  // dirty so it is rewritten) and collect not-yet-tracked `.md` files as unknown.
+  private async reconcileScenesDraft(
+    base: MultipleSceneDraft,
+    indexPath: string
+  ): Promise<{ draft: MultipleSceneDraft; dirty: boolean }> {
+    const indexFolder = draftParentFolder(indexPath);
+    const normalizedSceneFolder = normalizePath(
+      `${indexFolder}/${base.sceneFolder}`
+    );
+
+    let filenamesInSceneFolder: string[] = [];
+    if (await this.vault.adapter.exists(normalizedSceneFolder)) {
+      filenamesInSceneFolder = (
+        await this.vault.adapter.list(normalizedSceneFolder)
+      ).files
+        .filter((f) => f !== indexPath && f.endsWith(".md"))
+        .map((f) => this.vault.getAbstractFileByPath(f)?.name.slice(0, -3))
+        .filter(
+          (maybeName) => maybeName !== null && maybeName !== undefined
+        ) as string[];
+    }
+
+    const knownScenes = base.scenes.filter(({ title }) =>
+      filenamesInSceneFolder.contains(title)
+    );
+    const dirty = knownScenes.length !== base.scenes.length;
+
+    const sceneTitles = new Set(base.scenes.map((s) => s.title));
+    const newScenes = filenamesInSceneFolder.filter((s) => !sceneTitles.has(s));
+    const ignoredRegexes = (base.ignoredFiles ?? [])
+      .filter((n) => n)
+      .map((p) => ignoredPatternToRegex(p));
+    const unknownFiles = newScenes.filter(
+      (s) => ignoredRegexes.find((r) => r.test(s)) === undefined
+    );
+
+    return {
+      draft: { ...base, scenes: knownScenes, unknownFiles },
+      dirty,
+    };
+  }
+
+  // Write a draft's frontmatter back to its index file. For a project asset this
+  // writes the WHOLE `longform.assets` array (all siblings) once; for a legacy
+  // draft it writes that draft's own `longform` entry. `allDrafts` supplies the
+  // sibling set (the live store, or the freshly-discovered list during startup).
+  private async writeDraftFrontmatter(
+    draft: Draft,
+    allDrafts: Draft[] = get(draftsStore)
+  ) {
+    const indexPath = draftIndexPath(draft);
+    const file = this.app.vault.getAbstractFileByPath(indexPath);
     if (!file || !(file instanceof TFile)) {
       return;
     }
 
-    await this.app.fileManager.processFrontMatter(file, (fm) => {
-      setDraftOnFrontmatterObject(fm, draft);
-    });
+    let scenesToNumber: MultipleSceneDraft[] = [];
+    if (draft.indexPath) {
+      const siblings = allDrafts.filter((d) => draftIndexPath(d) === indexPath);
+      const assets = siblings.length > 0 ? siblings : [draft];
+      const title = assets[0].title;
+      await this.app.fileManager.processFrontMatter(file, (fm) => {
+        setProjectAssetsOnFrontmatterObject(fm, title, assets);
+      });
+      scenesToNumber = assets.filter(
+        (d): d is MultipleSceneDraft => d.format === "scenes"
+      );
+    } else {
+      await this.app.fileManager.processFrontMatter(file, (fm) => {
+        setDraftOnFrontmatterObject(fm, draft);
+      });
+      if (draft.format === "scenes") scenesToNumber = [draft];
+    }
 
-    // for multi-scene projects, optionally set a property on each scene that holds its order within the project
+    // for multi-scene projects, optionally set a property on each scene that
+    // holds its order within the project
     if (get(pluginSettings).writeProperty) {
-      if (draft.format === "scenes") {
-        const writes: Promise<void>[] = [];
-        const multiDraft = draft as MultipleSceneDraft;
-        const sceneNumbers = numberScenes(
-          scenesForCompileNumbering(this.app, multiDraft)
-        );
-        const includedTitles = new Set(sceneNumbers.map((s) => s.title));
-        sceneNumbers.forEach((numberedScene, index) => {
-          const sceneFilePath = scenePath(
-            numberedScene.title,
-            multiDraft,
-            this.app.vault
-          );
-
-          const sceneFile = this.app.vault.getAbstractFileByPath(sceneFilePath);
-          // false if a folder, or not found
-          if (!(sceneFile instanceof TFile)) {
-            return;
-          }
-          writes.push(
-            writeSceneNumbers(
-              this.app,
-              sceneFile,
-              index,
-              numberedScene.numbering
-            )
-          );
-        });
-
-        for (const scene of multiDraft.scenes) {
-          if (includedTitles.has(scene.title)) {
-            continue;
-          }
-          const sceneFilePath = scenePath(scene.title, multiDraft, this.app.vault);
-          const sceneFile = this.app.vault.getAbstractFileByPath(sceneFilePath);
-          if (!(sceneFile instanceof TFile)) {
-            continue;
-          }
-          writes.push(clearSceneNumbers(this.app, sceneFile));
-        }
-
-        await Promise.all(writes);
+      for (const multiDraft of scenesToNumber) {
+        await this.writeSceneNumbersFor(multiDraft);
       }
     }
+  }
+
+  private async writeSceneNumbersFor(multiDraft: MultipleSceneDraft) {
+    const writes: Promise<void>[] = [];
+    const sceneNumbers = numberScenes(
+      scenesForCompileNumbering(this.app, multiDraft)
+    );
+    const includedTitles = new Set(sceneNumbers.map((s) => s.title));
+    sceneNumbers.forEach((numberedScene, index) => {
+      const sceneFilePath = scenePath(
+        numberedScene.title,
+        multiDraft,
+        this.app.vault
+      );
+      const sceneFile = this.app.vault.getAbstractFileByPath(sceneFilePath);
+      // false if a folder, or not found
+      if (!(sceneFile instanceof TFile)) {
+        return;
+      }
+      writes.push(
+        writeSceneNumbers(this.app, sceneFile, index, numberedScene.numbering)
+      );
+    });
+
+    for (const scene of multiDraft.scenes) {
+      if (includedTitles.has(scene.title)) {
+        continue;
+      }
+      const sceneFilePath = scenePath(scene.title, multiDraft, this.app.vault);
+      const sceneFile = this.app.vault.getAbstractFileByPath(sceneFilePath);
+      if (!(sceneFile instanceof TFile)) {
+        continue;
+      }
+      writes.push(clearSceneNumbers(this.app, sceneFile));
+    }
+
+    await Promise.all(writes);
   }
 }
 
@@ -677,6 +724,24 @@ function writeSceneNumbers(
     fm["longform-order"] = index;
     fm["longform-number"] = formatSceneNumber(numbering);
   });
+}
+
+/** Move a path from under `oldFolder` to under `newFolder`, if it lies within. */
+function rebasePath(
+  path: string,
+  oldFolder: string,
+  newFolder: string
+): string {
+  if (oldFolder === newFolder) return path;
+  if (oldFolder && path.startsWith(`${oldFolder}/`)) {
+    const rest = path.slice(oldFolder.length + 1);
+    return newFolder ? `${newFolder}/${rest}` : rest;
+  }
+  if (!oldFolder) {
+    // index was at the vault root
+    return newFolder ? `${newFolder}/${path}` : path;
+  }
+  return path;
 }
 
 const ESCAPED_CHARACTERS = new Set("/&$^+.()=!|[]{},".split(""));
