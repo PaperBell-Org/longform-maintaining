@@ -14,7 +14,21 @@ Major features include:
 
 A Getting Started guide follows; there is also reasonably-complete [documentation](./docs/).
 
-> **Academic pipeline:** on top of Longform, PaperOut To-Authors adds shared `metadata.json`, `{{Variable}}` placeholders, and a **Run Pandoc Export** compile step that produces a typeset PDF. The Pandoc toolchain (filters/templates/CSL) is downloaded on demand from a separate assets repository, not bundled. Run the **Set up Pandoc export** command to get started; see [docs/PANDOC_EXPORT.md](./docs/PANDOC_EXPORT.md).
+> **Academic pipeline:** on top of Longform, PaperOut To-Authors adds a one-command [**PaperBell paper project**](./docs/PAPER_PROJECT.md) (four drafts of one paper sharing a [`metadata.json`](./docs/METADATA_AND_PLACEHOLDERS.md)), [`{{Variable}}` placeholders](./docs/METADATA_AND_PLACEHOLDERS.md), [manuscript ↔ response-letter reference sync](./docs/MANUSCRIPT_REFS.md), and a **Run Pandoc Export** compile step that produces a typeset PDF. The Pandoc toolchain (filters/templates/CSL) is downloaded on demand from a separate assets repository, not bundled. Run the **Set up Pandoc export** command to get started; see [docs/PANDOC_EXPORT.md](./docs/PANDOC_EXPORT.md).
+
+### Part of the PaperBell suite (CIMPO)
+
+PaperOut To-Authors is the **Output**-stage plugin of the **PaperBell** suite, which organizes an academic vault around the CIMPO framework (Concepts → Inputs → Metadata → Projects → Outputs). It works fully standalone; when the PaperBell host plugin is installed it also follows the host's UI language and shows your account status. See:
+
+- [docs/PAPERBELL_INTEGRATION.md](./docs/PAPERBELL_INTEGRATION.md) — the host handshake, scopes, and language following;
+- [docs/PAPERBELL_SUITE.md](./docs/PAPERBELL_SUITE.md) — where PaperOut fits in CIMPO, cross-plugin collaboration, and the roadmap for deeper interop.
+
+### Academic documentation
+
+- [docs/PAPER_PROJECT.md](./docs/PAPER_PROJECT.md) — the one-command paper project (four drafts, shared metadata, compile order).
+- [docs/METADATA_AND_PLACEHOLDERS.md](./docs/METADATA_AND_PLACEHOLDERS.md) — `metadata.json`, `results.json`, and `{{ }}` placeholders.
+- [docs/MANUSCRIPT_REFS.md](./docs/MANUSCRIPT_REFS.md) — `<!--ms:-->` spans, `manuscript` reference fences, and harvested sidecars.
+- [docs/PANDOC_EXPORT.md](./docs/PANDOC_EXPORT.md) — PDF export and the Pandoc toolchain.
 
 ## Installing
 
