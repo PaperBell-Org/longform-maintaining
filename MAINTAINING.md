@@ -46,13 +46,21 @@ config, account, AI via `requestCompletion`) only when PaperBell is present.
 - It is pinned to `PPB_SCHEMA_VERSION`. When PaperBell bumps its schema, **re-vendor** the file and
   update the compatibility check.
 
-### Contract conformance (verified against PaperBell 0.4.4 / pro v0.5.0-beta.1)
+### Contract conformance (verified against PaperBell 0.4.4)
 
 The real host's `install()` does exactly what our client assumes:
 `this.plugin.api = api` (so `app.plugins.plugins["paperbell"].api` works), `window.registerPPBplugin = api.registerPPBplugin`, then `workspace.trigger("paperbell:ready", api)`. Its `getPluginInfo()`
-returns `schemaVersion: 1` and `capabilities: ["account","config","plugin-info","llm-invoke"]` —
-matching our vendored `PPB_SCHEMA_VERSION` and feature gating. We depend ONLY on this handshake
+returns `schemaVersion: 1` and
+`capabilities: ["account","config","plugin-info","llm-invoke","llm-credentials","activation","download-ticket"]`
+— matching our vendored `PPB_SCHEMA_VERSION` and feature gating. We depend ONLY on this handshake
 contract, never on PaperBell's main features (which change independently).
+
+The host has since grown three backward-compatible scopes/methods on top of the original four —
+`requestLLMCredentials` (`llm-credentials`), `requestActivationInfo` (`activation`), and
+`requestProtectedDownloadTicket` (`download-ticket`) — plus the `providerId` / `providerName` /
+`hasApiKey` fields on the public LLM config and a host-internal `paperbell:plugins-changed` event.
+`schemaVersion` stayed `1` (additions only), so no compatibility break; the vendored contract and the
+thin `PaperBellClient` wrappers are synced to this surface.
 
 ### Verifying the handshake live
 
