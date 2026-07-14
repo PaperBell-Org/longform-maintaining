@@ -1,6 +1,6 @@
 {
   "name": "paperout-to-authors",
-  "version": "2.3.0-beta.3",
+  "version": "2.3.0-beta.5",
   "description": "PaperOut To-Authors — write and export academic manuscripts in Obsidian (https://obsidian.md). Part of the PaperBell suite; a fork of Longform.",
   "main": "main.js",
   "scripts": {
