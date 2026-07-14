@@ -8,6 +8,10 @@ import {
   type PPBClient as PPBClientHandle,
   type PPBCompletionParams,
   type PPBCompletionResult,
+  type PPBLLMCredentials,
+  type PPBActivationInfo,
+  type PPBDownloadTicket,
+  type PPBDownloadTicketParams,
   type PaperBellAccountInfo,
   type PaperBellSharedConfigPublic,
 } from "./shared-config";
@@ -144,6 +148,34 @@ export class PaperBellClient {
     params: PPBCompletionParams
   ): Promise<PPBCompletionResult | null> {
     return this.client ? this.client.requestCompletion(params) : null;
+  }
+
+  /**
+   * Request the host's full LLM credentials — **including the API key** (scope:
+   * `llm-credentials`). First call prompts for consent. Prefer `requestCompletion`
+   * (which keeps the key inside the host); use this only when a feature must talk to
+   * the provider directly. Never persist or log the returned key.
+   */
+  async requestLLMCredentials(): Promise<PPBLLMCredentials | null> {
+    return this.client ? this.client.requestLLMCredentials() : null;
+  }
+
+  /** Request the host's activation/license status (scope: `activation`). First call prompts for consent. */
+  async requestActivationInfo(): Promise<PPBActivationInfo | null> {
+    return this.client ? this.client.requestActivationInfo() : null;
+  }
+
+  /**
+   * Ask the host for a protected download ticket (scope: `download-ticket`). First call
+   * prompts for consent; the host requires an active license and may throw if it isn't.
+   * Returns null when the host is absent or the scope is denied.
+   */
+  async requestProtectedDownloadTicket(
+    params?: PPBDownloadTicketParams
+  ): Promise<PPBDownloadTicket | null> {
+    return this.client
+      ? this.client.requestProtectedDownloadTicket(params)
+      : null;
   }
 
   /** Tear down: unsubscribe, unregister from the host, reset the store. */

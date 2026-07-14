@@ -9,6 +9,11 @@
  * schema, re-vendor this file and reconcile the compatibility check in `client.ts`.
  * See MAINTAINING.md → "PaperBell relationship".
  *
+ * Last synced against PaperBell host build `paperbell` v0.4.4: `schemaVersion` is still 1,
+ * with backward-compatible additions — the `llm-credentials` / `activation` / `download-ticket`
+ * scopes and their `request*` methods, the `paperbell:plugins-changed` event, and the
+ * `providerId` / `providerName` / `hasApiKey` fields on the public LLM config.
+ *
  * ── Original header ──────────────────────────────────────────────────────────
  * PaperBell 对外共享契约(消费方 / IPC 表面)。
  * 安全约定:
@@ -32,11 +37,19 @@ export const PPB_READY_EVENT = "paperbell:ready";
  */
 export const PPB_CONFIG_CHANGED_EVENT = "paperbell:config-changed";
 
+/**
+ * 已注册子插件名单变化时在 `app.workspace` 上 trigger 的事件名(宿主内部使用,
+ * 供其设置页刷新入口卡片列表)。子插件通常无需订阅 —— 仅为契约完整性而保留。
+ */
+export const PPB_PLUGINS_CHANGED_EVENT = "paperbell:plugins-changed";
+
 /** Cards Wrangler 期望从 PaperBell 主插件读到的共享配置(消费方契约)。 */
 export interface PaperBellSharedConfig {
 	schemaVersion: number; // 便于未来兼容判断
 	language: "en" | "zh"; // 统一 UI 语言,供子插件跟随
 	llm: {
+		providerId: string; // AI 提供方 id(如 "anthropic" / "openai" / 自定义提供方)
+		providerName: string; // 提供方展示名
 		api: "anthropic" | "openai"; // 决定请求/响应形态(复用现有 ProviderApi)
 		baseUrl: string; // 调度网关基址
 		apiKey: string; // 鉴权密钥 / 会话 token
@@ -51,11 +64,22 @@ export interface PaperBellSharedConfig {
 	};
 }
 
-/** LLM 配置的对外(去密钥)形态。 */
+/**
+ * LLM 配置的对外(去密钥)形态:剔除 `apiKey`,改以布尔 `hasApiKey` 表示宿主是否已配置密钥。
+ */
 export type PaperBellLLMConfigPublic = Omit<
 	PaperBellSharedConfig["llm"],
 	"apiKey"
->;
+> & {
+	/** 宿主是否已配置可用的 API 密钥(密钥本身不外泄)。 */
+	hasApiKey: boolean;
+};
+
+/**
+ * 完整 LLM 凭据(**含 `apiKey`**),经 `requestLLMCredentials()`(scope: `llm-credentials`)
+ * 取回。属敏感数据 —— 首次请求会弹同意框,子插件须自行妥善保管、避免落盘或日志外泄。
+ */
+export type PPBLLMCredentials = PaperBellSharedConfig["llm"];
 
 /** IPC 默认返回的账户信息(非敏感)。 */
 export interface PaperBellAccountInfo {
@@ -87,7 +111,14 @@ export interface PaperBellPluginInfo {
 }
 
 /** 可被请求的信息范围。每个 scope 独立授权。 */
-export type PPBScope = "account" | "config" | "plugin-info" | "llm-invoke";
+export type PPBScope =
+	| "account"
+	| "config"
+	| "plugin-info"
+	| "llm-invoke"
+	| "llm-credentials"
+	| "activation"
+	| "download-ticket";
 
 /**
  * `llm-invoke`:请求宿主用其 AI 配置代发一次**非流式**补全。
@@ -112,6 +143,37 @@ export interface PPBCompletionResult {
 	model: string;
 	/** ok=false 时的错误描述(不含密钥等敏感信息)。 */
 	error?: string;
+}
+
+/**
+ * `activation`:宿主许可证 / 激活状态(经 `requestActivationInfo()` 取回)。
+ * 不含激活码本身 —— 仅暴露是否激活及其派生信息。
+ */
+export interface PPBActivationInfo {
+	/** 许可证是否处于激活态。 */
+	isActive: boolean;
+	/** 到期时间(epoch ms),不适用时省略。 */
+	expiresAt?: number;
+	plan?: string; // free | pro | ...
+	userId?: string;
+	email?: string;
+}
+
+/** `download-ticket`:请求受保护下载链接时的参数。 */
+export interface PPBDownloadTicketParams {
+	/** 下载服务基址,缺省 `https://paperbell.cn`。 */
+	baseUrl?: string;
+	/** 产品标识,缺省 `paperbell-core`。 */
+	product?: string;
+}
+
+/**
+ * `download-ticket`:宿主凭激活码换取的受保护下载凭据。至少含一个可下载 `url`;
+ * 其余字段随宿主/产品而定。
+ */
+export interface PPBDownloadTicket {
+	url: string;
+	[key: string]: unknown;
 }
 
 /** 调用方(子插件)身份。用于同意弹框展示、授权名单存储与设置入口卡片。 */
@@ -154,6 +216,20 @@ export interface PPBClient {
 	requestCompletion(
 		params: PPBCompletionParams,
 	): Promise<PPBCompletionResult | null>;
+	/**
+	 * 请求完整 LLM 凭据(**含 apiKey**;scope: llm-credentials)。
+	 * 拒绝授权 / 宿主缺失返回 null。属敏感数据,请勿落盘或写日志。
+	 */
+	requestLLMCredentials(): Promise<PPBLLMCredentials | null>;
+	/** 请求宿主许可证 / 激活状态(scope: activation)。拒绝授权 / 宿主缺失返回 null。 */
+	requestActivationInfo(): Promise<PPBActivationInfo | null>;
+	/**
+	 * 请求受保护下载链接(scope: download-ticket)。需宿主处于激活态;
+	 * 拒绝授权 / 宿主缺失返回 null,未激活或换取失败由宿主抛错。
+	 */
+	requestProtectedDownloadTicket(
+		params?: PPBDownloadTicketParams,
+	): Promise<PPBDownloadTicket | null>;
 	/**
 	 * 订阅公开配置变更;返回取消订阅函数。
 	 * 底层即 workspace 事件 {@link PPB_CONFIG_CHANGED_EVENT}。

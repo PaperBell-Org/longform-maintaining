@@ -13,14 +13,29 @@ import type {
   PaperBellAccountInfo,
   PaperBellPluginInfo,
   PaperBellSharedConfigPublic,
+  PPBActivationInfo,
   PPBClient,
   PPBCompletionParams,
   PPBCompletionResult,
+  PPBDownloadTicket,
+  PPBDownloadTicketParams,
   PPBGrant,
   PPBHostApi,
+  PPBLLMCredentials,
   PPBRequestSource,
   PPBScope,
 } from "src/paperbell/shared-config";
+
+/** The full set of scopes the real host advertises. */
+const ALL_SCOPES: PPBScope[] = [
+  "account",
+  "config",
+  "plugin-info",
+  "llm-invoke",
+  "llm-credentials",
+  "activation",
+  "download-ticket",
+];
 
 /** Minimal stand-in for Obsidian's `workspace` event surface. */
 export class MockWorkspace {
@@ -75,7 +90,7 @@ export class MockPlugin {
 }
 
 export interface MockHostOptions {
-  /** Capabilities advertised via `getPluginInfo()`. Defaults to all four scopes. */
+  /** Capabilities advertised via `getPluginInfo()`. Defaults to all scopes. */
   capabilities?: PPBScope[];
   /** Value returned by `requestSharedConfig()`. Default null (as if consent denied). */
   sharedConfig?: PaperBellSharedConfigPublic | null;
@@ -83,6 +98,12 @@ export interface MockHostOptions {
   account?: PaperBellAccountInfo | null;
   /** Value returned by `requestCompletion()`. */
   completion?: PPBCompletionResult | null;
+  /** Value returned by `requestLLMCredentials()`. */
+  llmCredentials?: PPBLLMCredentials | null;
+  /** Value returned by `requestActivationInfo()`. */
+  activation?: PPBActivationInfo | null;
+  /** Value returned by `requestProtectedDownloadTicket()`. */
+  downloadTicket?: PPBDownloadTicket | null;
   /** If true, `registerPPBplugin` throws (host rejects the handshake). */
   rejectRegistration?: boolean;
 }
@@ -100,6 +121,10 @@ export class MockPaperBellHost implements PPBHostApi {
   sharedConfig: PaperBellSharedConfigPublic | null;
   account: PaperBellAccountInfo | null;
   completion: PPBCompletionResult | null;
+  llmCredentials: PPBLLMCredentials | null;
+  activation: PPBActivationInfo | null;
+  downloadTicket: PPBDownloadTicket | null;
+  lastDownloadTicketParams: PPBDownloadTicketParams | undefined;
   private rejectRegistration: boolean;
   private configSubscribers: Array<(c: PaperBellSharedConfigPublic) => void> = [];
 
@@ -110,12 +135,14 @@ export class MockPaperBellHost implements PPBHostApi {
       version: "1.0.0",
       schemaVersion: 1,
       isActivated: true,
-      capabilities:
-        opts.capabilities ?? ["account", "config", "plugin-info", "llm-invoke"],
+      capabilities: opts.capabilities ?? [...ALL_SCOPES],
     };
     this.sharedConfig = opts.sharedConfig ?? null;
     this.account = opts.account ?? null;
     this.completion = opts.completion ?? null;
+    this.llmCredentials = opts.llmCredentials ?? null;
+    this.activation = opts.activation ?? null;
+    this.downloadTicket = opts.downloadTicket ?? null;
     this.rejectRegistration = opts.rejectRegistration ?? false;
   }
 
@@ -131,6 +158,14 @@ export class MockPaperBellHost implements PPBHostApi {
       requestCompletion: async (params: PPBCompletionParams) => {
         this.lastCompletionParams = params;
         return this.completion;
+      },
+      requestLLMCredentials: async () => this.llmCredentials,
+      requestActivationInfo: async () => this.activation,
+      requestProtectedDownloadTicket: async (
+        params?: PPBDownloadTicketParams
+      ) => {
+        this.lastDownloadTicketParams = params;
+        return this.downloadTicket;
       },
       onConfigChange: (cb: (c: PaperBellSharedConfigPublic) => void) => {
         this.configSubscribers.push(cb);
@@ -177,7 +212,14 @@ export function makePublicConfig(
   return {
     schemaVersion: 1,
     language: "en",
-    llm: { api: "anthropic", baseUrl: "https://gw.example", model: "claude" },
+    llm: {
+      providerId: "anthropic",
+      providerName: "Anthropic",
+      api: "anthropic",
+      baseUrl: "https://gw.example",
+      model: "claude",
+      hasApiKey: true,
+    },
     account: { displayName: "Jane Doe", plan: "pro", isActive: true },
     ...overrides,
   };

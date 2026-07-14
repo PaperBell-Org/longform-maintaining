@@ -5,6 +5,7 @@ import { resolve } from "path";
 import {
   PPB_READY_EVENT,
   PPB_CONFIG_CHANGED_EVENT,
+  PPB_PLUGINS_CHANGED_EVENT,
 } from "src/paperbell/shared-config";
 
 /**
@@ -31,6 +32,7 @@ describe.skipIf(!present)(
       expect(src).toContain("registerPPBplugin");
       expect(src).toContain(PPB_READY_EVENT); // "paperbell:ready"
       expect(src).toContain(PPB_CONFIG_CHANGED_EVENT); // "paperbell:config-changed"
+      expect(src).toContain(PPB_PLUGINS_CHANGED_EVENT); // "paperbell:plugins-changed"
     });
 
     it("exposes the host API methods our client calls", () => {
@@ -44,6 +46,9 @@ describe.skipIf(!present)(
         "requestSharedConfig",
         "requestAccountInfo",
         "requestCompletion",
+        "requestLLMCredentials",
+        "requestActivationInfo",
+        "requestProtectedDownloadTicket",
         "onConfigChange",
       ]) {
         expect(src, `client should expose ${method}`).toContain(method);
@@ -56,6 +61,9 @@ describe.skipIf(!present)(
         "config",
         "plugin-info",
         "llm-invoke",
+        "llm-credentials",
+        "activation",
+        "download-ticket",
       ]) {
         expect(src, `capabilities should include ${scope}`).toContain(scope);
       }
