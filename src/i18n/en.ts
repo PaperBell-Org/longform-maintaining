@@ -39,13 +39,13 @@ export const en = {
   "notice.noActiveNote":
     "Open the markdown note you want to compile, then run this command again.",
   "notice.workflowMissing": "No workflow named “{name}”.",
-  "menu.createProject": "Create PaperOut Project",
   "menu.newPaperProject": "New PaperBell paper project…",
+
 
   // ── New paper scaffold ──────────────────────────────────────────────────
   "scaffold.title": "New PaperBell paper project",
   "scaffold.desc":
-    "Scaffolds a full paper project — Main Manuscript, Supplementary, and Response Letter drafts with starter content, metadata, references, and example figure/table assets — in a new folder named after the title.",
+    "Creates a paper project in a new folder named after the title: shared metadata, references, and the parts you select below. You can add the rest later.",
   "scaffold.nameLabel": "Project title",
   "scaffold.nameDesc":
     "Names the project folder and Longform project. Avoid : \\ and /.",

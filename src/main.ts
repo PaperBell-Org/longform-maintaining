@@ -51,7 +51,6 @@ import { addCommands } from "./commands";
 import { determineMigrationStatus } from "./model/migration";
 import { draftForPath } from "./model/scene-navigation";
 import { WritingSessionTracker } from "./model/writing-session-tracker";
-import NewProjectModal from "./view/project-lifecycle/new-project-modal";
 import NewPaperModal from "./view/project-lifecycle/new-paper-modal";
 import { LongformAPI } from "./api/LongformAPI";
 import { PaperBellClient } from "./paperbell/client";
@@ -106,14 +105,6 @@ export default class LongformPlugin extends Plugin {
         if (!(file instanceof TFolder)) {
           return;
         }
-        menu.addItem((item) => {
-          item
-            .setTitle(translate("menu.createProject"))
-            .setIcon(ICON_NAME)
-            .onClick(() => {
-              new NewProjectModal(this.app, file).open();
-            });
-        });
         menu.addItem((item) => {
           item
             .setTitle(translate("menu.newPaperProject"))

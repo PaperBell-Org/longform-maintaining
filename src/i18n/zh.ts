@@ -34,13 +34,13 @@ export const zh: Messages = {
   "notice.goalMet": "已达成写作目标!",
   "notice.noActiveNote": "请先打开要编纂的 Markdown 笔记，再运行此命令。",
   "notice.workflowMissing": "找不到名为“{name}”的工作流。",
-  "menu.createProject": "新建 PaperOut 项目",
   "menu.newPaperProject": "新建 PaperBell 论文项目…",
+
 
   // ── 新建论文脚手架 ────────────────────────────────────────────────────
   "scaffold.title": "新建 PaperBell 论文项目",
   "scaffold.desc":
-    "一键搭好完整论文项目——正稿、补充材料(SI)、回复信三个草稿,连同起步内容、元数据、参考文献,以及示例图/表资源,统统放进以标题命名的新文件夹。",
+    "在以标题命名的新文件夹里创建论文项目:共享元数据、参考文献,以及你在下面勾选的组件。其余部分之后可以再补。",
   "scaffold.nameLabel": "项目标题",
   "scaffold.nameDesc": "作为项目文件夹名与 Longform 项目名。请勿包含 : \\ 和 / 。",
   "scaffold.acronymLabel": "缩写",
