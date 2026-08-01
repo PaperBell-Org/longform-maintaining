@@ -41,6 +41,23 @@ export const en = {
   "notice.workflowMissing": "No workflow named “{name}”.",
   "menu.newPaperProject": "New PaperBell paper project…",
 
+  // ── Paper parts (new-project toggles + add-components modal) ─────────────
+  "parts.mainLabel": "Main Manuscript",
+  "parts.mainDesc":
+    "The paper itself, as a multi-scene draft. Always created — it anchors the project folder that shared metadata is resolved against.",
+  "parts.supplementaryLabel": "Supplementary Information",
+  "parts.supplementaryDesc":
+    "A separate draft whose figures and tables are numbered S1, S2, … via its own metadata.json.",
+  "parts.coverLabel": "Cover Letter",
+  "parts.coverDesc":
+    "A single-file letter to the editor, exported through the moderncv letterhead.",
+  "parts.responseLabel": "Response Letter",
+  "parts.responseDesc":
+    "A reply to reviewers that can quote the manuscript's live text and figure numbers.",
+  "scaffold.partsHeading": "Include",
+  "scaffold.examplesLabel": "Include example content",
+  "scaffold.examplesDesc":
+    "An example figure and spreadsheet, referenced by the starter scenes, plus a README describing the layout. Turn off for a clean project.",
 
   // ── New paper scaffold ──────────────────────────────────────────────────
   "scaffold.title": "New PaperBell paper project",

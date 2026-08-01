@@ -36,6 +36,21 @@ export const zh: Messages = {
   "notice.workflowMissing": "找不到名为“{name}”的工作流。",
   "menu.newPaperProject": "新建 PaperBell 论文项目…",
 
+  // ── 论文组件（新建勾选 + 添加组件弹窗） ──────────────────────────────
+  "parts.mainLabel": "主手稿",
+  "parts.mainDesc":
+    "论文正文，多场景草稿。始终创建——它决定了项目根目录，共享元数据按此向上查找。",
+  "parts.supplementaryLabel": "补充材料",
+  "parts.supplementaryDesc":
+    "独立草稿，通过自带的 metadata.json 把图表编号为 S1、S2……",
+  "parts.coverLabel": "投稿信",
+  "parts.coverDesc": "给编辑的单文件信件，用 moderncv 信头导出。",
+  "parts.responseLabel": "回复信",
+  "parts.responseDesc": "回复审稿意见，可引用手稿的实时正文与图号。",
+  "scaffold.partsHeading": "包含组件",
+  "scaffold.examplesLabel": "包含示例内容",
+  "scaffold.examplesDesc":
+    "起始场景引用的示例图片与表格文件，以及说明目录结构的 README。想要干净的项目可关闭。",
 
   // ── 新建论文脚手架 ────────────────────────────────────────────────────
   "scaffold.title": "新建 PaperBell 论文项目",

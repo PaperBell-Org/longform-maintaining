@@ -81,8 +81,18 @@ export function arraysToIndentedScenes(
 
 // ── Asset id + path helpers ─────────────────────────────────────────────────
 
+/** A stable, readable asset id. Keeps unicode (CJK) names rather than dropping them. */
+export function slugifyAssetName(name: string): string {
+  const ascii = (name || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return ascii || (name || "").trim() || "asset";
+}
+
 /** Join a folder and a relative name into a vault path (handles the root). */
-function joinPath(folder: string, name: string): string {
+export function joinPath(folder: string, name: string): string {
   const cleaned = name.replace(/^\.\//, "");
   return folder ? `${folder}/${cleaned}` : cleaned;
 }
