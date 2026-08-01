@@ -13,10 +13,10 @@ import {
   WorkflowError,
   calculateWorkflow,
   compile,
-  type CompileStatus,
+  effectiveWorkflow,
 } from "src/compile";
 import { JumpModal } from "./helpers";
-import { showErrorModal } from "src/view/error-modal";
+import { compileStatusHandler } from "./run-workflow";
 import { draftTitle } from "src/model/draft-utils";
 import { projectRootPath } from "src/model/project-resources";
 import type { Draft } from "src/model/types";
@@ -34,21 +34,15 @@ export const compileCurrent: CommandBuilder = (plugin) => ({
       return;
     }
 
+    const isMultiScene = draft.format === "scenes";
+    const effective = effectiveWorkflow(workflow, isMultiScene);
     const [validation, calculatedKinds] = calculateWorkflow(
-      workflow,
-      draft.format === "scenes"
+      effective,
+      isMultiScene
     );
     if (validation.error !== WorkflowError.Valid) {
       new Notice(validation.error);
       return;
-    }
-
-    function onCompileStatusChange(status: CompileStatus) {
-      if (status.kind == "CompileStatusSuccess") {
-        new Notice("Compile complete.");
-      } else if (status.kind == "CompileStatusError") {
-        showErrorModal(plugin.app, "Compile failed", status.error);
-      }
     }
 
     const projectRoot = projectRootPath(
@@ -58,9 +52,9 @@ export const compileCurrent: CommandBuilder = (plugin) => ({
     compile(
       plugin.app,
       draft,
-      workflow,
+      effective,
       calculatedKinds,
-      onCompileStatusChange,
+      compileStatusHandler(plugin.app),
       { projectRoot }
     );
   },
@@ -152,29 +146,23 @@ export const compileSelection: CommandBuilder = (plugin) => ({
               ],
               (workflow) => {
                 // Compile
+                const isMultiScene = draft.format === "scenes";
+                const effective = effectiveWorkflow(workflow, isMultiScene);
                 const [validation, calculatedKinds] = calculateWorkflow(
-                  workflow,
-                  draft.format === "scenes"
+                  effective,
+                  isMultiScene
                 );
                 if (validation.error !== WorkflowError.Valid) {
                   new Notice(validation.error);
                   return;
                 }
 
-                function onCompileStatusChange(status: CompileStatus) {
-                  if (status.kind == "CompileStatusSuccess") {
-                    new Notice("Compile complete.");
-                  } else if (status.kind == "CompileStatusError") {
-                    showErrorModal(plugin.app, "Compile failed", status.error);
-                  }
-                }
-
                 compile(
                   plugin.app,
                   draft,
-                  workflow,
+                  effective,
                   calculatedKinds,
-                  onCompileStatusChange,
+                  compileStatusHandler(plugin.app),
                   { projectRoot: projectRootPath(project) }
                 );
               }
