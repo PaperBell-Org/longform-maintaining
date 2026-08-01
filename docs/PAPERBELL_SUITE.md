@@ -29,7 +29,7 @@ The host plugin (`paperbell`) sits across all of them, dispatching LLM calls cen
 
 **File- and frontmatter-mediated (works with or without the host):**
 
-- A paper project is a folder of four drafts sharing one `metadata.json`
+- A paper project is a folder of drafts sharing one `metadata.json`
   ([PAPER_PROJECT.md](./PAPER_PROJECT.md)). Any sibling that reads the vault can discover a
   paper's parts from the project index frontmatter and `metadata.json`.
 - Outputs are meant to link back to their project (`project: <acronym>`) and to select

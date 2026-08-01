@@ -14,7 +14,7 @@ Major features include:
 
 A Getting Started guide follows; there is also reasonably-complete [documentation](./docs/).
 
-> **Academic pipeline:** on top of Longform, PaperOut To-Authors adds a one-command [**PaperBell paper project**](./docs/PAPER_PROJECT.md) (four drafts of one paper sharing a [`metadata.json`](./docs/METADATA_AND_PLACEHOLDERS.md)), [`{{Variable}}` placeholders](./docs/METADATA_AND_PLACEHOLDERS.md), [manuscript ↔ response-letter reference sync](./docs/MANUSCRIPT_REFS.md), and a **Run Pandoc Export** compile step that produces a typeset PDF. The Pandoc toolchain (filters/templates/CSL) is downloaded on demand from a separate assets repository, not bundled. Run the **Set up Pandoc export** command to get started; see [docs/PANDOC_EXPORT.md](./docs/PANDOC_EXPORT.md).
+> **Academic pipeline:** on top of Longform, PaperOut To-Authors adds a one-command [**PaperBell paper project**](./docs/PAPER_PROJECT.md) (the parts you pick — manuscript, supplement, cover and response letters — sharing one [`metadata.json`](./docs/METADATA_AND_PLACEHOLDERS.md)), [`{{Variable}}` placeholders](./docs/METADATA_AND_PLACEHOLDERS.md), [manuscript ↔ response-letter reference sync](./docs/MANUSCRIPT_REFS.md), and a **Run Pandoc Export** compile step that produces a typeset PDF. The Pandoc toolchain (filters/templates/CSL) is downloaded on demand from a separate assets repository, not bundled. Run the **Set up Pandoc export** command to get started; see [docs/PANDOC_EXPORT.md](./docs/PANDOC_EXPORT.md).
 
 ### Part of the PaperBell suite (CIMPO)
 
@@ -25,7 +25,7 @@ PaperOut To-Authors is the **Output**-stage plugin of the **PaperBell** suite, w
 
 ### Academic documentation
 
-- [docs/PAPER_PROJECT.md](./docs/PAPER_PROJECT.md) — the one-command paper project (four drafts, shared metadata, compile order).
+- [docs/PAPER_PROJECT.md](./docs/PAPER_PROJECT.md) — the paper project: choosing its parts, adding more later, shared metadata, compile order.
 - [docs/METADATA_AND_PLACEHOLDERS.md](./docs/METADATA_AND_PLACEHOLDERS.md) — `metadata.json`, `results.json`, and `{{ }}` placeholders.
 - [docs/MANUSCRIPT_REFS.md](./docs/MANUSCRIPT_REFS.md) — `<!--ms:-->` spans, `manuscript` reference fences, and harvested sidecars.
 - [docs/PANDOC_EXPORT.md](./docs/PANDOC_EXPORT.md) — PDF export and the Pandoc toolchain.
@@ -36,62 +36,68 @@ PaperOut To-Authors is distributed as a beta plugin (install it with [BRAT](http
 
 ## Getting Started
 
-PaperOut To-Authors works by searching your vault for any note that contains a frontmatter entry named `longform` (don’t worry if you don’t know what that means; the plugin includes tools to help you generate these files). You can think of these notes as the “spines” or tables of contents of your projects. Let‘s walk through creating two different projects: a novel and a short story.
+PaperOut To-Authors works by searching your vault for any note that contains a frontmatter entry named `longform` (don’t worry if you don’t know what that means; the plugin includes tools to help you generate these files). You can think of these notes as the “spines” or tables of contents of your projects. Let‘s walk through creating a paper project.
 
-### Creating a Novel
+### Creating a paper project
 
-1. To begin, find or create a folder somewhere in your vault in which you’d like to create your novel. Right-click it and select `Create PaperOut Project`.
+1. Find or create a folder in your vault to hold the paper. Right-click it and
+   select `New PaperBell paper project…` — or run the command of the same name
+   from the command palette.
 
-![Create PaperOut Project menu item](./docs/res/walkthrough-create-longform-project.png)
+   <!-- TODO: screenshot of the folder context menu -->
 
-2. A `Create Project` modal will appear. This modal lets us choose between Multi- and Single-scene project types. We’re creating a novel, so we’ll stick with Multi. The text under the project type switch explains a little about how each type of project works.
+2. Give the project a title. It names both the folder and the Longform project.
+   An acronym is derived from it (used in exported file names); edit it if you
+   want something else.
 
-3. In the `Title` field, enter your novel’s title. For this example we’ll use `My Great Novel`. The modal tells us the type of project we’re creating and the location of the _Index File_ it will create in our vault. We’ll get into what Index Files are in a moment.
+3. Choose which parts the paper needs. Only the **Main Manuscript** is created by
+   default — a short paper often needs no supplement, and nothing needs a
+   response letter before review. Tick whichever of **Supplementary
+   Information**, **Cover Letter**, and **Response Letter** apply.
 
-![A filled-out create multi-scene project modal](./docs/res/walkthrough-create-multi.png)
+   Leave **Include example content** on for a worked example — a figure, a
+   spreadsheet-driven table, and a README describing the layout — or turn it off
+   for a clean project. The starter scenes adapt either way, so you never end up
+   with a link to an image that isn't there.
+
+   <!-- TODO: screenshot of the new-project modal with the part toggles -->
+
+4. Click `Create`. The project folder now holds a `metadata.json` (shared
+   publication metadata), a `results.json` for compile-time `{{ }}` values, a
+   `references.bib`, and one index note per part. The Main Manuscript is selected
+   in the [PaperOut pane](./docs/THE_LONGFORM_PANE.md) and opened for you.
+
+5. Write your scenes under `manuscript/`. Add more from the Scenes tab; drag them
+   left or right to nest them. See
+   [multiple-scene projects](./docs/MULTIPLE_SCENE_PROJECTS.md).
+
+6. Export with the [Compile](./docs/COMPILE.md) tab, or bind a hotkey to
+   `Run workflow: PaperBell Manuscript`. See
+   [Pandoc export](./docs/PANDOC_EXPORT.md) for the toolchain setup.
+
+### Adding a part later
+
+Changed your mind, or got reviews back? Run **Add paper components…** from the
+command palette, or right-click the project folder. It lists only the parts the
+project does not have yet, and creates them alongside the existing ones — a
+response letter added this way already knows how to quote your manuscript.
+
+Nothing is overwritten: if a file it would create already exists, it reports the
+clash and writes nothing at all.
 
 > **Note**
 >
-> You don’t have to use this menu item and modal to create Longform projects. As you will see shortly, Longform projects are one or more notes organized around some YAML frontmatter. You can always create a note yourself somewhere in your vault and use the `Insert Multi-Scene Frontmatter` and `Insert Single-Scene Frontmatter` commands to populate the note—Longform will recognize it automatically. Although not recommended, you can also author the YAML frontmatter manually, too.
-
-4. Click `Create`. Longform has created the promised file. If we switch to the [Longform pane](./docs/THE_LONGFORM_PANE.md) in the sidebar the project is already selected. You should see three tabs: Scenes, Project, and Compile, and Scenes should be selected.
-
-![The newly-created project in the Longform pane](./docs/res/walkthrough-multi-fresh-pane.png)
-
-5. That _New Scene_ placeholder is a text field—click it and enter something that sounds like the first scene of a novel, maybe “The Sun Rises on Dublin,” and press enter. You should now be editing a so-named note, and your scene should appear in the Scenes tab:
-
-![the "My Great Novel" novel with a freshly-created scene](./docs/res/multi-walkthrough-2.png)
-
-6. Your editor also now has the scene open and ready to write. If you click the small `My Great Novel/Index.md` link under your project name, you’ll be taken back to the index file where you’ll see your new scene listed under the `scenes` frontmatter entry:
-
-```yaml
-scenes:
-  - The Sun Rises on Dublin
-```
-
-This is how Longform tracks your work.
+> Paper projects are not special — a Longform project is just one or more notes
+> organized around some YAML frontmatter. To turn any note into a project, use
+> the `Insert Multi-Scene Frontmatter` or `Insert Single-Scene Frontmatter`
+> commands and PaperOut will pick it up automatically.
 
 > **Warning**
 >
-> You should probably avoid editing the `longform` frontmatter in your index file directly unless you really know what you’re doing. Longform supports direct editing of it and will do its best to sync, but it’s easy to accidentally mess things up. You can always revert your changes, though: Longform will never delete files based on changes in the index file.
-
-7. You’re now ready to write your novel. Keep adding scenes as needed. If you’d like to add structure to your novel you can drag scenes left or right (or use the indent/Unindent commands) to create folders of scenes with parent scenes. [The full documentation for multiple-scene projects](./docs/MULTIPLE_SCENE_PROJECTS.md) might be useful.
-
-8. When you’re ready to generate a single manuscript for your readers, use the [Compile](./docs/COMPILE.md) feature. Congratulations! You’ve written a novel.
-
-### Creating a Short Story
-
-Longform also supports [single-scene projects](./docs/SINGLE_SCENE_PROJECTS.md) that live as a single note in your vault. Let’s create one.
-
-1. Right-click the enclosing folder as before and select the `Create PaperOut Project` menu item.
-
-2. In the Create Project modal, choose `Single`. Let’s write something noirish and call it `On the Rooftops`.
-
-![Creating a single-scene Longform project in the Create Project modal](./docs/res/walkthrough-create-single.png)
-
-3. Click Create. Because this is a single-scene project, there is only one note associated with it and Longform will open it automatically. The frontmatter at the top tells Longform how to track your project; we’ll write the story in the note itself.
-
-4. Write your story! When you’re ready, you can use the Compile tab to generate a manuscript. Single-scene projects can use scene and manuscript steps in any order.
+> Avoid editing the `longform` frontmatter in an index file directly unless you
+> know what you're doing. PaperOut supports it and does its best to sync, but it
+> is easy to break. You can always revert: PaperOut never deletes files based on
+> changes to an index file.
 
 ## Drafts & Projects
 

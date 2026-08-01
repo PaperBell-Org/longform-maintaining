@@ -76,6 +76,14 @@ single index, run the **Convert project to single index…** command; it writes
 the new index and detaches the old ones by removing only their `longform`
 frontmatter (your notes are never deleted).
 
+Both layouts accept new paper parts after the fact via **Add paper components…**
+(see [The PaperBell paper project](./PAPER_PROJECT.md#adding-a-part-later)). In
+the older layout a part arrives as another index note beside its siblings; in a
+single index it is appended to `assets[]`, with an id derived from its name and
+suffixed if that id is taken. A project that mixes the two — some drafts
+converted, some not — is refused, since neither write would be right for all of
+its drafts; run the convert command first.
+
 ## Other Frontmatter
 
 You’re free to put any other frontmatter you’d like in the index file as long as that frontmatter is outside the `longform` entry. Longform will leave it alone. You might want to do this to integrate with other Obsidian plugins.

@@ -1,20 +1,52 @@
 # The PaperBell paper project
 
-PaperOut To-Authors can scaffold a complete academic paper project in one step:
-**four drafts of one paper** sharing a single source of publication metadata, each wired to
-its own compile workflow. This is the academic counterpart to Longform's novel/short-story
-projects.
+PaperOut To-Authors can scaffold an academic paper project in one step: **several drafts
+of one paper** sharing a single source of publication metadata, each wired to its own
+compile workflow.
 
-Create one via the folder right-click menu **New PaperBell paper**, or the command
-**New PaperBell paper** (`newPaperProject`). Enter a title; the acronym is auto-derived from
-the initials (editable). The scaffold logic lives in
-`src/model/scaffold/paperbell-scaffold.ts` (pure and unit-tested); the modal writes the
-returned files into a new folder named after the title.
+Create one via the folder right-click menu **New PaperBell paper project…**, or the command
+of the same name (`newPaperProject`). Enter a title; the acronym is auto-derived from the
+initials (editable).
 
-## The four drafts
+## Choosing the parts
 
-All four drafts share the same Longform `title` (so the plugin groups them as one project)
-but have distinct `draftTitle`s and distinct compile `workflow`s:
+The modal asks which parts the paper needs. **Only the Main Manuscript is created by
+default** — a short paper often needs no supplement, and nothing needs a response letter
+before review.
+
+The Main Manuscript is mandatory, and not just because it is the paper. The project root is
+the lowest common ancestor of its drafts' index folders, and that root bounds the
+nearest-wins search for `metadata.json`. A project whose only draft were the Supplementary
+would have its root *inside* `supplementary/`, putting the shared `metadata.json`,
+`references.bib`, and `figs/` out of reach.
+
+**Include example content** controls the example figure, the spreadsheet behind the
+`xlsx-table` demo, and the project README. With it off, the starter scenes omit the figure
+and table blocks entirely rather than pointing at files that were never written.
+
+### Adding a part later
+
+Run **Add paper components…** from the command palette, or right-click the project folder.
+It lists only the parts the project lacks and creates them alongside the existing ones.
+
+- Cross-references adapt to what is there: a response letter added to a project that has a
+  Main Manuscript gets the working ```manuscript``` fences; added to one without, it gets a
+  skeleton and a note on how to wire them up later.
+- Example assets are never re-created. Whether the new part's body text may reference them
+  is read from what is already on disk, so `figs/` and `README.md` are left untouched. (The
+  README therefore keeps describing the project as first created.)
+- Nothing is overwritten: if any file it would create already exists, it reports the clash
+  and writes **nothing at all**.
+- A project that mixes a single `format: project` index with standalone draft notes is
+  refused — run **Convert project to single index…** first.
+
+The per-part builders live in `src/model/scaffold/parts.ts` (pure and unit-tested) and are
+shared by both entry points, so "what a Response Letter is" is defined exactly once.
+
+## The parts
+
+Drafts share the same Longform `title` (so the plugin groups them as one project) but have
+distinct `draftTitle`s and distinct compile `workflow`s:
 
 | Draft | `format` | Scene folder | Workflow |
 | --- | --- | --- | --- |
@@ -28,6 +60,8 @@ The Cover Letter is a **single-file** draft: the `cover_letter` template reads
 its workflow exports the note as-is (no strip/concatenate).
 
 ## Project layout
+
+With every part selected and example content on:
 
 ```
 My Paper/
@@ -100,8 +134,8 @@ and toggle batch options (dry-run / open-PDF / harvest). See [COMPILE.md](./COMP
 PDF export needs the Pandoc toolchain (defaults / filters / templates / CSL), which is **not
 bundled** — it is downloaded on demand into `PaperBell/pandoc/` from the assets market. Run
 **Set up Pandoc export** for the system-tool checklist and **Browse Pandoc asset market** to
-install recipes. The four drafts use four recipes, so install the matching bundles (or the
-full toolchain). See [PANDOC_EXPORT.md](./PANDOC_EXPORT.md) and
+install recipes. Each part uses its own recipe, so install the bundles matching the parts
+you created (or the full toolchain). See [PANDOC_EXPORT.md](./PANDOC_EXPORT.md) and
 [ASSET_MARKETPLACE_SPEC.md](./ASSET_MARKETPLACE_SPEC.md).
 
 ## Where this sits in the PaperBell suite

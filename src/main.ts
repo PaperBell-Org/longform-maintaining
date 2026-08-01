@@ -52,6 +52,8 @@ import { determineMigrationStatus } from "./model/migration";
 import { draftForPath } from "./model/scene-navigation";
 import { WritingSessionTracker } from "./model/writing-session-tracker";
 import NewPaperModal from "./view/project-lifecycle/new-paper-modal";
+import { openAddComponents } from "./commands/add-components";
+import { projectsUnderFolder } from "./commands/add-components-utils";
 import { LongformAPI } from "./api/LongformAPI";
 import { PaperBellClient } from "./paperbell/client";
 import { translate } from "./i18n";
@@ -113,6 +115,18 @@ export default class LongformPlugin extends Plugin {
               new NewPaperModal(this.app, file).open();
             });
         });
+        // Only offered where there is something to add to, so this doesn't
+        // appear on every folder in the vault.
+        if (projectsUnderFolder(file.path, get(drafts)).length > 0) {
+          menu.addItem((item) => {
+            item
+              .setTitle(translate("menu.addComponents"))
+              .setIcon(ICON_NAME)
+              .onClick(() => {
+                void openAddComponents(this, file);
+              });
+          });
+        }
       })
     );
 

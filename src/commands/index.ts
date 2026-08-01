@@ -24,6 +24,7 @@ import { newPaperProject } from "./scaffold";
 import { convertToProject } from "./convert-to-project";
 import { openPandocMarket } from "./pandoc-market";
 import { registerWorkflowCommands } from "./workflow-commands";
+import { addComponentsCommand } from "./add-components";
 
 const commandBuilders = [
   compileCurrent,
@@ -49,6 +50,7 @@ const commandBuilders = [
   newPaperProject,
   convertToProject,
   openPandocMarket,
+  addComponentsCommand,
 ];
 
 export function addCommands(plugin: LongformPlugin) {

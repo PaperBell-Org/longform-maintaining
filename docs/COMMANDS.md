@@ -17,6 +17,7 @@ Longform provides a number of commands you may use to quickly navigate and edit 
 | Compile current project with current workflow | false            | Compiles whatever project is currently selected with its currently-selected workflow.                                                   |
 | Compile project…                              | false            | Select a project, draft, and workflow, then compile using those selections.                                                             |
 | Run workflow: `<name>`                        | false            | One command per workflow. Runs that workflow against the **note you currently have open** — see below.                                  |
+| Add paper components…                         | false            | Adds Supplementary / Cover Letter / Response Letter parts to an existing paper project. See [The PaperBell paper project](./PAPER_PROJECT.md#adding-a-part-later). |
 
 ## Run workflow: `<name>`
 

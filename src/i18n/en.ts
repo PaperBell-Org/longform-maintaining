@@ -31,6 +31,7 @@ export const en = {
   "cmd.openMarket": "Browse Pandoc asset marketplace",
   // Prefix for the per-workflow commands, e.g. “Run workflow: PaperBell Manuscript”.
   "cmd.runWorkflow": "Run workflow",
+  "cmd.addComponents": "Add paper components…",
 
   // ── Notices & menus ─────────────────────────────────────────────────────
   "notice.pdfExport":
@@ -40,6 +41,7 @@ export const en = {
     "Open the markdown note you want to compile, then run this command again.",
   "notice.workflowMissing": "No workflow named “{name}”.",
   "menu.newPaperProject": "New PaperBell paper project…",
+  "menu.addComponents": "Add paper components…",
 
   // ── Paper parts (new-project toggles + add-components modal) ─────────────
   "parts.mainLabel": "Main Manuscript",
@@ -58,6 +60,20 @@ export const en = {
   "scaffold.examplesLabel": "Include example content",
   "scaffold.examplesDesc":
     "An example figure and spreadsheet, referenced by the starter scenes, plus a README describing the layout. Turn off for a clean project.",
+  "components.title": "Add paper components",
+  "components.desc": "Add parts to “{title}”. Only the ones it doesn’t have yet are listed.",
+  "components.add": "Add",
+  "components.added": "Added: {names}.",
+  "components.noProject": "No PaperOut project found here.",
+  "components.allPresent": "“{title}” already has every paper component.",
+  "components.mixedForm":
+    "This project mixes a single project index with standalone draft notes, so components can’t be added safely. Run “Convert project to single index…” first.",
+  "components.conflictTitle": "Nothing was created",
+  "components.conflictBody":
+    "These files already exist, so no component was created. Remove or rename them and try again:",
+  "components.failed": "Could not add components",
+  "components.siProjectFormWarning":
+    "Heads up: in a single-index project, the compile steps look for metadata.json next to the index, so the Supplementary’s own metadata.json (and its S-numbering) is not picked up yet.",
 
   // ── New paper scaffold ──────────────────────────────────────────────────
   "scaffold.title": "New PaperBell paper project",
