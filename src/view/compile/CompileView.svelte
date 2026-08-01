@@ -11,6 +11,9 @@
     WorkflowError,
     type WorkflowValidationResult,
     calculateWorkflow,
+    effectiveWorkflow,
+    alignToOriginalSteps,
+    alignStepPosition,
   } from "src/compile";
   import { getContext } from "svelte";
   import {
@@ -30,6 +33,7 @@
   import type { Draft } from "src/model/types";
   import { useApp } from "../utils";
   import { showErrorModal } from "../error-modal";
+  import { recoverableActions } from "../compile-error-actions";
 
   const app = useApp();
 
@@ -159,16 +163,35 @@
     stepPosition: 0,
   };
   let validation: WorkflowValidationResult = VALID;
-  let calculatedKinds: CompileStepKind[] = [];
+  // Kinds and the error position are aligned to the *displayed* (original)
+  // step list; a Join step skipped for a single-file draft gets `null`.
+  let calculatedKinds: (CompileStepKind | null)[] = [];
+  let errorStepPosition = 0;
+  // The workflow that will actually run — see effectiveWorkflow. Validation and
+  // compilation must both use it, or a workflow could validate here and fail on
+  // run (or vice versa).
+  let runnableWorkflow: Workflow | null = null;
   $: {
     if ($currentWorkflow) {
-      [validation, calculatedKinds] = calculateWorkflow(
+      const isMultiScene = $selectedDraft.format === "scenes";
+      runnableWorkflow = effectiveWorkflow($currentWorkflow, isMultiScene);
+      const [result, kinds] = calculateWorkflow(runnableWorkflow, isMultiScene);
+      validation = result;
+      calculatedKinds = alignToOriginalSteps(
         $currentWorkflow,
-        $selectedDraft.format === "scenes"
+        runnableWorkflow,
+        kinds
+      );
+      errorStepPosition = alignStepPosition(
+        $currentWorkflow,
+        runnableWorkflow,
+        result.stepPosition
       );
     } else {
+      runnableWorkflow = null;
       validation = VALID;
       calculatedKinds = [];
+      errorStepPosition = 0;
     }
   }
 
@@ -179,7 +202,7 @@
   function errorAtIndex(index: number): string | null {
     if (
       validation.error !== WorkflowError.Valid &&
-      validation.stepPosition === index
+      errorStepPosition === index
     ) {
       return validation.error;
     }
@@ -216,7 +239,7 @@
   // COMPILATION
 
   $: defaultCompileStatus = `Will run ${
-    $currentWorkflow ? $currentWorkflow.steps.length : 0
+    runnableWorkflow ? runnableWorkflow.steps.length : 0
   } steps.`;
 
   function onCompileStatusChange(status: CompileStatus) {
@@ -224,7 +247,12 @@
       compileStatus.innerText = "Compile failed.";
       compileStatus.classList.add("compile-status-error");
       restoreDefaultStatusAfter(10000);
-      showErrorModal(app, "Compile failed", status.error);
+      showErrorModal(
+        app,
+        "Compile failed",
+        status.error,
+        recoverableActions(app, status)
+      );
     } else if (status.kind == "CompileStatusStep") {
       compileStatus.innerText = `Step ${status.stepIndex + 1}/${
         status.totalSteps
@@ -259,10 +287,14 @@
 
   function doCompile() {
     const projectRoot = projectRootPath($selectedProject ?? [$selectedDraft]);
+    const [, kinds] = calculateWorkflow(
+      runnableWorkflow,
+      $selectedDraft.format === "scenes"
+    );
     compile(
       $selectedDraft,
-      $currentWorkflow,
-      calculatedKinds,
+      runnableWorkflow,
+      kinds,
       onCompileStatusChange,
       { projectRoot }
     );

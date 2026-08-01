@@ -162,30 +162,177 @@ export function sanitizeExportFilename(name: string): string {
 }
 
 /**
- * Resolve the export PDF file name: render the user's pattern (or fall back to
+ * Resolve the exported file's name: render the user's pattern (or fall back to
  * `fallbackName` when the pattern is blank), sanitize it, and ensure exactly one
- * `.pdf` extension.
+ * `ext` extension. `ext` comes from the Pandoc preset — see
+ * {@link exportTargetForDefaults} — so a `to: docx` preset yields `.docx`.
  */
 export function buildExportFilename(
   pattern: string,
   vars: Record<string, string>,
-  fallbackName: string
+  fallbackName: string,
+  ext = ".pdf"
 ): string {
   const rendered = pattern.trim()
     ? renderFilenamePattern(pattern.trim(), vars)
     : fallbackName;
   const base = sanitizeExportFilename(rendered);
-  return /\.pdf$/i.test(base) ? base : base + ".pdf";
+  return base.toLowerCase().endsWith(ext.toLowerCase()) ? base : base + ext;
+}
+
+/**
+ * Extensions we recognize as "this path names a file, not a folder". Used to
+ * decide whether the "Pandoc output folder" setting is really a full output
+ * path. Without a set like this, `~/Papers/out.docx` would be treated as a
+ * directory and `mkdirSync` would create a *folder* named `out.docx`.
+ */
+const EXPORT_EXTENSIONS = new Set([
+  ".pdf",
+  ".docx",
+  ".odt",
+  ".pptx",
+  ".html",
+  ".htm",
+  ".epub",
+  ".tex",
+  ".rtf",
+  ".md",
+  ".txt",
+]);
+
+/** Does this user-entered output path name a file rather than a folder? */
+export function isFullOutputPath(p: string): boolean {
+  return EXPORT_EXTENSIONS.has(path.extname((p ?? "").trim()).toLowerCase());
+}
+
+/**
+ * Pandoc writers that cannot emit a binary document directly — pandoc renders
+ * them through a PDF engine when the output file ends in `.pdf`. Everything
+ * else (docx, odt, pptx, …) produces its own format and *fails* if asked for
+ * `.pdf`: pandoc 3.x exits with "cannot produce pdf output from docx".
+ */
+const PDF_CAPABLE_WRITERS = new Set([
+  "latex",
+  "beamer",
+  "context",
+  "ms",
+  "typst",
+]);
+
+/** Writers whose conventional file extension differs from the format name. */
+const WRITER_EXTENSIONS: Record<string, string> = {
+  markdown: ".md",
+  markdown_strict: ".md",
+  gfm: ".md",
+  commonmark: ".md",
+  commonmark_x: ".md",
+  html5: ".html",
+  html4: ".html",
+  plain: ".txt",
+  revealjs: ".html",
+  slidy: ".html",
+  slideous: ".html",
+  dzslides: ".html",
+  s5: ".html",
+};
+
+/**
+ * A scalar value read out of a defaults preset, defensively cleaned.
+ *
+ * The shipped presets carry trailing `#!` comments on the very keys read here
+ * (`pdf-engine: xelatex    #! use xelatex to support CJK`). A conforming YAML
+ * parser strips those, but getting it wrong would turn a working preset's
+ * engine into an unresolvable binary name and make preflight reject an export
+ * that used to succeed — too costly to leave to trust. Mirrors YAML's rule that
+ * a `#` only opens a comment when preceded by whitespace, so paths keep their
+ * spaces. Also drops quoting and any stray `\r` from CRLF files.
+ */
+function scalar(value: unknown): string {
+  if (typeof value !== "string") return "";
+  return value
+    .replace(/\s+#.*$/, "")
+    .trim()
+    .replace(/^["']|["']$/g, "")
+    .trim();
+}
+
+/** The bare writer name: drop pandoc's `+ext`/`-ext` syntax and any quoting. */
+function baseWriterName(raw: string): string {
+  return scalar(raw).split(/[+-]/)[0].trim().toLowerCase();
+}
+
+export type ExportTarget = {
+  /** File extension to write, including the leading dot. */
+  ext: string;
+  /** The `pdf-engine` the preset asks for, if any. */
+  pdfEngine: string | null;
+  /** Whether the preset's filter list includes pandoc-crossref. */
+  needsCrossref: boolean;
+};
+
+/**
+ * What a Pandoc defaults preset actually produces, read off its parsed YAML.
+ *
+ * Extension resolution, in order:
+ *  1. `to:` names a writer that emits its own binary/text format (docx, odt,
+ *     pptx, epub, …) — use that writer's extension and ignore `output-file`,
+ *     since asking pandoc for `.pdf` there is a hard error.
+ *  2. `to:` names a PDF-capable writer (latex, beamer, …) — honor an explicit
+ *     `output-file` extension (the author may really want `.tex`), else `.pdf`.
+ *  3. No `to:` — use `output-file`'s extension, else `.pdf`.
+ *
+ * Unknown writer names fall back to using the format name as the extension
+ * (`to: rst` → `.rst`), which ages better than an exhaustive table.
+ *
+ * `pdfEngine` and `needsCrossref` ride along because the caller needs them for
+ * the same preflight check and they come from the same parse.
+ */
+export function exportTargetForDefaults(parsed: unknown): ExportTarget {
+  const doc =
+    typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {};
+
+  const pdfEngine = scalar(doc["pdf-engine"]) || null;
+
+  const filters = Array.isArray(doc["filters"]) ? doc["filters"] : [];
+  const needsCrossref = filters.some(
+    (f) => scalar(f).toLowerCase().endsWith("pandoc-crossref")
+  );
+
+  const outputExt = path.extname(scalar(doc["output-file"])).toLowerCase();
+
+  const to = baseWriterName(scalar(doc["to"]));
+
+  // A writer that emits its own format wins outright; asking pandoc for .pdf
+  // there is a hard error, so an `output-file: out.pdf` left over in the preset
+  // must not override it. Otherwise the author's `output-file` decides.
+  const ext =
+    to && !PDF_CAPABLE_WRITERS.has(to)
+      ? WRITER_EXTENSIONS[to] ?? `.${to}`
+      : outputExt || ".pdf";
+
+  return { ext, pdfEngine, needsCrossref };
 }
 
 export type PandocArgPaths = {
   inputFile: string;
   defaultsFile: string;
-  cslFile: string;
+  /**
+   * The CSL style to pass. `null` when the manuscript has no citations — a
+   * style is then neither needed nor worth failing over, so `--csl` is omitted.
+   */
+  cslFile: string | null;
   projectAbs: string;
   outputPath: string;
   /** Zero or more .bib paths; pandoc merges them (earlier ones win on dupes). */
   bibliographies?: string[] | null;
+  /**
+   * Extra `--resource-path` entries searched after the project ones — the vault
+   * root and Obsidian's attachment folder, so images pasted into a loose note
+   * (which Obsidian files outside the note's own folder) still resolve.
+   */
+  extraResourcePaths?: string[] | null;
 };
 
 /**
@@ -286,14 +433,22 @@ export function officialCslUrls(csl: string): string[] {
 
 /** Build the pandoc argument vector, mirroring PaperBell spec §11. */
 export function buildPandocArgs(p: PandocArgPaths): string[] {
-  const args = [
-    p.inputFile,
-    "--defaults=" + p.defaultsFile,
-    "--csl=" + p.cslFile,
-    "--resource-path=" + p.projectAbs,
-    "--resource-path=" + path.join(p.projectAbs, "figs"),
-    "--resource-path=" + path.join(p.projectAbs, "..", "figs"),
-  ];
+  const args = [p.inputFile, "--defaults=" + p.defaultsFile];
+  if (p.cslFile) {
+    args.push("--csl=" + p.cslFile);
+  }
+  const resourcePaths = [
+    p.projectAbs,
+    path.join(p.projectAbs, "figs"),
+    path.join(p.projectAbs, "..", "figs"),
+  ].concat(p.extraResourcePaths ?? []);
+  const seen = new Set<string>();
+  for (const dir of resourcePaths) {
+    if (dir && !seen.has(dir)) {
+      seen.add(dir);
+      args.push("--resource-path=" + dir);
+    }
+  }
   for (const bib of p.bibliographies ?? []) {
     args.push("--bibliography=" + bib);
   }

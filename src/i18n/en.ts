@@ -29,11 +29,16 @@ export const en = {
   "cmd.newPaperProject": "New PaperBell paper project…",
   "cmd.convertToProject": "Convert project to single index…",
   "cmd.openMarket": "Browse Pandoc asset marketplace",
+  // Prefix for the per-workflow commands, e.g. “Run workflow: PaperBell Manuscript”.
+  "cmd.runWorkflow": "Run workflow",
 
   // ── Notices & menus ─────────────────────────────────────────────────────
   "notice.pdfExport":
     "PaperOut To-Authors: PDF export is available. Run “Set up Pandoc export” from the command palette to check prerequisites.",
   "notice.goalMet": "Writing goal met!",
+  "notice.noActiveNote":
+    "Open the markdown note you want to compile, then run this command again.",
+  "notice.workflowMissing": "No workflow named “{name}”.",
   "menu.createProject": "Create PaperOut Project",
   "menu.newPaperProject": "New PaperBell paper project…",
 

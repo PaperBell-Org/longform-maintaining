@@ -26,11 +26,14 @@ export const zh: Messages = {
   "cmd.newPaperProject": "新建 PaperBell 论文项目…",
   "cmd.convertToProject": "转换为单一 Index 项目…",
   "cmd.openMarket": "浏览 Pandoc 资产市场",
+  "cmd.runWorkflow": "运行工作流",
 
   // ── 通知与菜单 ────────────────────────────────────────────────────────
   "notice.pdfExport":
     "PaperOut To-Authors:已支持 PDF 导出。在命令面板运行“设置 Pandoc 导出”以检查前置条件。",
   "notice.goalMet": "已达成写作目标!",
+  "notice.noActiveNote": "请先打开要编纂的 Markdown 笔记，再运行此命令。",
+  "notice.workflowMissing": "找不到名为“{name}”的工作流。",
   "menu.createProject": "新建 PaperOut 项目",
   "menu.newPaperProject": "新建 PaperBell 论文项目…",
 

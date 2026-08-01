@@ -1,4 +1,4 @@
-import { FileSystemAdapter, Notice, requestUrl } from "obsidian";
+import { FileSystemAdapter, Notice, parseYaml, requestUrl } from "obsidian";
 import { execFile } from "child_process";
 import * as fs from "fs";
 import * as os from "os";
@@ -17,17 +17,22 @@ import {
   buildExportFilename,
   buildPandocArgs,
   DEFAULT_ASSETS_DIR,
+  exportTargetForDefaults,
   findDuplicateCiteKeys,
   hasCitations,
+  isFullOutputPath,
   officialCslUrls,
   parseExportFrontmatter,
   resolveBinary,
   resolveUserPath,
   splitBibList,
   zoteroStylesDir,
+  type ExportTarget,
 } from "./pandoc-export-utils";
+import { pandocSetupError } from "../recoverable";
 import { pluginSettings } from "src/model/stores";
 import { projectResourceCandidatePaths } from "src/model/project-resources";
+import { listPandocTemplates } from "src/model/pandoc-templates";
 
 function line(ok: boolean, label: string, detail: string): string {
   return `[${ok ? "✓" : "✗"}] ${label}` + (detail ? `\n       ${detail}` : "");
@@ -78,12 +83,71 @@ async function ensureCsl(
   return null;
 }
 
+/**
+ * Help text for a preset that isn't installed. Lists what *is* installed, so the
+ * user can pick one instead of guessing — and names where the missing preset was
+ * requested from, since for a loose note it is usually the note's own
+ * `template:` frontmatter key rather than any project metadata.
+ */
+function missingPresetHelp(
+  app: CompileContext["app"],
+  template: string,
+  templateSource: string
+): string {
+  const installed = listPandocTemplates(app);
+  const where = `The preset "${template}" comes from ${templateSource}.`;
+  if (installed.length === 0) {
+    return (
+      `${where} No presets are installed yet. Run 'Set up Pandoc export' → Download assets, ` +
+      `or 'Browse Pandoc asset marketplace' to install one.`
+    );
+  }
+  return (
+    `${where} Installed presets: ${installed.join(", ")}. ` +
+    `Set \`template:\` in the note's frontmatter to one of them, choose one in this step's ` +
+    `Template / preset option, or install more from the Pandoc asset marketplace.`
+  );
+}
+
+/**
+ * Extra `--resource-path` entries so images resolve for a note that isn't laid
+ * out like a project: the vault root (Obsidian's default attachment location)
+ * and the configured attachment folder. `getConfig` is undocumented, hence the
+ * loose typing and the guard.
+ */
+function attachmentResourcePaths(
+  app: CompileContext["app"],
+  base: string
+): string[] {
+  const paths = [base];
+  try {
+    const getConfig = (
+      app.vault as unknown as { getConfig?: (key: string) => unknown }
+    ).getConfig;
+    const configured =
+      typeof getConfig === "function"
+        ? getConfig.call(app.vault, "attachmentFolderPath")
+        : null;
+    // "/" means the vault root; "./" means "next to the note", already covered.
+    if (
+      typeof configured === "string" &&
+      configured &&
+      !configured.startsWith(".")
+    ) {
+      paths.push(path.join(base, configured.replace(/^\/+/, "")));
+    }
+  } catch (e) {
+    console.warn("[Pandoc Export] Could not read the attachment folder:", e);
+  }
+  return paths;
+}
+
 export const RunPandocExportStep = makeBuiltinStep({
   id: "run-pandoc-export",
   description: {
     name: "Run Pandoc Export",
     description:
-      "Exports the compiled manuscript to PDF via Pandoc (PaperBell pipeline). Desktop only. Run after Add Zenodo Frontmatter. Uses the bundled Pandoc assets by default — run the 'Set up Pandoc export' command to check prerequisites.",
+      "Exports the compiled manuscript via Pandoc (PaperBell pipeline). The output format follows the chosen preset — most produce a PDF, a `to: docx` preset produces a Word file. Desktop only. Run after Add Zenodo Frontmatter. Uses the downloaded Pandoc assets — run the 'Set up Pandoc export' command to check prerequisites.",
     availableKinds: [CompileStepKind.Manuscript],
     options: [
       {
@@ -100,7 +164,7 @@ export const RunPandocExportStep = makeBuiltinStep({
         id: "filename",
         name: "File name",
         description:
-          "Name for the exported PDF. Variables: {title}, {acronym}, {date}, {csl}, {template}, {draft}. E.g. {acronym}_{date} → PBMIN_2026-07-01.pdf. The .pdf extension is added automatically. Leave blank to use the compiled manuscript's name.",
+          "Name for the exported file. Variables: {title}, {acronym}, {date}, {csl}, {template}, {draft}. E.g. {acronym}_{date} → PBMIN_2026-07-01.pdf. The extension is added automatically and follows the preset (.pdf, .docx, …). Leave blank to use the compiled manuscript's name.",
         type: CompileStepOptionType.Text,
         default: "",
       },
@@ -114,8 +178,9 @@ export const RunPandocExportStep = makeBuiltinStep({
       },
       {
         id: "open-after",
-        name: "Open PDF after export",
-        description: "If checked, open the resulting PDF with the system viewer.",
+        name: "Open after export",
+        description:
+          "If checked, open the exported file with the system viewer.",
         type: CompileStepOptionType.Boolean,
         default: true,
       },
@@ -152,9 +217,19 @@ export const RunPandocExportStep = makeBuiltinStep({
     const fm = parseExportFrontmatter(input.contents);
     const acronym = String(fm.acronym || context.draft.title || "manuscript");
     const date = String(fm.date || new Date().toISOString().slice(0, 10));
-    // The step's template dropdown overrides the project metadata template when set.
+    // The step's template dropdown overrides the template named in the document
+    // being exported. That name comes from the document's own frontmatter, which
+    // is either what Add Zenodo Frontmatter wrote from metadata.json or — for a
+    // loose note — whatever the note itself declares. `templateSource` keeps
+    // that distinction so the preflight message can point at the right place.
     const optionTemplate = String(context.optionValues["template"] ?? "").trim();
-    const template = optionTemplate || String(fm.template || "undefined");
+    const fmTemplate = String(fm.template ?? "").trim();
+    const template = optionTemplate || fmTemplate || "undefined";
+    const templateSource = optionTemplate
+      ? "this step’s Template / preset option"
+      : fmTemplate
+      ? "the `template:` key in the exported note’s frontmatter"
+      : "the built-in default (no template was specified)";
     const csl = String(fm.csl || "nature");
 
     const dirs = binSearchDirs(home);
@@ -163,22 +238,59 @@ export const RunPandocExportStep = makeBuiltinStep({
       fs.existsSync,
       dirs
     );
-    const xelatexBin = resolveBinary("xelatex", fs.existsSync, dirs);
-    const crossrefBin = resolveBinary("pandoc-crossref", fs.existsSync, dirs);
 
     const defaultsFile = path.join(defaultsDir, template + ".yaml");
-    // Resolve the CSL style: assets folder → Zotero's local styles → the official
-    // CSL repo (cached into the assets folder). So exports work even when the CSL
-    // isn't in the plugin's marketplace.
-    const resolvedCsl = await ensureCsl(csl, cslDir, home);
-    const cslFile = resolvedCsl ?? path.join(cslDir, csl + ".csl");
     const assetsOk = fs.existsSync(assetsAbs);
     const defaultsOk = fs.existsSync(defaultsFile);
-    const cslOk = !!resolvedCsl;
+
+    // What the preset actually produces, and what it needs to produce it. A
+    // `to: docx` preset must be written to a .docx path — pandoc 3.x exits with
+    // "cannot produce pdf output from docx" otherwise. Parsing is best-effort:
+    // a preset we can't read must not break an export that would have worked.
+    let target: ExportTarget = {
+      ext: ".pdf",
+      pdfEngine: null,
+      needsCrossref: false,
+    };
+    if (defaultsOk) {
+      try {
+        target = exportTargetForDefaults(
+          parseYaml(fs.readFileSync(defaultsFile, "utf8"))
+        );
+      } catch (e) {
+        console.warn(
+          `[Pandoc Export] Could not read preset ${defaultsFile}; assuming PDF output.`,
+          e
+        );
+      }
+    }
+
+    // Only require the tools this preset actually asks for. A docx preset needs
+    // neither a TeX engine nor pandoc-crossref.
+    // A preset that produces a PDF without naming an engine leaves pandoc to
+    // default to pdflatex — still a hard requirement, so check for it too.
+    // Otherwise a missing engine escapes this checklist as a raw pandoc error.
+    const engineName =
+      target.pdfEngine ?? (target.ext === ".pdf" ? "pdflatex" : null);
+    const engineBin = engineName
+      ? resolveBinary(engineName, fs.existsSync, dirs)
+      : null;
+    const crossrefBin = target.needsCrossref
+      ? resolveBinary("pandoc-crossref", fs.existsSync, dirs)
+      : null;
 
     const bibliographies = resolveBibliography(settings, context, base, home);
     const needsBib = hasCitations(input.contents);
     const bibOk = !needsBib || bibliographies.length > 0;
+
+    // Resolve the CSL style: assets folder → Zotero's local styles → the official
+    // CSL repo (cached into the assets folder). So exports work even when the CSL
+    // isn't in the plugin's marketplace. Skipped entirely when the document has
+    // no citations — a plain note should not need a style, let alone a network
+    // round-trip, and `--csl` is omitted so pandoc never looks for one.
+    const resolvedCsl = needsBib ? await ensureCsl(csl, cslDir, home) : null;
+    const cslFile = resolvedCsl ?? (needsBib ? path.join(cslDir, csl + ".csl") : null);
+    const cslOk = !needsBib || !!resolvedCsl;
 
     // pandoc silently lets the LAST --bibliography win on a duplicate cite key.
     // Detect collisions across the merged bibs and warn — the project bib is
@@ -233,17 +345,15 @@ export const RunPandocExportStep = makeBuiltinStep({
       ),
       line(
         defaultsOk,
-        "defaults file — " + defaultsFile,
-        defaultsOk
-          ? ""
-          : `template is "${template}" (metadata _longform.template). Add defaults/${template}.yaml or fix the template.`
+        "preset — " + defaultsFile,
+        defaultsOk ? "" : missingPresetHelp(context.app, template, templateSource)
       ),
       line(
         cslOk,
-        "CSL style — " + cslFile,
+        "CSL style — " + (cslFile ?? "not needed (no citations)"),
         cslOk
           ? ""
-          : `csl is "${csl}" (metadata _longform.csl). Not in the assets folder, in Zotero's styles (~/Zotero/styles/${csl}.csl), or the official CSL repo. Install Zotero's "${csl}" style, add csl/${csl}.csl, or set _longform.csl to a valid style id (see github.com/citation-style-language/styles).`
+          : `csl is "${csl}" (from the exported note's frontmatter, or metadata _longform.csl). Not in the assets folder, in Zotero's styles (~/Zotero/styles/${csl}.csl), or the official CSL repo. Install Zotero's "${csl}" style, add csl/${csl}.csl, or set the csl to a valid style id (see github.com/citation-style-language/styles).`
       ),
       line(
         bibOk,
@@ -258,20 +368,43 @@ export const RunPandocExportStep = makeBuiltinStep({
           : "Your manuscript has [@citations] but no .bib was found. Add references.bib to the project, set a Bibliography path, or add a Global bibliography in settings."
       ),
       line(
-        !!xelatexBin,
-        "xelatex — " + (xelatexBin || "not found"),
-        xelatexBin ? "" : "Needed to build the PDF. Install MacTeX / TeX Live."
+        !engineName || !!engineBin,
+        `PDF engine — ${
+          engineName
+            ? `${engineName}: ${engineBin || "not found"}`
+            : "not needed (this preset doesn’t build a PDF)"
+        }`,
+        !engineName || engineBin
+          ? ""
+          : `The "${template}" preset declares pdf-engine: ${engineName}, which isn’t installed. Install MacTeX / TeX Live (macOS) or MiKTeX / TeX Live (Windows, Linux).`
       ),
       line(
-        !!crossrefBin,
-        "pandoc-crossref — " + (crossrefBin || "not found"),
-        crossrefBin ? "" : "Needed for @fig / cross-references if your defaults use it."
+        !target.needsCrossref || !!crossrefBin,
+        "pandoc-crossref — " +
+          (target.needsCrossref
+            ? crossrefBin || "not found"
+            : "not needed (not in this preset’s filters)"),
+        !target.needsCrossref || crossrefBin
+          ? ""
+          : `The "${template}" preset runs pandoc-crossref for @fig / @tbl references, but it isn’t installed. Install it (macOS: brew install pandoc-crossref).`
       ),
     ];
 
-    const hardOk = !!pandocBin && assetsOk && defaultsOk && cslOk && bibOk;
+    // xelatex and pandoc-crossref are hard requirements only when the preset
+    // asks for them; without this, a missing engine surfaced as a raw pandoc
+    // error instead of this checklist.
+    const engineOk = !engineName || !!engineBin;
+    const crossrefOk = !target.needsCrossref || !!crossrefBin;
+    const hardOk =
+      !!pandocBin &&
+      assetsOk &&
+      defaultsOk &&
+      cslOk &&
+      bibOk &&
+      engineOk &&
+      crossrefOk;
     if (!hardOk) {
-      throw new Error(
+      throw pandocSetupError(
         "Pandoc export can't run yet — here's what it needs:\n\n" +
           checklist.join("\n") +
           "\n\nTip: run the 'Set up Pandoc export' command from the command palette for guided setup."
@@ -281,19 +414,25 @@ export const RunPandocExportStep = makeBuiltinStep({
     // Output path. The directory comes from the "Pandoc output folder" setting
     // (default = the project folder); the file name comes from the step's
     // "File name" pattern ({title}/{acronym}/{date}/…), or the compiled
-    // manuscript's name when blank. A setting that ends in .pdf is still honored
-    // as a full output path, but only when no File name pattern is given.
+    // manuscript's name when blank. A setting that names a file (any known
+    // export extension, not just .pdf) is honored as a full output path, but
+    // only when no File name pattern is given — and its extension is replaced
+    // with the one the preset actually produces, since pandoc fails outright on
+    // a mismatch.
     let outputFolder = (settings.pandocOutputFolder ?? "").trim();
     if (outputFolder.indexOf("<") !== -1) outputFolder = "";
-    const settingIsFullPath =
-      !!outputFolder && outputFolder.toLowerCase().endsWith(".pdf");
+    const settingIsFullPath = !!outputFolder && isFullOutputPath(outputFolder);
     const filenamePattern = String(context.optionValues["filename"] ?? "");
     const draftName =
       context.draft.draftTitle || context.draft.title || "manuscript";
 
     let outputPath: string;
     if (settingIsFullPath && !filenamePattern.trim()) {
-      outputPath = resolveUserPath(outputFolder, base, home);
+      const asGiven = resolveUserPath(outputFolder, base, home);
+      outputPath = path.join(
+        path.dirname(asGiven),
+        path.basename(asGiven, path.extname(asGiven)) + target.ext
+      );
     } else {
       const outDirAbs = settingIsFullPath
         ? path.dirname(resolveUserPath(outputFolder, base, home))
@@ -303,7 +442,8 @@ export const RunPandocExportStep = makeBuiltinStep({
       const filename = buildExportFilename(
         filenamePattern,
         { title: String(fm.title || draftName), acronym, date, csl, template, draft: draftName },
-        draftName
+        draftName,
+        target.ext
       );
       outputPath = path.join(outDirAbs, filename);
     }
@@ -316,6 +456,9 @@ export const RunPandocExportStep = makeBuiltinStep({
       projectAbs,
       outputPath,
       bibliographies,
+      // Obsidian files pasted attachments outside the note's own folder (vault
+      // root by default), so a loose note's images resolve only if we look there.
+      extraResourcePaths: attachmentResourcePaths(context.app, base),
     });
     const env = { ...process.env, PATH: buildExecPath(process.env.PATH ?? "", home) };
 

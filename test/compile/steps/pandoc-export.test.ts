@@ -6,9 +6,11 @@ import {
   buildPandocArgs,
   commonTopDir,
   COMMON_BIN_DIRS,
+  exportTargetForDefaults,
   extractCiteKeys,
   findDuplicateCiteKeys,
   hasCitations,
+  isFullOutputPath,
   normalizeCslId,
   officialCslUrls,
   parseExportFrontmatter,
@@ -169,7 +171,167 @@ describe("buildExportFilename", () => {
     expect(buildExportFilename("{acronym}.pdf", vars, "x")).toBe("PBMIN.pdf");
     expect(buildExportFilename("{acronym}.PDF", vars, "x")).toBe("PBMIN.PDF");
   });
+
+  it("uses the extension the preset produces", () => {
+    expect(buildExportFilename("{acronym}", vars, "x", ".docx")).toBe(
+      "PBMIN.docx"
+    );
+    expect(buildExportFilename("   ", vars, "My Note", ".docx")).toBe(
+      "My Note.docx"
+    );
+    expect(buildExportFilename("{acronym}.docx", vars, "x", ".docx")).toBe(
+      "PBMIN.docx"
+    );
+  });
+
+  it("appends the preset extension even when the name ends in a different one", () => {
+    // Otherwise a leftover ".pdf" in the user's pattern would send a docx
+    // preset to a .pdf path, which pandoc rejects outright.
+    expect(buildExportFilename("{acronym}.pdf", vars, "x", ".docx")).toBe(
+      "PBMIN.pdf.docx"
+    );
+  });
 });
+
+describe("isFullOutputPath", () => {
+  it("recognizes any known export extension, not just .pdf", () => {
+    for (const p of [
+      "~/Papers/out.pdf",
+      "~/Papers/out.docx",
+      "~/Papers/out.HTML",
+      "Exports/paper.tex",
+    ]) {
+      expect(isFullOutputPath(p)).toBe(true);
+    }
+  });
+
+  it("treats a folder as a folder", () => {
+    // The regression this guards: "~/Papers/out.docx" used to fall through to
+    // the folder branch, and mkdirSync created a *directory* named out.docx.
+    for (const p of ["~/Papers", "Exports", "", "  ", "/Users/me/Documents"]) {
+      expect(isFullOutputPath(p)).toBe(false);
+    }
+  });
+});
+
+describe("exportTargetForDefaults", () => {
+  // The cases below mirror the field combinations actually present in the
+  // PaperBell asset repo's defaults/*.yaml. YAML parsing itself is Obsidian's
+  // parseYaml; this function only maps the parsed result.
+
+  it("gives a self-contained writer its own extension (demo-obsidian, manuscript-obsidian, response-letter-docx)", () => {
+    expect(exportTargetForDefaults({ to: "docx" }).ext).toBe(".docx");
+  });
+
+  it("ignores a stale output-file for such a writer", () => {
+    // Asking pandoc for .pdf from docx is a hard error, so `to:` has to win.
+    expect(
+      exportTargetForDefaults({ to: "docx", "output-file": "output.pdf" }).ext
+    ).toBe(".docx");
+  });
+
+  it("keeps PDF-capable writers on .pdf (cover_letter: to latex, beamer: to beamer)", () => {
+    expect(
+      exportTargetForDefaults({ to: "latex", "pdf-engine": "xelatex" }).ext
+    ).toBe(".pdf");
+    expect(
+      exportTargetForDefaults({ to: "beamer", "output-file": "pandoc_beamer.pdf" })
+        .ext
+    ).toBe(".pdf");
+  });
+
+  it("honors an explicit output-file for a PDF-capable writer", () => {
+    expect(
+      exportTargetForDefaults({ to: "latex", "output-file": "paper.tex" }).ext
+    ).toBe(".tex");
+  });
+
+  it("falls back to output-file, then .pdf, when there is no `to:` (paperbell, pdf, undefined, response-letter)", () => {
+    expect(exportTargetForDefaults({ "output-file": "output.pdf" }).ext).toBe(
+      ".pdf"
+    );
+    expect(exportTargetForDefaults({ "pdf-engine": "xelatex" }).ext).toBe(".pdf");
+    expect(exportTargetForDefaults({}).ext).toBe(".pdf");
+  });
+
+  it("strips pandoc's +ext/-ext syntax and quoting", () => {
+    expect(exportTargetForDefaults({ to: "markdown+smart" }).ext).toBe(".md");
+    expect(exportTargetForDefaults({ to: "gfm-raw_html" }).ext).toBe(".md");
+    expect(exportTargetForDefaults({ to: '"docx"' }).ext).toBe(".docx");
+    expect(exportTargetForDefaults({ to: "  DOCX  " }).ext).toBe(".docx");
+  });
+
+  it("survives trailing `#!` comments, which the shipped presets all carry", () => {
+    // paperbell.yaml:8 is literally `pdf-engine: xelatex   #! use xelatex ...`.
+    // If a comment leaked through, resolveBinary would fail to find the engine
+    // and preflight would reject an export that previously worked.
+    const parsed = {
+      to: "docx  #! word output",
+      "pdf-engine": "xelatex                    #! use xelatex for CJK",
+      "output-file": "output.pdf   #! overridden by -o",
+      filters: ["pandoc-crossref  #! numbering"],
+    };
+    const target = exportTargetForDefaults(parsed);
+    expect(target.ext).toBe(".docx");
+    expect(target.pdfEngine).toBe("xelatex");
+    expect(target.needsCrossref).toBe(true);
+  });
+
+  it("tolerates CRLF leftovers and quoting", () => {
+    expect(exportTargetForDefaults({ "output-file": "output.pdf\r" }).ext).toBe(
+      ".pdf"
+    );
+    expect(exportTargetForDefaults({ "pdf-engine": '"xelatex"' }).pdfEngine).toBe(
+      "xelatex"
+    );
+  });
+
+  it("keeps a path that legitimately contains spaces", () => {
+    // Only whitespace-then-# opens a YAML comment, so an engine path survives.
+    expect(
+      exportTargetForDefaults({ "pdf-engine": "/opt/my tex/xelatex" }).pdfEngine
+    ).toBe("/opt/my tex/xelatex");
+  });
+
+  it("uses the format name itself for writers it has no entry for", () => {
+    expect(exportTargetForDefaults({ to: "rst" }).ext).toBe(".rst");
+    expect(exportTargetForDefaults({ to: "org" }).ext).toBe(".org");
+  });
+
+  it("reports the pdf-engine so preflight can require the right binary", () => {
+    expect(exportTargetForDefaults({ "pdf-engine": "xelatex" }).pdfEngine).toBe(
+      "xelatex"
+    );
+    expect(exportTargetForDefaults({ to: "docx" }).pdfEngine).toBeNull();
+    expect(exportTargetForDefaults({ "pdf-engine": "  " }).pdfEngine).toBeNull();
+  });
+
+  it("detects pandoc-crossref in the filter list, bare or path-qualified", () => {
+    expect(
+      exportTargetForDefaults({ filters: ["citeproc", "pandoc-crossref"] })
+        .needsCrossref
+    ).toBe(true);
+    expect(
+      exportTargetForDefaults({ filters: ["${.}/../filters/image.lua", "citeproc"] })
+        .needsCrossref
+    ).toBe(false);
+    expect(exportTargetForDefaults({}).needsCrossref).toBe(false);
+  });
+
+  it("survives a preset that isn't an object", () => {
+    // parseYaml can return null/string for a malformed or empty preset; a bad
+    // preset must not break an export that would otherwise have worked.
+    const bads: unknown[] = [null, undefined, "nope", 42, []];
+    for (const bad of bads) {
+      expect(exportTargetForDefaults(bad)).toEqual({
+        ext: ".pdf",
+        pdfEngine: null,
+        needsCrossref: false,
+      });
+    }
+  });
+});
+
 
 describe("buildPandocArgs", () => {
   const base = {
@@ -215,6 +377,27 @@ describe("buildPandocArgs", () => {
       const args = buildPandocArgs({ ...base, bibliographies });
       expect(args.some((a) => a.startsWith("--bibliography="))).toBe(false);
     }
+  });
+
+  it("omits --csl entirely when there is no style to pass", () => {
+    // A note with no citations needs no CSL; passing one would make a missing
+    // style a hard failure for a document that never cites anything.
+    const args = buildPandocArgs({ ...base, cslFile: null });
+    expect(args.some((a) => a.startsWith("--csl="))).toBe(false);
+  });
+
+  it("appends extra resource paths after the project ones, deduplicated", () => {
+    const args = buildPandocArgs({
+      ...base,
+      extraResourcePaths: ["/v", "/v/Attachments", "/v/p"],
+    });
+    expect(args.filter((a) => a.startsWith("--resource-path="))).toEqual([
+      "--resource-path=/v/p",
+      "--resource-path=/v/p/figs",
+      "--resource-path=/v/figs",
+      "--resource-path=/v",
+      "--resource-path=/v/Attachments",
+    ]);
   });
 });
 
@@ -320,4 +503,3 @@ describe("fflate unzip (download extraction round-trips)", () => {
     ]);
   });
 });
-

@@ -151,3 +151,15 @@ canonical vault source and re-sync, or the next sync overwrites your edit.
   name must equal the manifest `id`); the vault has the `hot-reload` plugin installed.
 - `npm run build` runs `svelte-check` + eslint, then a production rollup.
 - `npm run test:unit` runs vitest.
+
+### Testing modules that import `obsidian`
+
+The `obsidian` package ships types only (`"main": ""`), so any module with a
+*value* import from it — even just `normalizePath` — cannot be loaded under
+vitest. That is why pure logic here is conventionally split into `*-utils.ts`
+siblings, which is still the preferred shape: it keeps the seam visible.
+
+`vitest.config.ts` aliases `obsidian` to `test/mocks/obsidian.ts` so the compile
+core itself can be tested directly. Keep that stub thin — add an export when a
+test needs one, and reach for the `*-utils.ts` split before growing fake Obsidian
+behavior in it.

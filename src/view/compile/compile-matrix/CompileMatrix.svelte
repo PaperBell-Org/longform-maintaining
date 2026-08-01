@@ -7,6 +7,7 @@
   import {
     calculateWorkflow,
     compile,
+    effectiveWorkflow,
     formatStepKind,
     explainStepKind,
     WorkflowError,
@@ -76,6 +77,15 @@
     return { steps, runnable: true, skipReason: "" };
   }
 
+  // The row's editable copy of a workflow. Join steps are dropped up front for a
+  // single-file draft (see effectiveWorkflow) so that the clone, the rendered
+  // node list, the step-options editor, and compile()'s progress indices all
+  // agree on one step list.
+  function rowWorkflow(source, draft) {
+    if (!source) return null;
+    return effectiveWorkflow(cloneWorkflow(source), draft.format === "scenes");
+  }
+
   // Snapshot the project's drafts, resolving each to its default workflow. Each row
   // owns an editable clone of its workflow so per-step option edits and the workflow
   // picker stay local to this run and never touch the user's saved workflows.
@@ -89,7 +99,7 @@
         allWorkflowNames[0] ??
         null;
       const source = defaultName ? wfsSnapshot[defaultName] : cur;
-      const workflow = source ? cloneWorkflow(source) : null;
+      const workflow = rowWorkflow(source, draft);
       return {
         id: draft.vaultPath,
         draft,
@@ -110,7 +120,7 @@
   function selectWorkflow(row, name) {
     if (running) return;
     row.workflowName = name;
-    row.workflow = wfsSnapshot[name] ? cloneWorkflow(wfsSnapshot[name]) : null;
+    row.workflow = rowWorkflow(wfsSnapshot[name], row.draft);
     row.openStep = -1;
     row.state = { ...IDLE_ROW };
     Object.assign(row, resolveRow(row.draft, row.workflow));
