@@ -9,6 +9,9 @@ export default defineConfig({
     // get duplicated and cross-module state doesn't line up in tests.
     alias: {
       src: fileURLToPath(new URL("./src", import.meta.url)),
+      // The real `obsidian` package is types-only ("main": ""), so any module
+      // with a value import from it is unloadable under vitest. See the stub.
+      obsidian: fileURLToPath(new URL("./test/mocks/obsidian.ts", import.meta.url)),
     },
   },
   test: {

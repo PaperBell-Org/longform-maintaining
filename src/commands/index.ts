@@ -23,6 +23,8 @@ import { markManuscriptSpan, insertManuscriptRef } from "./manuscript-refs";
 import { newPaperProject } from "./scaffold";
 import { convertToProject } from "./convert-to-project";
 import { openPandocMarket } from "./pandoc-market";
+import { registerWorkflowCommands } from "./workflow-commands";
+import { addComponentsCommand } from "./add-components";
 
 const commandBuilders = [
   compileCurrent,
@@ -48,10 +50,15 @@ const commandBuilders = [
   newPaperProject,
   convertToProject,
   openPandocMarket,
+  addComponentsCommand,
 ];
 
 export function addCommands(plugin: LongformPlugin) {
   commandBuilders.forEach((c) => {
     plugin.addCommand(c(plugin));
   });
+
+  // One "Run workflow: <name>" command per workflow, kept in sync with the
+  // workflows store. Safe to call here: loadSettings() has already populated it.
+  registerWorkflowCommands(plugin);
 }

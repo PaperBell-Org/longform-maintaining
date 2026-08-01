@@ -1,10 +1,28 @@
-# Pandoc export (PDF)
+# Pandoc export
 
-Longform (PaperBell) can export a compiled manuscript straight to a typeset PDF
-using [Pandoc](https://pandoc.org). The **Pandoc toolchain** — Lua filters, LaTeX
+Longform (PaperBell) can export a compiled manuscript straight to a typeset
+document using [Pandoc](https://pandoc.org) — usually a PDF, or a Word file when
+the chosen preset says so. The **Pandoc toolchain** — Lua filters, LaTeX
 templates, CSL styles, and defaults files — is **not bundled** with the plugin.
 It lives in a separate assets repository and is **downloaded on demand** into your
 vault, so it can evolve independently and you can customize or contribute templates.
+
+## Exporting a single note
+
+The fastest path, once the toolchain is installed: open any markdown note and run
+**Run workflow: Quick Export** from the command palette (bind a hotkey to it and
+this becomes one keystroke). The note does not have to be part of a project.
+
+`Quick Export` is a built-in workflow with exactly one step — *Run Pandoc Export*.
+By default it exports to the folder the note lives in, named after the note,
+**overwriting** the previous export; a **Pandoc output folder** setting redirects
+it like any other export. To choose a preset, add `template: <preset>` to the
+note's own frontmatter (and `csl:` for the citation style); without one you get
+the general-purpose default.
+
+If something is missing, the error dialog lists what's needed, which presets are
+installed, and offers buttons to jump straight to **Set up Pandoc export** or the
+asset marketplace.
 
 ## Quick start
 
@@ -16,7 +34,12 @@ vault, so it can evolve independently and you can customize or contribute templa
 4. Add the **Run Pandoc Export** step to a compile workflow, after **Add Zenodo
    Frontmatter** and **Save as Note**, and compile. The PDF is written next to
    your manuscript, named after the compiled note (customize with the step's
-   **File name** option — see [Naming the PDF](#naming-the-pdf)).
+   **File name** option — see [Naming the exported file](#naming-the-exported-file)).
+
+You don't have to compile from the pane: every workflow also has a **“Run
+workflow: `<name>`”** command that exports the note you currently have open —
+including a plain markdown file that is not part of a project. See
+[Commands](./COMMANDS.md#run-workflow-name).
 
 ## Prerequisites (system tools)
 
@@ -104,9 +127,23 @@ one workflow named "Manuscript" (`paperbell`) and another "SI" (a supplementary
 layout). The dropdown populates after you download assets via **Set up Pandoc
 export**.
 
-## Naming the PDF
+## Output format: PDF or Word
 
-The **Run Pandoc Export** step's **File name** option controls the PDF's name.
+**The preset decides the format, and the file extension follows it.** A preset
+with `to: docx` produces a `.docx` you can open in Word; presets that build
+through LaTeX (`to: latex`, `to: beamer`, or no `to:` at all) produce a `.pdf`.
+Nothing needs to be configured for this — set `template:` to a docx preset and
+you get Word.
+
+This matters because pandoc refuses to write mismatched output: asking a `to: docx`
+preset for a `.pdf` file exits with `cannot produce pdf output from docx`.
+
+The prerequisite check follows the preset too: a docx preset needs neither a TeX
+engine nor `pandoc-crossref`, and neither is demanded of it.
+
+## Naming the exported file
+
+The **Run Pandoc Export** step's **File name** option controls the name.
 Leave it blank to use the **compiled manuscript's name** (the note produced by
 *Save as Note*). To customize, type a pattern with any of these variables:
 
@@ -119,9 +156,10 @@ Leave it blank to use the **compiled manuscript's name** (the note produced by
 | `{template}` | resolved template | `paperbell` |
 | `{draft}` | the draft's name | `Main Manuscript` |
 
-For example `{acronym}_{date}` produces `PBMIN_2026-07-01.pdf`. The `.pdf`
-extension is added automatically, unknown `{tokens}` are left as-is (so a typo is
-visible), and characters illegal in file names are replaced with `-`.
+For example `{acronym}_{date}` produces `PBMIN_2026-07-01.pdf`. The extension is
+added automatically and follows the preset (`.pdf`, `.docx`, …), unknown
+`{tokens}` are left as-is (so a typo is visible), and characters illegal in file
+names are replaced with `-`.
 
 ## Supplementary Information
 
@@ -148,12 +186,16 @@ true` flag in `metadata.json` for numbering.
 
 ## Exporting outside your vault
 
-By default the PDF lands next to the compiled manuscript, inside the vault. To
-keep PDFs out of the vault entirely, set **Pandoc output folder** to an absolute
-path — e.g. `~/Papers` or `/Users/me/Documents/Papers`. Every project then exports
-into that one folder, named by the step's **File name** option (default: the
-compiled note's name). The folder is created automatically if it doesn't exist
-yet, so you can point it anywhere writable.
+By default the exported file lands next to the compiled manuscript, inside the
+vault. To keep exports out of the vault entirely, set **Pandoc output folder** to
+an absolute path — e.g. `~/Papers` or `/Users/me/Documents/Papers`. Every project
+then exports into that one folder, named by the step's **File name** option
+(default: the compiled note's name). The folder is created automatically if it
+doesn't exist yet, so you can point it anywhere writable.
+
+You may also point the setting at a *file* (`~/Papers/latest.pdf`) to send every
+export to one fixed path; its extension is replaced with whatever the preset
+actually produces.
 
 ## Notes
 

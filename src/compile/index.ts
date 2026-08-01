@@ -12,7 +12,10 @@ import {
   type Workflow,
   PLACEHOLDER_MISSING_STEP,
 } from "./steps/abstract-compile-step";
+import { recoverableKindOf, type RecoverableKind } from "./recoverable";
 export * from "./steps/abstract-compile-step";
+export * from "./recoverable";
+export * from "./workflow-for-draft";
 
 export interface CompileOptions {
   includeHeaders: boolean;
@@ -22,6 +25,12 @@ export interface CompileOptions {
 export interface CompileStatusError {
   kind: "CompileStatusError";
   error: string;
+  /**
+   * Set when the failure is a known, fixable configuration problem rather than
+   * the export genuinely going wrong, so the UI can offer a way to fix it.
+   * See `./recoverable`.
+   */
+  recoverable?: RecoverableKind;
 }
 
 export interface CompileStatusStep {
@@ -284,11 +293,18 @@ export async function compile(
       }
     } catch (error) {
       console.error("[PaperOut]", error);
-      const detail =
-        error instanceof Error ? error.stack ?? error.message : String(error);
+      const recoverable = recoverableKindOf(error);
+      // A recoverable setup problem is a curated, user-facing checklist — a
+      // stack trace on top of it is noise.
+      const detail = recoverable
+        ? (error as Error).message
+        : error instanceof Error
+        ? error.stack ?? error.message
+        : String(error);
       statusCallback({
         kind: "CompileStatusError",
         error: `Step "${step.description.name}" failed:\n\n${detail}`,
+        recoverable,
       });
       return;
     }
@@ -339,6 +355,34 @@ export const DEFAULT_WORKFLOWS: Record<string, SerializedWorkflow> = {
         optionValues: {
           target: "manuscript.md",
           "open-after": true,
+        },
+      },
+    ],
+  },
+
+  /**
+   * The zero-setup export. One step, no project required: pair it with its
+   * "Run workflow: Quick Export" command and any open note becomes an export.
+   * Name is load-bearing — it keys `data.json` and the command id, and
+   * `mergeMissingWorkflows` only ever adds, so a rename would strand the old
+   * entry (and its command) in every existing vault forever.
+   */
+  "Quick Export": {
+    name: "Quick Export",
+    description:
+      "Export the note you have open — any markdown file, no project needed — via Pandoc. " +
+      "The preset decides the format: by default a general-purpose PDF, or set `template: <preset>` " +
+      "in the note's frontmatter to pick another (a `to: docx` preset gives you Word); " +
+      "`csl:` there picks the citation style. " +
+      "The file lands next to the note, named after it, and re-exporting overwrites it.",
+    steps: [
+      {
+        id: "run-pandoc-export",
+        optionValues: {
+          template: "",
+          "dry-run": false,
+          "open-after": true,
+          filename: "",
         },
       },
     ],

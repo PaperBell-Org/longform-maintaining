@@ -2,18 +2,27 @@ import {
   EXAMPLE_FIGURE_PNG_BASE64,
   EXAMPLE_DATA_XLSX_BASE64,
 } from "./assets";
+import {
+  json,
+  PAPER_PARTS,
+  type PaperPartId,
+  type PartContext,
+  type ScaffoldFile,
+} from "./parts";
+
+export type { ScaffoldFile } from "./parts";
 
 /**
- * Pure logic for the "New PaperBell paper" scaffold — the one-click project
- * skeleton mirroring test-longform-vault/paperbell-minimal, but neutral starter
- * content instead of the regression-fixture prose. Side-effect free and unit
- * tested; the modal writes the returned files to the vault.
+ * Pure logic for the "New PaperBell paper" scaffold — the project skeleton
+ * mirroring test-longform-vault/paperbell-minimal, but neutral starter content
+ * instead of the regression-fixture prose. Side-effect free and unit tested; the
+ * modal writes the returned files to the vault.
  *
- * A scaffold is three drafts of ONE project (same `title`, distinct `draftTitle`):
- * a multi-scene Main Manuscript, a Supplementary Information draft (nearest-wins
- * metadata.json adds `supplementary: true` → S-numbering), and a Response Letter
- * that pulls the manuscript's `@intro-gap` span and `@fig:demo` via the
- * reference-sync. Every path is relative to the project folder.
+ * The parts themselves (Main Manuscript, Supplementary, Cover Letter, Response
+ * Letter) live in `./parts`, so that adding one to an existing project runs the
+ * same builder. This module owns what is *not* a part: the shared metadata every
+ * project needs, and the optional example bundle. Every path is relative to the
+ * project folder.
  */
 
 export interface ScaffoldOptions {
@@ -21,14 +30,25 @@ export interface ScaffoldOptions {
   title: string;
   /** Short acronym for the PDF name / labels. Defaults to initials of `title`. */
   acronym?: string;
-  /** Lead author as "Last, First". Defaults to a fill-in placeholder. */
-  author?: string;
+  /**
+   * Which parts to create. Required, with no default: the whole point of the
+   * option is that the file set follows the selection, and a default would leave
+   * a path that silently reproduces the old always-everything behavior.
+   * Must contain "main" — {@link buildPaperbellScaffold} rejects anything else.
+   */
+  parts: readonly PaperPartId[];
+  /**
+   * Include the example figure/table assets and the project README. Required for
+   * the same reason as `parts`; body text adapts to it.
+   */
+  examples: boolean;
 }
 
-/** One file to write: text content, or a base64-encoded binary. */
-export type ScaffoldFile =
-  | { path: string; text: string }
-  | { path: string; base64: string };
+/**
+ * Stand-in for the lead author. Left as a placeholder for the user to replace in
+ * metadata.json, which is the single authority for publication metadata.
+ */
+const PLACEHOLDER_AUTHOR = "Lastname, Firstname";
 
 /** Initials of a title, upper-cased, digits kept — "Sea Level Memory" → "SLM". */
 export function acronymFromTitle(title: string): string {
@@ -41,11 +61,6 @@ export function acronymFromTitle(title: string): string {
     .toUpperCase()
     .slice(0, 6);
   return initials || "PAPER";
-}
-
-/** JSON.stringify with the 2-space, trailing-newline shape the fixtures use. */
-function json(value: unknown): string {
-  return JSON.stringify(value, null, 2) + "\n";
 }
 
 function mainMetadata(title: string, acronym: string, author: string): string {
@@ -80,39 +95,6 @@ function mainMetadata(title: string, acronym: string, author: string): string {
   });
 }
 
-function supplementaryMetadata(
-  title: string,
-  acronym: string,
-  author: string
-): string {
-  return json({
-    title: `${title} — Supplementary Information`,
-    publication_date: "",
-    upload_type: "publication",
-    publication_type: "article",
-    description:
-      "Supplementary information for the paper. Shares the main manuscript's metadata but adds supplementary: true so figures and tables receive an S prefix.",
-    creators: [
-      {
-        name: author,
-        affiliation: "Your Institution",
-        orcid: "0000-0000-0000-0000",
-        email: "you@example.com",
-      },
-    ],
-    keywords: ["keyword-one", "keyword-two"],
-    journal_title: "Target Journal",
-    version: "v1.0",
-    _longform: {
-      acronym,
-      csl: "nature",
-      template: "paperbell",
-      corresponding: [author],
-      extra_yaml: "supplementary: true\nnumbersections: true\n",
-    },
-  });
-}
-
 const RESULTS_JSON = json({
   summary: { n: 0, mean: 0, unit: "samples" },
   samples: [{ id: "S-01" }, { id: "S-02" }],
@@ -138,195 +120,75 @@ const REFERENCES_BIB = `@article{doe2020,
 }
 `;
 
-function mainIndex(title: string): string {
-  return `---
-longform:
-  format: scenes
-  title: ${title}
-  draftTitle: Main Manuscript
-  workflow: PaperBell Manuscript
-  sceneFolder: manuscript
-  scenes:
-    - introduction
-    - methods
-    - results
-  ignoredFiles: []
----
+/** One-line notes for the README tree, keyed by the path they annotate. */
+const TREE_ANNOTATIONS: Record<string, string> = {
+  "metadata.json": "shared publication metadata (Zenodo schema + _longform)",
+  "results.json": "externally-computed values for {{ }} placeholders",
+  "references.bib": "local bib for [@citekey] (consumed by pandoc)",
+  "figs/example_figure.png": "placeholder figure — replace with your own",
+  // No backticks in these notes: the tree is itself inside a fenced block, and
+  // a nested fence would close it early. (The old hand-written tree did that.)
+  "figs/example_data.xlsx": "Data sheet for the xlsx-table blocks",
+  "Main Manuscript (Index).md": "draft index (sceneFolder: manuscript)",
+  "Response Letter (Index).md": "draft index (sceneFolder: response)",
+  "Cover Letter.md": "single-file draft; own to/date/manuscript frontmatter",
+  "supplementary/Supplementary (Index).md": "draft index (same title → same project)",
+  "supplementary/metadata.json": "nearest-wins override adding supplementary: true",
+};
 
-Main manuscript of **${title}**. Shared publication metadata lives in \`metadata.json\` in this folder; compile it with the **PaperBell Manuscript** workflow.
-`;
+type TreeNode = { name: string; children: TreeNode[]; path: string };
+
+/**
+ * Render an ASCII directory tree from the paths actually emitted.
+ *
+ * Derived rather than hand-written so the README can never drift from what the
+ * scaffold produced — which it would, now that the file set depends on a
+ * selection. Exported for unit testing.
+ */
+export function renderTree(root: string, paths: string[]): string {
+  const tree: TreeNode = { name: root, children: [], path: "" };
+  for (const p of paths) {
+    let node = tree;
+    const segments = p.split("/");
+    segments.forEach((segment, i) => {
+      const path = segments.slice(0, i + 1).join("/");
+      let child = node.children.find((c) => c.name === segment);
+      if (!child) {
+        child = { name: segment, children: [], path };
+        node.children.push(child);
+      }
+      node = child;
+    });
+  }
+
+  const lines: string[] = [`${root}/`];
+  const walk = (node: TreeNode, prefix: string): void => {
+    node.children.forEach((child, i) => {
+      const last = i === node.children.length - 1;
+      const isDir = child.children.length > 0;
+      const note = TREE_ANNOTATIONS[child.path];
+      const label = `${child.name}${isDir ? "/" : ""}`;
+      lines.push(
+        `${prefix}${last ? "└── " : "├── "}${label}${note ? `  # ${note}` : ""}`
+      );
+      if (isDir) walk(child, prefix + (last ? "    " : "│   "));
+    });
+  };
+  walk(tree, "");
+  return lines.join("\n");
 }
 
-function responseIndex(title: string): string {
-  return `---
-longform:
-  format: scenes
-  title: ${title}
-  draftTitle: Response Letter
-  workflow: PaperBell Response Letter
-  sceneFolder: response
-  scenes:
-    - response
-  ignoredFiles: []
----
-
-Response-letter draft of **${title}**. Compile the **Main Manuscript** first (it harvests \`manuscript-lines.json\` / \`figure-numbers.json\`), then compile this with **PaperBell Response Letter**: the \`\`\`manuscript\`\`\` fences pull the manuscript's current text for \`@intro-gap\` into a Page/Line box, and \`@fig:demo\` / \`\\ref{fig:demo}\` resolve to the manuscript's figure number.
-`;
-}
-
-// The cover letter is a single-file draft (not multi-scene): the cover_letter
-// template reads to/date/manuscript/corresponding straight from the note's own
-// frontmatter, so its workflow exports the note as-is without strip/concatenate.
-function coverLetter(title: string, acronym: string, author: string): string {
-  return `---
-longform:
-  format: single
-  title: ${title}
-  draftTitle: Cover Letter
-  workflow: PaperBell Cover Letter
-title: Cover letter
-manuscript: ${title}
-acronym: ${acronym}
-date:
-to: Dear Editor,
-corresponding: ${author} (you@example.com)
----
-
-We are pleased to submit our manuscript, *{{manuscript}}*, for consideration for publication in *{{JournalName}}*.
-
-State in one or two sentences what the paper shows and why it matters to this journal's readers.
-
-State the key advance over prior work, and why this venue is the right fit.
-
-We confirm that this manuscript is original, has not been published elsewhere, and is not under consideration by another journal. All authors have approved the submission and declare no competing interests.
-
-Thank you for your consideration; we look forward to your response.
-`;
-}
-
-function supplementaryIndex(title: string): string {
-  return `---
-longform:
-  format: scenes
-  title: ${title}
-  draftTitle: Supplementary
-  workflow: PaperBell Supplementary
-  sceneFolder: /
-  scenes:
-    - supplementary results
-  ignoredFiles: []
----
-
-Supplementary draft of **${title}**. Its own \`metadata.json\` in this folder (found before the shared one at the project root) adds \`supplementary: true\`, so figures and tables are numbered S1, S2, …
-`;
-}
-
-const INTRODUCTION_MD = `# Introduction
-
-Open with the background and the gap your paper addresses. You can use *italic*, **bold**, and ==highlight== for emphasis, and Markdown footnotes for asides.[^note]
-
-Cite prior work with bracketed keys that resolve against \`references.bib\`: a single citation [@doe2020] or several [@doe2020; @roe2021]. Values from \`metadata.json\` render live in reading mode and at compile time — this is *{{title}}* (acronym {{_longform.acronym}}, version {{version}}).
-
-Wrap the one sentence you will quote in your response letter in a manuscript span so the response letter can pull its live text and line number: <!--ms:intro-gap-->state here, in one sentence, the specific gap this paper closes.<!--/ms:intro-gap-->
-
-[^note]: Footnotes render in the compiled PDF.
-`;
-
-const METHODS_MD = `# Methods
-
-Describe your approach. Inline math like $E = mc^2$ and display math both work:
-
-$$\\bar{x} = \\frac{1}{n}\\sum_{i=1}^{n} x_i.$$
-
-Blackboard symbols such as $\\mathbb{R}$ come from \`amssymb\`, which the template loads.
-
-Values below are injected at compile time from \`results.json\` (they are not in \`metadata.json\`, so they stay as raw placeholders in the live preview and are substituted only by the compile step): we analysed {{ summary.n }} {{ summary.unit }} with a mean of {{ summary.mean }}, the first identified as {{ samples[0].id }}. Computed on {{ computed_date }}.
-`;
-
-const RESULTS_MD = `# Results
-
-State the primary outcome and point to Figure \\ref{fig:demo}.
-
-![Replace with your figure caption. {#fig:demo width=70%}](figs/example_figure.png)
-
-Report tabular results in Table \\ref{tbl:demo}, generated from a spreadsheet at compile time by the pipeline's \`xlsx_table.lua\`:
-
-\`\`\`xlsx-table
-file: figs/example_data.xlsx
-sheet: Data
-caption: Replace with your table caption.
-label: tbl:demo
-skip_n: 0
-\`\`\`
-
-Defer extended analyses to the supplementary results.
-`;
-
-const SUPPLEMENTARY_RESULTS_MD = `# Supplementary Results
-
-Because this draft's workflow includes the **Supplementary Information** step, the figure and table below are numbered with an S prefix automatically: Figure \\ref{fig:supp_demo} becomes "Figure S1" and Table \\ref{tbl:supp_demo} becomes "Table S1".
-
-![A supplementary figure caption. {#fig:supp_demo width=60%}](../figs/example_figure.png)
-
-\`\`\`xlsx-table
-file: ../figs/example_data.xlsx
-sheet: Data
-caption: A supplementary table caption.
-label: tbl:supp_demo
-skip_n: 0
-\`\`\`
-`;
-
-const RESPONSE_MD = `# Response to Reviewer 1
-
-> [!RC] Reviewer 1, Comment 1
-> Paraphrase the reviewer's comment here.
-
-Write your reply. To quote the manuscript's *current* text (kept in sync automatically), fence a manuscript reference — it renders as a gray box with the live Page/Line:
-
-\`\`\`manuscript
-@intro-gap
-\`\`\`
-
-To show a manuscript figure with its manuscript number:
-
-\`\`\`manuscript
-@fig:demo
-\`\`\`
-
-You can also refer to it inline as Figure \\ref{fig:demo}.
-`;
-
-function readme(title: string, acronym: string): string {
+/** Only written alongside the example content, so it can assume it is there. */
+function readme(title: string, acronym: string, emitted: string[]): string {
   return `# ${title}
 
-A PaperBell paper project scaffolded by PaperOut To-Authors. Four drafts of one
-project (same \`title\`, distinct \`draftTitle\`): a multi-scene **Main Manuscript**,
-a **Supplementary Information** draft, a **Response Letter**, and a **Cover Letter**.
+A PaperBell paper project scaffolded by PaperOut To-Authors. Each part is a draft
+of one project — same \`title\`, distinct \`draftTitle\`.
 
 ## Layout
 
 \`\`\`
-${title}/
-├── metadata.json               # shared publication metadata (Zenodo schema + _longform)
-├── results.json                # externally-computed values for {{ }} compile-time placeholders
-├── references.bib              # local bib for [@citekey] (consumed by pandoc)
-├── figs/
-│   ├── example_figure.png      # placeholder figure — replace with your own
-│   └── example_data.xlsx       # Data sheet for the \`\`\`xlsx-table\`\`\` blocks
-├── Main Manuscript (Index).md  # draft 1 (sceneFolder: manuscript)
-├── manuscript/
-│   ├── introduction.md
-│   ├── methods.md
-│   └── results.md
-├── Response Letter (Index).md  # draft 2 (sceneFolder: response)
-├── response/
-│   └── response.md
-├── Cover Letter.md             # draft 3 (single-file; own to/date/manuscript frontmatter)
-└── supplementary/
-    ├── Supplementary (Index).md   # draft 4 (same title → same project)
-    ├── metadata.json              # nearest-wins override adding supplementary: true → S-numbering
-    └── supplementary results.md
+${renderTree(title, emitted)}
 \`\`\`
 
 ## Getting started
@@ -336,53 +198,96 @@ ${title}/
 2. Replace \`figs/example_figure.png\` and \`figs/example_data.xlsx\` with your own.
 3. Write your scenes under \`manuscript/\`. Keep each scene's own \`#\` heading.
 4. Compile with the **Compile** tab or the **Compile All Drafts** board. Compile the
-   Main Manuscript first so the Response Letter can resolve \`@intro-gap\` / \`@fig:demo\`.
+   Main Manuscript first so a Response Letter can resolve its manuscript references.
+
+Need a part you did not create — a Supplementary Information, a Cover Letter, a
+Response Letter? Run **Add paper components…** from the command palette, or
+right-click this folder. (This file is not regenerated when you do, so the tree
+above reflects the project as first created.)
 
 The Pandoc toolchain (defaults/filters/templates/CSL) is downloaded on demand — run
 the **Set up Pandoc export** command for a prerequisites checklist.
 `;
 }
 
+/** The shared files every paper project needs, whichever parts it has. */
+export function commonScaffoldFiles(ctx: PartContext): ScaffoldFile[] {
+  return [
+    {
+      path: "metadata.json",
+      text: mainMetadata(ctx.title, ctx.acronym, ctx.author),
+    },
+    { path: "results.json", text: RESULTS_JSON },
+    { path: "references.bib", text: REFERENCES_BIB },
+  ];
+}
+
+/** The example figure and workbook the starter body text references. */
+export function exampleAssetFiles(): ScaffoldFile[] {
+  return [
+    { path: "figs/example_figure.png", base64: EXAMPLE_FIGURE_PNG_BASE64 },
+    { path: "figs/example_data.xlsx", base64: EXAMPLE_DATA_XLSX_BASE64 },
+  ];
+}
+
+/** Normalize the caller's options into the context every part builder takes. */
+export function scaffoldContext(opts: ScaffoldOptions): PartContext {
+  return {
+    title: opts.title.trim(),
+    acronym: (opts.acronym || acronymFromTitle(opts.title.trim())).trim(),
+    author: PLACEHOLDER_AUTHOR,
+    examples: opts.examples,
+    present: new Set(opts.parts),
+  };
+}
+
 /**
  * Build every file of a new PaperBell paper project. Paths are relative to the
  * project folder (named after `title`); the writer prefixes the parent path.
+ *
+ * Always writes the legacy form — one `longform:`-carrying note per draft — which
+ * is what the plugin's project model reads natively. A project only becomes a
+ * single `format: project` index via the convert command.
  */
 export function buildPaperbellScaffold(opts: ScaffoldOptions): ScaffoldFile[] {
-  const title = opts.title.trim();
-  const acronym = (opts.acronym || acronymFromTitle(title)).trim();
-  const author = (opts.author || "Lastname, Firstname").trim();
+  // The Main Manuscript is not optional. It anchors the project root that every
+  // nearest-wins metadata.json lookup is bounded by; a project whose only draft
+  // sat in supplementary/ would search from there and miss the shared files.
+  if (!opts.parts.includes("main")) {
+    throw new Error("A paper project must include the Main Manuscript.");
+  }
+  const ctx = scaffoldContext(opts);
 
-  return [
-    { path: "metadata.json", text: mainMetadata(title, acronym, author) },
-    { path: "results.json", text: RESULTS_JSON },
-    { path: "references.bib", text: REFERENCES_BIB },
-    { path: "README.md", text: readme(title, acronym) },
-    { path: "figs/example_figure.png", base64: EXAMPLE_FIGURE_PNG_BASE64 },
-    { path: "figs/example_data.xlsx", base64: EXAMPLE_DATA_XLSX_BASE64 },
+  const files: ScaffoldFile[] = [...commonScaffoldFiles(ctx)];
+  if (ctx.examples) {
+    files.push(...exampleAssetFiles());
+  }
+  for (const part of paperPartsOf(opts.parts)) {
+    files.push(...part.build(ctx, "legacy").files);
+  }
 
-    { path: "Main Manuscript (Index).md", text: mainIndex(title) },
-    { path: "manuscript/introduction.md", text: INTRODUCTION_MD },
-    { path: "manuscript/methods.md", text: METHODS_MD },
-    { path: "manuscript/results.md", text: RESULTS_MD },
+  if (ctx.examples) {
+    files.push({
+      path: "README.md",
+      // The README documents the tree, so it has to see the final path list.
+      text: readme(
+        ctx.title,
+        ctx.acronym,
+        files.map((f) => f.path).concat("README.md")
+      ),
+    });
+  }
+  return files;
+}
 
-    { path: "Response Letter (Index).md", text: responseIndex(title) },
-    { path: "response/response.md", text: RESPONSE_MD },
-
-    { path: "Cover Letter.md", text: coverLetter(title, acronym, author) },
-
-    {
-      path: "supplementary/Supplementary (Index).md",
-      text: supplementaryIndex(title),
-    },
-    {
-      path: "supplementary/metadata.json",
-      text: supplementaryMetadata(title, acronym, author),
-    },
-    {
-      path: "supplementary/supplementary results.md",
-      text: SUPPLEMENTARY_RESULTS_MD,
-    },
-  ];
+/**
+ * The selected parts, in the order `PAPER_PARTS` declares — never the caller's
+ * argument order, so the layout (and the README tree derived from it) is stable
+ * however the modal collected the selection.
+ */
+function paperPartsOf(ids: readonly PaperPartId[]) {
+  const selected = new Set(ids);
+  return PAPER_PARTS.filter((p) => selected.has(p.id));
 }
 
 /** The project's primary draft path (relative), for selecting it after creation. */

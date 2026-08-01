@@ -11,20 +11,31 @@ import {
 import { translate } from "src/i18n";
 import { selectedDraftVaultPath } from "src/model/stores";
 import { selectedTab } from "src/view/stores";
-import { acronymFromTitle, writePaperbellScaffold } from "src/model/scaffold";
+import {
+  acronymFromTitle,
+  PAPER_PARTS,
+  writePaperbellScaffold,
+  type PaperPartId,
+} from "src/model/scaffold";
 
 const ILLEGAL = /[:\\/]/;
 
 /**
- * Prompts for a project title (+ optional acronym) and scaffolds a full PaperBell
- * paper project — Main Manuscript, Supplementary, and Response Letter drafts with
- * starter content, metadata, references, and example assets — under `parent`.
+ * Prompts for a project title, an optional acronym, and which parts the paper
+ * needs, then scaffolds the project under `parent`.
+ *
+ * Only the Main Manuscript is created by default: a short paper often needs no
+ * supplement and never needs a response letter before review. Anything left out
+ * can be added later with "Add paper components…".
  */
 export default class NewPaperModal extends Modal {
   private parent: TFolder;
   private titleValue = "";
   private acronymValue = "";
   private acronymEdited = false;
+  /** Main is mandatory — see the note on the toggle below. */
+  private parts = new Set<PaperPartId>(["main"]);
+  private examples = true;
 
   constructor(app: App, parent: TFolder) {
     super(app);
@@ -77,6 +88,35 @@ export default class NewPaperModal extends Modal {
         });
       });
 
+    contentEl.createEl("h4", { text: translate("scaffold.partsHeading") });
+
+    for (const part of PAPER_PARTS) {
+      const setting = new Setting(contentEl)
+        .setName(translate(part.labelKey))
+        .setDesc(translate(part.descKey));
+      setting.addToggle((toggle) => {
+        toggle.setValue(this.parts.has(part.id)).onChange((value) => {
+          if (value) this.parts.add(part.id);
+          else this.parts.delete(part.id);
+        });
+        // The Main Manuscript is not optional: it anchors the project root that
+        // every nearest-wins metadata.json lookup is bounded by, and a project
+        // whose only draft sits in supplementary/ would search from there.
+        if (part.id === "main") {
+          toggle.setDisabled(true);
+        }
+      });
+    }
+
+    new Setting(contentEl)
+      .setName(translate("scaffold.examplesLabel"))
+      .setDesc(translate("scaffold.examplesDesc"))
+      .addToggle((toggle) => {
+        toggle.setValue(this.examples).onChange((value) => {
+          this.examples = value;
+        });
+      });
+
     new Setting(contentEl).addButton((button) => {
       createButton = button;
       button
@@ -99,6 +139,8 @@ export default class NewPaperModal extends Modal {
       const primaryPath = await writePaperbellScaffold(this.app, this.parent.path, {
         title,
         acronym: this.acronymValue.trim() || undefined,
+        parts: [...this.parts],
+        examples: this.examples,
       });
       selectedDraftVaultPath.set(primaryPath);
       selectedTab.set("Scenes");

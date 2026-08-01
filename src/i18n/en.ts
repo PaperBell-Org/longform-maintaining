@@ -29,18 +29,56 @@ export const en = {
   "cmd.newPaperProject": "New PaperBell paper project…",
   "cmd.convertToProject": "Convert project to single index…",
   "cmd.openMarket": "Browse Pandoc asset marketplace",
+  // Prefix for the per-workflow commands, e.g. “Run workflow: PaperBell Manuscript”.
+  "cmd.runWorkflow": "Run workflow",
+  "cmd.addComponents": "Add paper components…",
 
   // ── Notices & menus ─────────────────────────────────────────────────────
   "notice.pdfExport":
     "PaperOut To-Authors: PDF export is available. Run “Set up Pandoc export” from the command palette to check prerequisites.",
   "notice.goalMet": "Writing goal met!",
-  "menu.createProject": "Create PaperOut Project",
+  "notice.noActiveNote":
+    "Open the markdown note you want to compile, then run this command again.",
+  "notice.workflowMissing": "No workflow named “{name}”.",
   "menu.newPaperProject": "New PaperBell paper project…",
+  "menu.addComponents": "Add paper components…",
+
+  // ── Paper parts (new-project toggles + add-components modal) ─────────────
+  "parts.mainLabel": "Main Manuscript",
+  "parts.mainDesc":
+    "The paper itself, as a multi-scene draft. Always created — it anchors the project folder that shared metadata is resolved against.",
+  "parts.supplementaryLabel": "Supplementary Information",
+  "parts.supplementaryDesc":
+    "A separate draft whose figures and tables are numbered S1, S2, … via its own metadata.json.",
+  "parts.coverLabel": "Cover Letter",
+  "parts.coverDesc":
+    "A single-file letter to the editor, exported through the moderncv letterhead.",
+  "parts.responseLabel": "Response Letter",
+  "parts.responseDesc":
+    "A reply to reviewers that can quote the manuscript's live text and figure numbers.",
+  "scaffold.partsHeading": "Include",
+  "scaffold.examplesLabel": "Include example content",
+  "scaffold.examplesDesc":
+    "An example figure and spreadsheet, referenced by the starter scenes, plus a README describing the layout. Turn off for a clean project.",
+  "components.title": "Add paper components",
+  "components.desc": "Add parts to “{title}”. Only the ones it doesn’t have yet are listed.",
+  "components.add": "Add",
+  "components.added": "Added: {names}.",
+  "components.noProject": "No PaperOut project found here.",
+  "components.allPresent": "“{title}” already has every paper component.",
+  "components.mixedForm":
+    "This project mixes a single project index with standalone draft notes, so components can’t be added safely. Run “Convert project to single index…” first.",
+  "components.conflictTitle": "Nothing was created",
+  "components.conflictBody":
+    "These files already exist, so no component was created. Remove or rename them and try again:",
+  "components.failed": "Could not add components",
+  "components.siProjectFormWarning":
+    "Heads up: in a single-index project, the compile steps look for metadata.json next to the index, so the Supplementary’s own metadata.json (and its S-numbering) is not picked up yet.",
 
   // ── New paper scaffold ──────────────────────────────────────────────────
   "scaffold.title": "New PaperBell paper project",
   "scaffold.desc":
-    "Scaffolds a full paper project — Main Manuscript, Supplementary, and Response Letter drafts with starter content, metadata, references, and example figure/table assets — in a new folder named after the title.",
+    "Creates a paper project in a new folder named after the title: shared metadata, references, and the parts you select below. You can add the rest later.",
   "scaffold.nameLabel": "Project title",
   "scaffold.nameDesc":
     "Names the project folder and Longform project. Avoid : \\ and /.",

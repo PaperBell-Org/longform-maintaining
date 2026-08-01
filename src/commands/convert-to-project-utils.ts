@@ -1,5 +1,8 @@
 import type { Draft, ProjectAsset, ProjectIndexEntry } from "src/model/types";
-import { indentedScenesToArrays } from "src/model/project-index";
+import {
+  indentedScenesToArrays,
+  slugifyAssetName,
+} from "src/model/project-index";
 import { draftParentFolder } from "src/model/project-resources";
 
 /**
@@ -17,16 +20,6 @@ export type ProjectIndexPlan = {
   /** Old index files whose `longform` frontmatter should be stripped. */
   stripPaths: string[];
 };
-
-/** A stable, readable asset id. Keeps unicode (CJK) names rather than dropping them. */
-export function slugifyAssetName(name: string): string {
-  const ascii = (name || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  return ascii || (name || "").trim() || "asset";
-}
 
 function joinPath(folder: string, name: string): string {
   return folder ? `${folder}/${name}` : name;
@@ -114,3 +107,5 @@ export function buildProjectIndexFromDrafts(
     stripPaths: projectDrafts.map((d) => d.vaultPath),
   };
 }
+
+export { slugifyAssetName } from "src/model/project-index";

@@ -26,18 +26,51 @@ export const zh: Messages = {
   "cmd.newPaperProject": "新建 PaperBell 论文项目…",
   "cmd.convertToProject": "转换为单一 Index 项目…",
   "cmd.openMarket": "浏览 Pandoc 资产市场",
+  "cmd.runWorkflow": "运行工作流",
+  "cmd.addComponents": "添加论文组件…",
 
   // ── 通知与菜单 ────────────────────────────────────────────────────────
   "notice.pdfExport":
     "PaperOut To-Authors:已支持 PDF 导出。在命令面板运行“设置 Pandoc 导出”以检查前置条件。",
   "notice.goalMet": "已达成写作目标!",
-  "menu.createProject": "新建 PaperOut 项目",
+  "notice.noActiveNote": "请先打开要编纂的 Markdown 笔记，再运行此命令。",
+  "notice.workflowMissing": "找不到名为“{name}”的工作流。",
   "menu.newPaperProject": "新建 PaperBell 论文项目…",
+  "menu.addComponents": "添加论文组件…",
+
+  // ── 论文组件（新建勾选 + 添加组件弹窗） ──────────────────────────────
+  "parts.mainLabel": "主手稿",
+  "parts.mainDesc":
+    "论文正文，多场景草稿。始终创建——它决定了项目根目录，共享元数据按此向上查找。",
+  "parts.supplementaryLabel": "补充材料",
+  "parts.supplementaryDesc":
+    "独立草稿，通过自带的 metadata.json 把图表编号为 S1、S2……",
+  "parts.coverLabel": "投稿信",
+  "parts.coverDesc": "给编辑的单文件信件，用 moderncv 信头导出。",
+  "parts.responseLabel": "回复信",
+  "parts.responseDesc": "回复审稿意见，可引用手稿的实时正文与图号。",
+  "scaffold.partsHeading": "包含组件",
+  "scaffold.examplesLabel": "包含示例内容",
+  "scaffold.examplesDesc":
+    "起始场景引用的示例图片与表格文件，以及说明目录结构的 README。想要干净的项目可关闭。",
+  "components.title": "添加论文组件",
+  "components.desc": "向“{title}”添加组件。仅列出尚未创建的部分。",
+  "components.add": "添加",
+  "components.added": "已添加：{names}。",
+  "components.noProject": "这里没有找到 PaperOut 项目。",
+  "components.allPresent": "“{title}”已包含全部论文组件。",
+  "components.mixedForm":
+    "该项目同时存在单一 Index 与独立草稿笔记，无法安全添加组件。请先运行“转换为单一 Index 项目…”。",
+  "components.conflictTitle": "未创建任何文件",
+  "components.conflictBody": "以下文件已存在，因此没有创建任何组件。请删除或重命名后重试：",
+  "components.failed": "添加组件失败",
+  "components.siProjectFormWarning":
+    "提示：单一 Index 项目中，编译步骤只在 Index 同级目录查找 metadata.json，因此补充材料自带的 metadata.json（及其 S 编号）暂时不会生效。",
 
   // ── 新建论文脚手架 ────────────────────────────────────────────────────
   "scaffold.title": "新建 PaperBell 论文项目",
   "scaffold.desc":
-    "一键搭好完整论文项目——正稿、补充材料(SI)、回复信三个草稿,连同起步内容、元数据、参考文献,以及示例图/表资源,统统放进以标题命名的新文件夹。",
+    "在以标题命名的新文件夹里创建论文项目:共享元数据、参考文献,以及你在下面勾选的组件。其余部分之后可以再补。",
   "scaffold.nameLabel": "项目标题",
   "scaffold.nameDesc": "作为项目文件夹名与 Longform 项目名。请勿包含 : \\ 和 / 。",
   "scaffold.acronymLabel": "缩写",
