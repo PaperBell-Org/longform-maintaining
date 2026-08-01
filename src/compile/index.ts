@@ -360,6 +360,34 @@ export const DEFAULT_WORKFLOWS: Record<string, SerializedWorkflow> = {
     ],
   },
 
+  /**
+   * The zero-setup export. One step, no project required: pair it with its
+   * "Run workflow: Quick Export" command and any open note becomes an export.
+   * Name is load-bearing — it keys `data.json` and the command id, and
+   * `mergeMissingWorkflows` only ever adds, so a rename would strand the old
+   * entry (and its command) in every existing vault forever.
+   */
+  "Quick Export": {
+    name: "Quick Export",
+    description:
+      "Export the note you have open — any markdown file, no project needed — via Pandoc. " +
+      "The preset decides the format: by default a general-purpose PDF, or set `template: <preset>` " +
+      "in the note's frontmatter to pick another (a `to: docx` preset gives you Word); " +
+      "`csl:` there picks the citation style. " +
+      "The file lands next to the note, named after it, and re-exporting overwrites it.",
+    steps: [
+      {
+        id: "run-pandoc-export",
+        optionValues: {
+          template: "",
+          "dry-run": false,
+          "open-after": true,
+          filename: "",
+        },
+      },
+    ],
+  },
+
   // ── PaperBell academic pipelines (see docs/PANDOC_EXPORT.md, 回复信手稿引用规范) ──
   // Manuscript & SI keep HTML comments (remove-html-comments:false) so <!--ms:-->
   // reference markers survive to the harvest pass; Pandoc drops the comments in the

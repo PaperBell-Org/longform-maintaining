@@ -55,6 +55,34 @@ describe("calculateWorkflow for single-file drafts", () => {
   });
 });
 
+describe("the built-in Quick Export workflow", () => {
+  const serialized = DEFAULT_WORKFLOWS["Quick Export"];
+
+  it("is a single Run Pandoc Export step", () => {
+    // The whole point is zero setup: anything else would drag in metadata.json
+    // or a Join step and stop working on a loose note.
+    expect(serialized).toBeDefined();
+    expect(serialized.steps).toHaveLength(1);
+    expect(serialized.steps[0].id).toBe("run-pandoc-export");
+  });
+
+  it("leaves the preset blank so the note's own frontmatter can choose it", () => {
+    expect(serialized.steps[0].optionValues["template"]).toBe("");
+  });
+
+  it("validates for a single-file draft and runs as a Manuscript step", () => {
+    const workflow = effectiveWorkflow(deserializeWorkflow(serialized), false);
+    const [validation, kinds] = calculateWorkflow(workflow, false);
+    expect(validation.error).toBe(WorkflowError.Valid);
+    expect(kinds).toEqual([CompileStepKind.Manuscript]);
+  });
+
+  it("resolves to a real built-in step, not the missing-step placeholder", () => {
+    const workflow = deserializeWorkflow(serialized);
+    expect(workflow.steps[0].description.canonicalID).toBe("run-pandoc-export");
+  });
+});
+
 describe("calculateWorkflow for multi-scene drafts", () => {
   it("keeps the Join step and the pre/post-join kinds", () => {
     const workflow = effectiveWorkflow(manuscript(), true);
