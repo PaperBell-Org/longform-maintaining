@@ -1,11 +1,11 @@
 import { App, FileSystemAdapter } from "obsidian";
 import { get } from "svelte/store";
 import * as fs from "fs";
-import * as os from "os";
 import * as path from "path";
 
 import { pandocTemplates, pluginSettings } from "./stores";
 import {
+  currentPlatformEnv,
   DEFAULT_ASSETS_DIR,
   resolveUserPath,
 } from "src/compile/steps/pandoc-export-utils";
@@ -29,7 +29,7 @@ export function listPandocTemplates(app: App): string[] {
   const assetsSetting =
     (settings?.pandocAssetsFolder ?? "").trim() || DEFAULT_ASSETS_DIR;
   const defaultsDir = path.join(
-    resolveUserPath(assetsSetting, adapter.getBasePath(), os.homedir()),
+    resolveUserPath(assetsSetting, adapter.getBasePath(), currentPlatformEnv()),
     "defaults"
   );
 

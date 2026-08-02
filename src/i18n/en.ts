@@ -134,6 +134,10 @@ export const en = {
   "setup.intro":
     "PDF export needs three system tools plus the PaperBell Pandoc toolchain (filters, templates, CSL). Get the toolchain from the asset marketplace below, or paste a toolchain .zip URL.",
   "setup.notFound": "not found",
+  "setup.optionalPdfEngine":
+    "Optional — only needed by presets that build a PDF; a Word (`to: docx`) preset does not use it.",
+  "setup.optionalCrossref":
+    "Optional — only needed by presets whose filters run pandoc-crossref for @fig / @tbl references.",
   "setup.pdfEngine": "PDF engine",
   "setup.assets": "Pandoc assets",
   "setup.assetsOk": "defaults/ and csl/ found.",
@@ -235,9 +239,12 @@ export const en = {
   "settings.globalBibliography.name": "Global bibliography",
   "settings.globalBibliography.desc":
     "Extra .bib file(s) merged into every export, on top of each project's own. One path per line (or comma-separated); vault-relative or absolute. The project's bibliography wins on duplicate cite keys.",
+  "settings.extraBinFolders.name": "Extra binary folders",
+  "settings.extraBinFolders.desc":
+    "Folders to search for pandoc, the PDF engine and pandoc-crossref, one per line. Searched before PATH and the built-in locations — use this when a tool is installed somewhere PATH doesn't know about.",
   "settings.pandocBinary.name": "Pandoc binary",
   "settings.pandocBinary.desc":
-    "Path to the pandoc executable, or just ‘pandoc’. Common Homebrew/MacTeX dirs are added to PATH automatically.",
+    "Path to the pandoc executable, or just ‘pandoc’ to search for it. PATH and the usual install locations are searched automatically; on Windows either slash style works and the .exe may be omitted.",
   "settings.userScriptFolder.name": "User script step folder",
   "settings.userScriptFolder.desc":
     ".js files in this folder will be available as User Script Steps in the Compile panel.",

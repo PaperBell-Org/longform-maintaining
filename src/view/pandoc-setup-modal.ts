@@ -1,14 +1,15 @@
 import { App, Modal, Notice, Platform, Setting } from "obsidian";
 import * as fs from "fs";
-import * as os from "os";
 import * as path from "path";
 import { get } from "svelte/store";
 
 import { pluginSettings } from "src/model/stores";
 import {
   binSearchDirs,
+  currentPlatformEnv,
   DEFAULT_ASSETS_DIR,
   resolveBinary,
+  resolveUserPath,
 } from "src/compile/steps/pandoc-export-utils";
 import { downloadPandocAssets } from "src/model/pandoc-assets";
 import { refreshPandocTemplates } from "src/model/pandoc-templates";
@@ -16,7 +17,23 @@ import { translate } from "src/i18n";
 import PandocMarketModal from "./pandoc-market";
 import type LongformPlugin from "src/main";
 
-type Check = { ok: boolean; label: string; detail: string };
+/**
+ * `required` — the export cannot run without it.
+ * `optional` — only some presets need it, so a miss is a warning, not a failure.
+ *   The export step already decides per preset (a `to: docx` preset needs
+ *   neither a TeX engine nor pandoc-crossref); showing a bare ✗ here told users
+ *   with a Word workflow to go fix something that was never in their way.
+ */
+type Check = {
+  ok: boolean;
+  label: string;
+  detail: string;
+  optional?: boolean;
+};
+
+function statusGlyph(c: Check): string {
+  return c.ok ? "✓" : c.optional ? "⚠" : "✗";
+}
 
 function installHint(bin: string): string {
   if (Platform.isMacOS) {
@@ -51,24 +68,36 @@ export class PandocSetupModal extends Modal {
       getBasePath?: () => string;
     };
     const base = adapter.getBasePath ? adapter.getBasePath() : "";
-    if (rel.startsWith("/") || rel.startsWith("~")) {
-      return path.resolve(rel.startsWith("~") ? os.homedir() + rel.slice(1) : rel);
-    }
-    return path.join(base, rel);
+    return resolveUserPath(rel, base, currentPlatformEnv());
   }
 
-  private gatherChecks(): { checks: Check[]; assets: string } {
-    const home = os.homedir();
-    const dirs = binSearchDirs(home);
+  private gatherChecks(): {
+    checks: Check[];
+    assets: string;
+    dirs: string[];
+  } {
     const settings = get(pluginSettings);
+    const platform = currentPlatformEnv(settings.pandocExtraBinFolders);
+    const dirs = binSearchDirs(platform);
     const nf = translate("setup.notFound");
     const pandoc = resolveBinary(
       (settings.pandocBinary ?? "pandoc").trim() || "pandoc",
       fs.existsSync,
-      dirs
+      dirs,
+      platform.isWindows
     );
-    const xelatex = resolveBinary("xelatex", fs.existsSync, dirs);
-    const crossref = resolveBinary("pandoc-crossref", fs.existsSync, dirs);
+    const xelatex = resolveBinary(
+      "xelatex",
+      fs.existsSync,
+      dirs,
+      platform.isWindows
+    );
+    const crossref = resolveBinary(
+      "pandoc-crossref",
+      fs.existsSync,
+      dirs,
+      platform.isWindows
+    );
     const assets = this.assetsAbs();
     const assetsOk =
       fs.existsSync(path.join(assets, "defaults")) &&
@@ -82,15 +111,25 @@ export class PandocSetupModal extends Modal {
       },
       {
         ok: !!xelatex,
+        optional: true,
         label: `xelatex (${translate("setup.pdfEngine")}) — ` + (xelatex || nf),
-        detail: xelatex ? "" : installHint("xelatex"),
+        detail: xelatex
+          ? ""
+          : translate("setup.optionalPdfEngine") + " " + installHint("xelatex"),
       },
       {
         ok: !!crossref,
+        optional: true,
         label: "pandoc-crossref — " + (crossref || nf),
-        detail: crossref ? "" : installHint("pandoc-crossref"),
+        detail: crossref
+          ? ""
+          : translate("setup.optionalCrossref") +
+            " " +
+            installHint("pandoc-crossref"),
       },
       {
+        // Not optional: `hardOk` in pandoc-export.ts refuses to run without
+        // defaults/ and csl/, so a warning here would understate a hard stop.
         ok: assetsOk,
         label: translate("setup.assets") + " — " + assets,
         detail: assetsOk
@@ -98,19 +137,21 @@ export class PandocSetupModal extends Modal {
           : translate("setup.assetsMissing"),
       },
     ];
-    return { checks, assets };
+    return { checks, assets, dirs };
   }
 
-  private reportText(checks: Check[]): string {
+  private reportText(checks: Check[], dirs: string[]): string {
     return (
       "Pandoc export setup:\n\n" +
       checks
         .map(
           (c) =>
-            `[${c.ok ? "✓" : "✗"}] ${c.label}` +
-            (c.detail ? `\n       ${c.detail}` : "")
+            `[${statusGlyph(c)}] ${c.label}` + (c.detail ? `\n       ${c.detail}` : "")
         )
-        .join("\n")
+        .join("\n") +
+      // The single most useful line when a binary "isn't found" but is clearly
+      // installed: it says exactly where we looked.
+      `\n\nSearched (in order):\n${dirs.map((d) => "  " + d).join("\n")}`
     );
   }
 
@@ -125,14 +166,18 @@ export class PandocSetupModal extends Modal {
 
     contentEl.createEl("p", { text: translate("setup.intro") });
 
-    const { checks } = this.gatherChecks();
+    const { checks, dirs } = this.gatherChecks();
 
     const list = contentEl.createEl("div", { cls: "longform-pandoc-checklist" });
     for (const c of checks) {
       const item = list.createDiv({ cls: "longform-pandoc-check" });
       item.createSpan({
-        text: c.ok ? "✓ " : "✗ ",
-        cls: c.ok ? "longform-check-ok" : "longform-check-bad",
+        text: statusGlyph(c) + " ",
+        cls: c.ok
+          ? "longform-check-ok"
+          : c.optional
+          ? "longform-check-warn"
+          : "longform-check-bad",
       });
       item.createSpan({ text: c.label });
       if (c.detail) {
@@ -185,7 +230,7 @@ export class PandocSetupModal extends Modal {
     recheck.addEventListener("click", () => this.render());
     const copy = buttons.createEl("button", { text: translate("setup.copyReport") });
     copy.addEventListener("click", async () => {
-      await navigator.clipboard.writeText(this.reportText(checks));
+      await navigator.clipboard.writeText(this.reportText(checks, dirs));
       copy.setText(translate("setup.copied"));
       window.setTimeout(() => copy.setText(translate("setup.copyReport")), 1500);
     });

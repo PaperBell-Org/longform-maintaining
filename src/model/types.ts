@@ -157,6 +157,7 @@ export interface LongformPluginSettings {
   pandocAssetsFolder: string; // "" = the default download folder (PaperBell/pandoc)
   pandocOutputFolder: string; // "" = write next to the manuscript
   pandocBinary: string; // "pandoc" or an absolute path
+  pandocExtraBinFolders: string; // extra folders to search for pandoc/xelatex/… (newline-separated)
   pandocBibliography: string; // "" = auto-detect project references.bib/mybib.bib
   pandocGlobalBibliography: string; // vault-wide bib(s), comma/newline separated, merged into every export
   pandocSetupDismissed: boolean; // true once the user has seen the setup prompt
@@ -199,6 +200,7 @@ export const DEFAULT_SETTINGS: LongformPluginSettings = {
   pandocAssetsFolder: "",
   pandocOutputFolder: "",
   pandocBinary: "pandoc",
+  pandocExtraBinFolders: "",
   pandocBibliography: "",
   pandocGlobalBibliography: "",
   pandocSetupDismissed: false,
@@ -231,6 +233,7 @@ export const TRACKED_SETTINGS_PATHS: (keyof LongformPluginSettings)[] = [
   "pandocAssetsFolder",
   "pandocOutputFolder",
   "pandocBinary",
+  "pandocExtraBinFolders",
   "pandocBibliography",
   "pandocGlobalBibliography",
   "pandocSetupDismissed",

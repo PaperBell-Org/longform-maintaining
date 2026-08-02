@@ -13,6 +13,7 @@ import {
 } from "./abstract-compile-step";
 import {
   binSearchDirs,
+  currentPlatformEnv,
   buildExecPath,
   DEFAULT_ASSETS_DIR,
   parseExportFrontmatter,
@@ -116,12 +117,12 @@ async function harvest(
   context: CompileContext,
   base: string
 ): Promise<void> {
-  const home = os.homedir();
   const settings = get(pluginSettings);
+  const platform = currentPlatformEnv(settings.pandocExtraBinFolders);
 
   const assetsSetting =
     (settings.pandocAssetsFolder ?? "").trim() || DEFAULT_ASSETS_DIR;
-  const assetsAbs = resolveUserPath(assetsSetting, base, home);
+  const assetsAbs = resolveUserPath(assetsSetting, base, platform);
   const defaultsDir = path.join(assetsAbs, "defaults");
   const cslDir = path.join(assetsAbs, "csl");
   const projectAbs = path.join(base, context.projectPath);
@@ -131,13 +132,14 @@ async function harvest(
   const csl = String(fm.csl || "nature");
   const isSI = isSupplementaryFrontmatter(fm);
 
-  const dirs = binSearchDirs(home);
+  const dirs = binSearchDirs(platform);
   const pandocBin = resolveBinary(
     (settings.pandocBinary ?? "pandoc").trim() || "pandoc",
     fs.existsSync,
-    dirs
+    dirs,
+    platform.isWindows
   );
-  const xelatexBin = resolveBinary("xelatex", fs.existsSync, dirs);
+  const xelatexBin = resolveBinary("xelatex", fs.existsSync, dirs, platform.isWindows);
   if (!pandocBin || !xelatexBin) {
     throw new Error("pandoc or xelatex not found on PATH.");
   }
@@ -147,11 +149,11 @@ async function harvest(
   if (!fs.existsSync(defaultsFile) || !fs.existsSync(cslFile)) {
     throw new Error(`missing preset/csl (${template}.yaml / ${csl}.csl).`);
   }
-  const bibliographies = resolveBibliography(settings, context, base, home);
+  const bibliographies = resolveBibliography(settings, context, base, platform);
 
   const env = {
     ...process.env,
-    PATH: buildExecPath(process.env.PATH ?? "", home),
+    PATH: buildExecPath(platform),
   };
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "longform-mslines-"));
   const inputFile = path.join(projectAbs, ".longform-mslines-harvest.md");

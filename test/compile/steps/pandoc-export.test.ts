@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { unzipSync, zipSync, strToU8, strFromU8 } from "fflate";
 import {
+  binSearchDirs,
   buildExecPath,
   buildExportFilename,
   buildPandocArgs,
@@ -20,6 +21,7 @@ import {
   resolveUserPath,
   splitBibList,
   zoteroStylesDir,
+  type PlatformEnv,
 } from "src/compile/steps/pandoc-export-utils";
 
 describe("parseExportFrontmatter", () => {
@@ -85,39 +87,212 @@ describe("resolveBinary", () => {
   const dirs = ["/opt/homebrew/bin", "/usr/bin"];
 
   it("finds a bare name in the search dirs", () => {
-    expect(resolveBinary("pandoc", exists, dirs)).toBe("/opt/homebrew/bin/pandoc");
-    expect(resolveBinary("xelatex", exists, dirs)).toBe("/usr/bin/xelatex");
+    expect(resolveBinary("pandoc", exists, dirs, false)).toBe("/opt/homebrew/bin/pandoc");
+    expect(resolveBinary("xelatex", exists, dirs, false)).toBe("/usr/bin/xelatex");
   });
 
   it("honors an explicit path when it exists", () => {
-    expect(resolveBinary("/opt/homebrew/bin/pandoc", exists, dirs)).toBe(
+    expect(resolveBinary("/opt/homebrew/bin/pandoc", exists, dirs, false)).toBe(
       "/opt/homebrew/bin/pandoc"
     );
-    expect(resolveBinary("/nope/pandoc", exists, dirs)).toBeNull();
+    expect(resolveBinary("/nope/pandoc", exists, dirs, false)).toBeNull();
   });
 
   it("returns null when not found", () => {
-    expect(resolveBinary("pandoc-crossref", exists, dirs)).toBeNull();
+    expect(resolveBinary("pandoc-crossref", exists, dirs, false)).toBeNull();
+  });
+
+  describe("on Windows", () => {
+    const win = new Set([
+      "C:\\Users\\Admin\\AppData\\Local\\Pandoc\\pandoc.exe",
+      "C:\\Program Files\\MiKTeX\\miktex\\bin\\x64\\xelatex.exe",
+    ]);
+    const winExists = (p: string) => win.has(p);
+    const winDirs = [
+      "C:\\Users\\Admin\\AppData\\Local\\Pandoc",
+      "C:\\Program Files\\MiKTeX\\miktex\\bin\\x64",
+    ];
+
+    it("appends .exe, which is what is actually on disk", () => {
+      expect(resolveBinary("pandoc", winExists, winDirs, true)).toBe(
+        "C:\\Users\\Admin\\AppData\\Local\\Pandoc\\pandoc.exe"
+      );
+      expect(resolveBinary("xelatex", winExists, winDirs, true)).toBe(
+        "C:\\Program Files\\MiKTeX\\miktex\\bin\\x64\\xelatex.exe"
+      );
+    });
+
+    it("does not double an extension the caller already gave", () => {
+      expect(resolveBinary("pandoc.exe", winExists, winDirs, true)).toBe(
+        "C:\\Users\\Admin\\AppData\\Local\\Pandoc\\pandoc.exe"
+      );
+    });
+
+    it("treats a backslash absolute path as a path, not a name to search for", () => {
+      // This is what a user types into the "Pandoc binary" setting. It has no
+      // "/", so the old check sent it to the directory scan and it never matched.
+      expect(
+        resolveBinary(
+          "C:\\Users\\Admin\\AppData\\Local\\Pandoc\\pandoc.exe",
+          winExists,
+          winDirs,
+          true
+        )
+      ).toBe("C:\\Users\\Admin\\AppData\\Local\\Pandoc\\pandoc.exe");
+      expect(resolveBinary("D:\\nope\\pandoc.exe", winExists, winDirs, true)).toBeNull();
+    });
+
+    it("still accepts a forward-slash absolute path", () => {
+      // The only workaround available to Windows users today. Breaking it would
+      // strand anyone who already worked around the bug this way.
+      const fwd = new Set(["C:/Tools/pandoc.exe"]);
+      expect(
+        resolveBinary("C:/Tools/pandoc.exe", (p) => fwd.has(p), winDirs, true)
+      ).toBe("C:/Tools/pandoc.exe");
+    });
+
+    it("does not append .exe on other platforms", () => {
+      const posix = new Set(["/usr/bin/pandoc.exe"]);
+      expect(
+        resolveBinary("pandoc", (p) => posix.has(p), ["/usr/bin"], false)
+      ).toBeNull();
+    });
+  });
+});
+
+describe("binSearchDirs", () => {
+  it("searches PATH — the reason Windows found nothing", () => {
+    // The hardcoded list exists because macOS GUI processes don't inherit the
+    // login shell's PATH. Windows processes do, and every Windows installer
+    // (MSI, MiKTeX, choco, scoop, winget) puts its bin dir on PATH — so not
+    // searching PATH is what actually broke Windows, not the missing dirs.
+    const dirs = binSearchDirs({
+      isWindows: true,
+      home: "C:\\Users\\Admin",
+      envPath: "C:\\Users\\Admin\\AppData\\Local\\Pandoc;C:\\Windows",
+      extraDirs: [],
+    });
+    expect(dirs).toContain("C:\\Users\\Admin\\AppData\\Local\\Pandoc");
+    expect(dirs).toContain("C:\\Windows");
+  });
+
+  it("searches PATH on macOS too, after the hardcoded dirs", () => {
+    const dirs = binSearchDirs({
+      isWindows: false,
+      home: "/home/u",
+      envPath: "/opt/mytools/bin",
+      extraDirs: [],
+    });
+    expect(dirs).toContain("/opt/mytools/bin");
+    expect(dirs.indexOf("/opt/mytools/bin")).toBeGreaterThan(
+      dirs.indexOf("/opt/homebrew/bin")
+    );
+  });
+
+  it("puts the user's extra folders first, ahead of everything", () => {
+    // The escape hatch for an install PATH doesn't know about: it must win, or
+    // it can't rescue a machine where a wrong binary is found first.
+    const dirs = binSearchDirs({
+      isWindows: false,
+      home: "/home/u",
+      envPath: "/usr/bin",
+      extraDirs: ["/opt/custom/bin"],
+    });
+    expect(dirs[0]).toBe("/opt/custom/bin");
+  });
+
+  it("offers Windows install locations as a fallback for a PATH-less install", () => {
+    const dirs = binSearchDirs({
+      isWindows: true,
+      home: "C:\\Users\\Admin",
+      envPath: "",
+      extraDirs: [],
+    });
+    expect(dirs.some((d) => d.endsWith("\\AppData\\Local\\Pandoc"))).toBe(true);
+    expect(dirs.some((d) => d.includes("chocolatey"))).toBe(true);
+    // The Unix-only list is noise on Windows; it can never match.
+    expect(dirs).not.toContain("/opt/homebrew/bin");
+  });
+
+  it("keeps the macOS dirs on macOS", () => {
+    const dirs = binSearchDirs({
+      isWindows: false,
+      home: "/home/u",
+      envPath: "",
+      extraDirs: [],
+    });
+    for (const d of COMMON_BIN_DIRS) expect(dirs).toContain(d);
   });
 });
 
 describe("buildExecPath", () => {
   it("prepends common bin dirs and dedupes existing entries", () => {
-    const out = buildExecPath("/usr/bin:/opt/homebrew/bin", "/home/u").split(":");
+    const out = buildExecPath({
+      isWindows: false,
+      home: "/home/u",
+      envPath: "/usr/bin:/opt/homebrew/bin",
+      extraDirs: [],
+    }).split(":");
     for (const d of COMMON_BIN_DIRS) expect(out).toContain(d);
     // no duplicates
     expect(new Set(out).size).toBe(out.length);
     // common dirs come first
     expect(out[0]).toBe("/opt/homebrew/bin");
   });
+
+  it("uses ';' on Windows and leaves drive letters intact", () => {
+    // Splitting a Windows PATH on ":" tears "C:\\Program Files\\Pandoc" into
+    // "C" and "\\Program Files\\Pandoc". Pandoc then can't find xelatex or
+    // pandoc-crossref even when it was itself resolved — so this breaks the
+    // export a second time, after the binary lookup already failed.
+    const out = buildExecPath({
+      isWindows: true,
+      home: "C:\\Users\\Admin",
+      envPath: "C:\\Program Files\\Pandoc;C:\\Windows\\system32",
+      extraDirs: [],
+    });
+    const parts = out.split(";");
+    expect(parts).toContain("C:\\Program Files\\Pandoc");
+    expect(parts).toContain("C:\\Windows\\system32");
+    expect(parts).not.toContain("C");
+    expect(out).not.toContain(":\\Program Files\\Pandoc:");
+    expect(new Set(parts).size).toBe(parts.length);
+  });
 });
 
 describe("resolveUserPath", () => {
+  const mac: PlatformEnv = {
+    isWindows: false,
+    home: "/home/u",
+    envPath: "",
+    extraDirs: [],
+  };
+
   it("keeps absolute paths, expands ~, and joins vault-relative paths", () => {
-    expect(resolveUserPath("/abs/x", "/vault", "/home/u")).toBe("/abs/x");
-    expect(resolveUserPath("~/x", "/vault", "/home/u")).toBe("/home/u/x");
-    expect(resolveUserPath("assets/pandoc", "/vault", "/home/u")).toBe(
+    expect(resolveUserPath("/abs/x", "/vault", mac)).toBe("/abs/x");
+    expect(resolveUserPath("~/x", "/vault", mac)).toBe("/home/u/x");
+    expect(resolveUserPath("assets/pandoc", "/vault", mac)).toBe(
       "/vault/assets/pandoc"
+    );
+  });
+
+  it("recognizes a drive-letter path on Windows as absolute", () => {
+    // startsWith("/") says C:\Papers is relative, so the output folder setting
+    // used to resolve to <vault>\C:\Papers and the export landed nowhere near
+    // where the user asked for it.
+    const win: PlatformEnv = {
+      isWindows: true,
+      home: "C:\\Users\\Admin",
+      envPath: "",
+      extraDirs: [],
+    };
+    expect(resolveUserPath("C:\\Papers", "D:\\Vault", win)).toBe("C:\\Papers");
+    expect(resolveUserPath("C:/Papers", "D:\\Vault", win)).toBe("C:\\Papers");
+    expect(resolveUserPath("exports\\pdf", "D:\\Vault", win)).toBe(
+      "D:\\Vault\\exports\\pdf"
+    );
+    expect(resolveUserPath("~/Papers", "D:\\Vault", win)).toBe(
+      "C:\\Users\\Admin\\Papers"
     );
   });
 });

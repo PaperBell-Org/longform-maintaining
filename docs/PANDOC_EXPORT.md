@@ -53,11 +53,31 @@ These are separate programs Pandoc drives; they can't be downloaded by the plugi
 
 Windows/Linux: see <https://pandoc.org/installing.html>, plus MiKTeX/TeX Live for
 `xelatex`. The **Set up Pandoc export** command shows platform-specific hints and
-verifies each tool with a ✓/✗ checklist.
+verifies each tool with a checklist. `pandoc` and the assets are marked ✗ when
+missing — the export cannot run without them. `xelatex` and `pandoc-crossref`
+show ⚠ instead, because whether they are needed depends on the preset: a
+`to: docx` preset uses neither.
 
-> The plugin adds the usual Homebrew/MacTeX locations to `PATH` automatically, so
-> these tools are found even though Obsidian's GUI process doesn't inherit your
-> shell `PATH`.
+### How the tools are found
+
+In order: your **Extra binary folders** setting, then the platform's usual
+install locations, then `~/.local/bin` and friends, then everything on `PATH`.
+The report the setup dialog copies lists exactly which folders were searched, in
+order — that is the fastest way to see why an installed tool "isn't found".
+
+Both halves matter, for different reasons on different platforms:
+
+- **macOS** GUI processes don't inherit the login shell's `PATH`, so the
+  Homebrew/MacTeX locations are searched explicitly.
+- **Windows** processes *do* inherit `PATH`, and every installer (the Pandoc MSI,
+  MiKTeX, Chocolatey, Scoop, winget) writes to it — so `PATH` is the mechanism
+  that matters there, with a short list of install locations as a backstop.
+  Executables are matched with their real extension (`pandoc.exe`), and a path
+  typed with backslashes (`C:\Users\you\AppData\Local\Pandoc\pandoc.exe`) is
+  recognised as a path.
+
+If a tool lives somewhere none of that covers, add its folder to **Extra binary
+folders** (one per line); those are searched first.
 
 ## The assets repository
 
@@ -99,7 +119,8 @@ open a PR against the assets repository.
 | Pandoc assets folder | `PaperBell/pandoc` | Where the toolchain lives. Absolute or vault-relative. |
 | Pandoc output folder | *(next to manuscript)* | Where to write the PDF. Vault-relative, or an absolute path (`~/Papers`, `/Users/me/Papers`) to export **outside the vault**. `~` expands to your home folder; the folder is created if missing. |
 | Bibliography | *(auto-detect)* | `.bib` for citations. Auto-detects `references.bib`/`mybib.bib` in the project. |
-| Pandoc binary | `pandoc` | Path to pandoc, if not on `PATH`. |
+| Pandoc binary | `pandoc` | Path to pandoc, if not on `PATH`. Absolute paths are accepted in either slash style on Windows. |
+| Extra binary folders | *(empty)* | Folders to search for pandoc / the PDF engine / pandoc-crossref, one per line. Searched before `PATH` and the built-in locations. |
 
 ## Citations & bibliography
 
