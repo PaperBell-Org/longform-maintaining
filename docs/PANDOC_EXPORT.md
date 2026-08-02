@@ -9,20 +9,51 @@ vault, so it can evolve independently and you can customize or contribute templa
 
 ## Exporting a single note
 
-The fastest path, once the toolchain is installed: open any markdown note and run
-**Run workflow: Quick Export** from the command palette (bind a hotkey to it and
-this becomes one keystroke). The note does not have to be part of a project.
+The fastest path: open any markdown note and run **Run workflow: Quick Export**
+from the command palette (bind a hotkey to it and this becomes one keystroke).
+The note does not have to be part of a project.
 
 `Quick Export` is a built-in workflow with exactly one step — *Run Pandoc Export*.
 By default it exports to the folder the note lives in, named after the note,
 **overwriting** the previous export; a **Pandoc output folder** setting redirects
-it like any other export. To choose a preset, add `template: <preset>` to the
-note's own frontmatter (and `csl:` for the citation style); without one you get
-the general-purpose default.
+it like any other export.
+
+### It needs no downloaded assets
+
+Quick Export drives pandoc directly rather than through a downloaded preset, so
+**nothing from the asset marketplace has to be installed**. The step's *Format*
+option decides what you get:
+
+| Format | What it needs |
+| --- | --- |
+| `docx` (Word) | **pandoc alone** — nothing else at all |
+| `pdf` (the default) | pandoc **and** a TeX engine; `xelatex` is preferred because it is the only common one that typesets CJK |
+| `html` | pandoc alone; images and CSS are inlined into one shareable file |
+
+Citations work too: with a `.bib` found (see
+[Citations & bibliography](#citations--bibliography)),
+`[@key]` resolves using pandoc's own default style. A `csl:` in the note's
+frontmatter is honoured when that style can be resolved, and simply skipped when
+it can't — a missing style never fails a Quick Export.
+
+Two small differences from a preset export, both consequences of using no
+template: there is no `@fig:`/`@tbl:` cross-referencing (that needs
+`pandoc-crossref`), and `==highlight==` renders literally in **PDF** only —
+pandoc routes it through LaTeX's `soul` package, which cannot break CJK text and
+would abort the export outright. Word and HTML highlight normally.
+
+### Using a preset instead
+
+Add `template: <preset>` to the note's own frontmatter (and `csl:` for the
+citation style). A named preset always wins over the *Format* option, so this is
+how a Quick Export gets the full PaperBell layout once you have downloaded the
+assets.
 
 If something is missing, the error dialog lists what's needed, which presets are
 installed, and offers buttons to jump straight to **Set up Pandoc export** or the
-asset marketplace.
+asset marketplace. The four *PaperBell …* workflows always require their preset —
+they leave *Format* blank on purpose, so a missing preset fails loudly instead of
+silently dropping the submission layout.
 
 ## Quick start
 

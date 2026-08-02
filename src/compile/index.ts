@@ -371,15 +371,20 @@ export const DEFAULT_WORKFLOWS: Record<string, SerializedWorkflow> = {
     name: "Quick Export",
     description:
       "Export the note you have open — any markdown file, no project needed — via Pandoc. " +
-      "The preset decides the format: by default a general-purpose PDF, or set `template: <preset>` " +
-      "in the note's frontmatter to pick another (a `to: docx` preset gives you Word); " +
-      "`csl:` there picks the citation style. " +
+      "Needs no downloaded assets: pandoc alone produces the file, PDF additionally needing " +
+      "a TeX engine (switch this step's Format to “docx” if you'd rather install nothing else). " +
+      "Set `template: <preset>` in the note's frontmatter to export with a downloaded preset " +
+      "instead, and `csl:` to pick a citation style. " +
       "The file lands next to the note, named after it, and re-exporting overwrites it.",
     steps: [
       {
         id: "run-pandoc-export",
         optionValues: {
           template: "",
+          // The only workflow that opts into the preset-free export. The
+          // PaperBell pipelines leave this blank so a missing preset still
+          // fails loudly rather than silently dropping their layout.
+          format: "pdf",
           "dry-run": false,
           "open-after": true,
           filename: "",

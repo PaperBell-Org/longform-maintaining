@@ -4,8 +4,13 @@ import {
   buildExecPath,
   buildExportFilename,
   buildPandocArgs,
+  builtinExportTarget,
+  builtinFrom,
   commonTopDir,
   COMMON_BIN_DIRS,
+  defaultCjkFont,
+  hasCjk,
+  isBuiltinFormat,
   exportTargetForDefaults,
   extractCiteKeys,
   findDuplicateCiteKeys,
@@ -20,6 +25,7 @@ import {
   resolveUserPath,
   splitBibList,
   zoteroStylesDir,
+  type PandocArgPaths,
 } from "src/compile/steps/pandoc-export-utils";
 
 describe("parseExportFrontmatter", () => {
@@ -333,6 +339,84 @@ describe("exportTargetForDefaults", () => {
 });
 
 
+describe("builtinExportTarget", () => {
+  it("only asks for an engine when it is building a PDF", () => {
+    expect(builtinExportTarget("pdf")).toEqual({
+      ext: ".pdf",
+      pdfEngine: "xelatex",
+      needsCrossref: false,
+    });
+    expect(builtinExportTarget("docx")).toEqual({
+      ext: ".docx",
+      pdfEngine: null,
+      needsCrossref: false,
+    });
+    expect(builtinExportTarget("html").pdfEngine).toBeNull();
+  });
+
+  it("never asks for pandoc-crossref", () => {
+    // @fig:/@tbl: cross-references are a preset feature; requiring the binary
+    // would defeat the point of an export that needs nothing downloaded.
+    for (const f of ["pdf", "docx", "html"] as const) {
+      expect(builtinExportTarget(f).needsCrossref).toBe(false);
+    }
+  });
+});
+
+describe("builtinFrom", () => {
+  it("reads Obsidian's markdown extensions", () => {
+    for (const f of ["pdf", "docx", "html"] as const) {
+      expect(builtinFrom(f)).toContain("wikilinks_title_after_pipe");
+      expect(builtinFrom(f)).toContain("tex_math_single_backslash");
+    }
+  });
+
+  it("drops +mark for PDF only", () => {
+    // ==highlight== goes through LaTeX's soul package, whose \hl cannot break
+    // CJK: the run aborts with "Package soul Error: Reconstruction failed" and
+    // writes nothing. docx and html mark up highlights natively.
+    expect(builtinFrom("pdf")).not.toContain("+mark");
+    expect(builtinFrom("docx")).toContain("+mark");
+    expect(builtinFrom("html")).toContain("+mark");
+  });
+});
+
+describe("isBuiltinFormat", () => {
+  it("accepts only the three supported formats", () => {
+    expect(isBuiltinFormat("pdf")).toBe(true);
+    expect(isBuiltinFormat("docx")).toBe(true);
+    expect(isBuiltinFormat("html")).toBe(true);
+    // "" is how the PaperBell pipelines say "a preset is required".
+    expect(isBuiltinFormat("")).toBe(false);
+    expect(isBuiltinFormat("epub")).toBe(false);
+    expect(isBuiltinFormat("PDF")).toBe(false);
+  });
+});
+
+describe("hasCjk", () => {
+  it("detects the scripts pdflatex cannot typeset", () => {
+    expect(hasCjk("一个测试文档")).toBe(true);
+    expect(hasCjk("かな")).toBe(true);
+    expect(hasCjk("한글")).toBe(true);
+  });
+
+  it("does not fire on Latin text or on typographic punctuation", () => {
+    // A false positive costs a working export: it would add a CJK font that
+    // may not be installed, and xelatex then fails outright.
+    expect(hasCjk("A plain English abstract.")).toBe(false);
+    expect(hasCjk("“smart quotes” — em dash… ±½")).toBe(false);
+    expect(hasCjk("café naïve Ω")).toBe(false);
+  });
+});
+
+describe("defaultCjkFont", () => {
+  it("names a font that ships with each platform", () => {
+    expect(defaultCjkFont("darwin")).toBe("Songti SC");
+    expect(defaultCjkFont("win32")).toBe("SimSun");
+    expect(defaultCjkFont("linux")).toBe("Noto Sans CJK SC");
+  });
+});
+
 describe("buildPandocArgs", () => {
   const base = {
     inputFile: "/v/p/.tmp.md",
@@ -377,6 +461,99 @@ describe("buildPandocArgs", () => {
       const args = buildPandocArgs({ ...base, bibliographies });
       expect(args.some((a) => a.startsWith("--bibliography="))).toBe(false);
     }
+  });
+
+  describe("the built-in, preset-free export", () => {
+    const builtin: PandocArgPaths = {
+      inputFile: "/v/p/.tmp.md",
+      defaultsFile: null,
+      cslFile: null,
+      projectAbs: "/v/p",
+      outputPath: "/v/p/OUT.pdf",
+    };
+
+    it("spells out what a preset would have declared, and reads no assets", () => {
+      const args = buildPandocArgs({
+        ...builtin,
+        builtin: {
+          format: "pdf",
+          from: builtinFrom("pdf"),
+          pdfEngine: "/usr/local/bin/xelatex",
+          cjkFont: "Songti SC",
+          citeproc: true,
+        },
+        bibliographies: ["/v/p/references.bib"],
+      });
+      expect(args).toEqual([
+        "/v/p/.tmp.md",
+        "--from=" + builtinFrom("pdf"),
+        "--standalone",
+        "--pdf-engine=/usr/local/bin/xelatex",
+        "-V",
+        "CJKmainfont=Songti SC",
+        "--citeproc",
+        "--resource-path=/v/p",
+        "--resource-path=/v/p/figs",
+        "--resource-path=/v/figs",
+        "--bibliography=/v/p/references.bib",
+        "-o",
+        "/v/p/OUT.pdf",
+      ]);
+      // The whole point: nothing here points into the downloaded assets folder.
+      expect(args.some((a) => a.startsWith("--defaults="))).toBe(false);
+      expect(args.some((a) => a.startsWith("--csl="))).toBe(false);
+    });
+
+    it("asks for no engine and no CJK font when the target is Word", () => {
+      // docx is the one format that needs nothing but pandoc itself; passing a
+      // --pdf-engine or a font variable there would be noise at best.
+      const args = buildPandocArgs({
+        ...builtin,
+        outputPath: "/v/p/OUT.docx",
+        builtin: {
+          format: "docx",
+          from: builtinFrom("pdf"),
+          pdfEngine: null,
+          cjkFont: null,
+          citeproc: false,
+        },
+      });
+      expect(args.some((a) => a.startsWith("--pdf-engine="))).toBe(false);
+      expect(args).not.toContain("-V");
+      expect(args).not.toContain("--citeproc");
+      expect(args).not.toContain("--embed-resources");
+    });
+
+    it("embeds resources only for HTML", () => {
+      // pandoc rejects --embed-resources for non-HTML writers.
+      const html = buildPandocArgs({
+        ...builtin,
+        outputPath: "/v/p/OUT.html",
+        builtin: {
+          format: "html",
+          from: builtinFrom("pdf"),
+          pdfEngine: null,
+          cjkFont: null,
+          citeproc: false,
+        },
+      });
+      expect(html).toContain("--embed-resources");
+    });
+
+    it("still passes a CSL when one was resolved", () => {
+      const args = buildPandocArgs({
+        ...builtin,
+        cslFile: "/home/u/Zotero/styles/nature.csl",
+        builtin: {
+          format: "pdf",
+          from: builtinFrom("pdf"),
+          pdfEngine: "/bin/xelatex",
+          cjkFont: null,
+          citeproc: true,
+        },
+      });
+      expect(args).toContain("--csl=/home/u/Zotero/styles/nature.csl");
+    });
   });
 
   it("omits --csl entirely when there is no style to pass", () => {

@@ -31,8 +31,10 @@ bind a hotkey to a workflow and export the note you are writing without touching
 the sidebar.
 
 The built-in **Quick Export** workflow exists for exactly this: one step, no
-project needed, straight from the open note to a PDF (or a Word file, if its
-preset says so). See [Pandoc export](./PANDOC_EXPORT.md#exporting-a-single-note).
+project needed, and **no downloaded assets** — straight from the open note to a
+PDF, a Word file, or HTML, chosen by the step's *Format* option. Word needs
+nothing but pandoc itself; PDF also needs a TeX engine. See
+[Pandoc export](./PANDOC_EXPORT.md#exporting-a-single-note).
 
 - If the open note **belongs to a project**, its draft is compiled, exactly as
   the pane would. (When the note is a project index shared by several assets,

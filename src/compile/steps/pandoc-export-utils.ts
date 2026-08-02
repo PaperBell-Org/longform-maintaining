@@ -315,9 +315,91 @@ export function exportTargetForDefaults(parsed: unknown): ExportTarget {
   return { ext, pdfEngine, needsCrossref };
 }
 
+/** Output formats the built-in, preset-free export can produce. */
+export const BUILTIN_FORMATS = ["pdf", "docx", "html"] as const;
+export type BuiltinFormat = (typeof BUILTIN_FORMATS)[number];
+
+export function isBuiltinFormat(value: string): value is BuiltinFormat {
+  return (BUILTIN_FORMATS as readonly string[]).indexOf(value) !== -1;
+}
+
+const BUILTIN_FROM_BASE =
+  "markdown+tex_math_single_backslash+wikilinks_title_after_pipe" +
+  "+autolink_bare_uris+pipe_tables";
+
+/**
+ * The markdown dialect the built-in export reads: the same `from:` the
+ * downloaded presets declare, so a note exports much the same either way —
+ * `[[wikilinks]]` and `\(x\)` are Obsidian syntax that plain `markdown` passes
+ * through as literal text.
+ *
+ * PDF is the exception and omits `+mark`. Pandoc renders `==highlight==` into
+ * LaTeX via the `soul` package, whose `\hl` cannot break CJK: it aborts the
+ * whole run with "Package soul Error: Reconstruction failed" and writes no
+ * file. Dropping the extension costs a literal `==…==` in the PDF; keeping it
+ * costs every CJK note that highlights anything. docx and html mark up
+ * highlights natively, so they keep it.
+ */
+export function builtinFrom(format: BuiltinFormat): string {
+  return format === "pdf" ? BUILTIN_FROM_BASE : BUILTIN_FROM_BASE + "+mark";
+}
+
+const BUILTIN_EXTENSIONS: Record<BuiltinFormat, string> = {
+  pdf: ".pdf",
+  docx: ".docx",
+  html: ".html",
+};
+
+/**
+ * What the built-in export produces. Only PDF needs an engine, and nothing here
+ * needs pandoc-crossref — `@fig:` references are a preset feature.
+ */
+export function builtinExportTarget(format: BuiltinFormat): ExportTarget {
+  return {
+    ext: BUILTIN_EXTENSIONS[format],
+    // Resolved by the caller against what's actually installed; xelatex is the
+    // only common engine that can typeset CJK.
+    pdfEngine: format === "pdf" ? "xelatex" : null,
+    needsCrossref: false,
+  };
+}
+
+/** CJK ideographs, kana and hangul — the ranges pdflatex cannot typeset. */
+const CJK_RANGE =
+  /[぀-ヿ㐀-䶿一-鿿豈-﫿가-힯]/;
+
+export function hasCjk(text: string): boolean {
+  return CJK_RANGE.test(text);
+}
+
+/**
+ * A CJK font to hand xelatex, chosen so it ships with the platform: naming a
+ * font that isn't installed makes xelatex fail outright and write nothing, so
+ * this must never be a guess. Callers only pass it when the document actually
+ * contains CJK and the note doesn't name its own `CJKmainfont`.
+ */
+export function defaultCjkFont(platform: string): string {
+  if (platform === "darwin") return "Songti SC";
+  if (platform === "win32") return "SimSun";
+  return "Noto Sans CJK SC";
+}
+
+/** What a built-in export needs in place of a preset's directives. */
+export type BuiltinExportOptions = {
+  format: BuiltinFormat;
+  from: string;
+  /** Absolute path to the PDF engine; null for non-PDF output. */
+  pdfEngine: string | null;
+  /** `-V CJKmainfont=…`; null leaves the choice to the document's metadata. */
+  cjkFont: string | null;
+  /** Adds `--citeproc`, which a preset would normally supply via `filters:`. */
+  citeproc: boolean;
+};
+
 export type PandocArgPaths = {
   inputFile: string;
-  defaultsFile: string;
+  /** The preset to export with, or null for the built-in preset-free export. */
+  defaultsFile: string | null;
   /**
    * The CSL style to pass. `null` when the manuscript has no citations — a
    * style is then neither needed nor worth failing over, so `--csl` is omitted.
@@ -333,6 +415,8 @@ export type PandocArgPaths = {
    * (which Obsidian files outside the note's own folder) still resolve.
    */
   extraResourcePaths?: string[] | null;
+  /** Required when `defaultsFile` is null; ignored otherwise. */
+  builtin?: BuiltinExportOptions | null;
 };
 
 /**
@@ -433,7 +517,28 @@ export function officialCslUrls(csl: string): string[] {
 
 /** Build the pandoc argument vector, mirroring PaperBell spec §11. */
 export function buildPandocArgs(p: PandocArgPaths): string[] {
-  const args = [p.inputFile, "--defaults=" + p.defaultsFile];
+  const args = [p.inputFile];
+  if (p.defaultsFile) {
+    args.push("--defaults=" + p.defaultsFile);
+  } else if (p.builtin) {
+    // Everything a preset would have declared, spelled out. Nothing here reads
+    // a downloaded file, so this path works with pandoc alone.
+    args.push("--from=" + p.builtin.from, "--standalone");
+    if (p.builtin.format === "html") {
+      // Inline images and CSS so the .html is one shareable file. Pandoc
+      // rejects this flag for non-HTML writers.
+      args.push("--embed-resources");
+    }
+    if (p.builtin.pdfEngine) {
+      args.push("--pdf-engine=" + p.builtin.pdfEngine);
+    }
+    if (p.builtin.cjkFont) {
+      args.push("-V", "CJKmainfont=" + p.builtin.cjkFont);
+    }
+    if (p.builtin.citeproc) {
+      args.push("--citeproc");
+    }
+  }
   if (p.cslFile) {
     args.push("--csl=" + p.cslFile);
   }
