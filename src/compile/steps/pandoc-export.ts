@@ -1,7 +1,6 @@
 import { FileSystemAdapter, Notice, parseYaml, requestUrl } from "obsidian";
 import { execFile } from "child_process";
 import * as fs from "fs";
-import * as os from "os";
 import * as path from "path";
 import { get } from "svelte/store";
 
@@ -15,6 +14,7 @@ import {
   binSearchDirs,
   BUILTIN_FORMATS,
   builtinFrom,
+  currentPlatformEnv,
   buildExecPath,
   buildExportFilename,
   buildPandocArgs,
@@ -34,6 +34,7 @@ import {
   splitBibList,
   zoteroStylesDir,
   type ExportTarget,
+  type PlatformEnv,
 } from "./pandoc-export-utils";
 import { pandocSetupError } from "../recoverable";
 import { pluginSettings } from "src/model/stores";
@@ -217,14 +218,15 @@ export const RunPandocExportStep = makeBuiltinStep({
       );
     }
     const base = adapter.getBasePath();
-    const home = os.homedir();
     const settings = get(pluginSettings);
+    const platform = currentPlatformEnv(settings.pandocExtraBinFolders);
+    const home = platform.home;
 
     // Assets folder: setting, else the default download location. Downloaded
     // from a separate assets repo via "Set up Pandoc export"; not bundled.
     const assetsSetting =
       (settings.pandocAssetsFolder ?? "").trim() || DEFAULT_ASSETS_DIR;
-    const assetsAbs = resolveUserPath(assetsSetting, base, home);
+    const assetsAbs = resolveUserPath(assetsSetting, base, platform);
     const defaultsDir = path.join(assetsAbs, "defaults");
     const cslDir = path.join(assetsAbs, "csl");
     const projectAbs = path.join(base, context.projectPath);
@@ -261,11 +263,12 @@ export const RunPandocExportStep = makeBuiltinStep({
     // folder; a built-in export reads nothing from there and it may not exist.
     const cwd = builtinFormat ? projectAbs : assetsAbs;
 
-    const dirs = binSearchDirs(home);
+    const dirs = binSearchDirs(platform);
     const pandocBin = resolveBinary(
       (settings.pandocBinary ?? "pandoc").trim() || "pandoc",
       fs.existsSync,
-      dirs
+      dirs,
+      platform.isWindows
     );
 
     const defaultsFile = builtinFormat
@@ -309,14 +312,16 @@ export const RunPandocExportStep = makeBuiltinStep({
     // Built-in PDF asks for xelatex (the only common engine that typesets CJK)
     // but settles for pdflatex, which is enough for a Latin-only note.
     const engineBin = engineName
-      ? resolveBinary(engineName, fs.existsSync, dirs) ??
-        (builtinFormat ? resolveBinary("pdflatex", fs.existsSync, dirs) : null)
+      ? resolveBinary(engineName, fs.existsSync, dirs, platform.isWindows) ??
+        (builtinFormat
+          ? resolveBinary("pdflatex", fs.existsSync, dirs, platform.isWindows)
+          : null)
       : null;
     const crossrefBin = target.needsCrossref
-      ? resolveBinary("pandoc-crossref", fs.existsSync, dirs)
+      ? resolveBinary("pandoc-crossref", fs.existsSync, dirs, platform.isWindows)
       : null;
 
-    const bibliographies = resolveBibliography(settings, context, base, home);
+    const bibliographies = resolveBibliography(settings, context, base, platform);
     const needsBib = hasCitations(input.contents);
     const bibOk = !needsBib || bibliographies.length > 0;
 
@@ -480,16 +485,16 @@ export const RunPandocExportStep = makeBuiltinStep({
 
     let outputPath: string;
     if (settingIsFullPath && !filenamePattern.trim()) {
-      const asGiven = resolveUserPath(outputFolder, base, home);
+      const asGiven = resolveUserPath(outputFolder, base, platform);
       outputPath = path.join(
         path.dirname(asGiven),
         path.basename(asGiven, path.extname(asGiven)) + target.ext
       );
     } else {
       const outDirAbs = settingIsFullPath
-        ? path.dirname(resolveUserPath(outputFolder, base, home))
+        ? path.dirname(resolveUserPath(outputFolder, base, platform))
         : outputFolder
-        ? resolveUserPath(outputFolder, base, home)
+        ? resolveUserPath(outputFolder, base, platform)
         : projectAbs;
       const filename = buildExportFilename(
         filenamePattern,
@@ -530,7 +535,7 @@ export const RunPandocExportStep = makeBuiltinStep({
           }
         : null,
     });
-    const env = { ...process.env, PATH: buildExecPath(process.env.PATH ?? "", home) };
+    const env = { ...process.env, PATH: buildExecPath(platform) };
 
     const dryRun = context.optionValues["dry-run"] === true;
     if (dryRun) {
@@ -631,13 +636,13 @@ export function resolveBibliography(
   },
   context: CompileContext,
   base: string,
-  home: string
+  platform: PlatformEnv
 ): string[] {
   const result: string[] = [];
 
   // 1) vault-wide global bibliographies, in listed order
   for (const entry of splitBibList(settings.pandocGlobalBibliography)) {
-    const abs = resolveUserPath(entry, base, home);
+    const abs = resolveUserPath(entry, base, platform);
     if (fs.existsSync(abs) && !result.includes(abs)) {
       result.push(abs);
     }
@@ -647,7 +652,7 @@ export function resolveBibliography(
   let projectBib: string | null = null;
   const configured = (settings.pandocBibliography ?? "").trim();
   if (configured) {
-    const abs = resolveUserPath(configured, base, home);
+    const abs = resolveUserPath(configured, base, platform);
     if (fs.existsSync(abs)) projectBib = abs;
   } else {
     const root = context.projectRoot ?? context.projectPath;

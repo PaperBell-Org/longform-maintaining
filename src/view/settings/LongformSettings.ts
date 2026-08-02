@@ -260,6 +260,17 @@ export class LongformSettingsTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
+      .setName(t("settings.extraBinFolders.name"))
+      .setDesc(t("settings.extraBinFolders.desc"))
+      .addTextArea((cb) => {
+        cb.setPlaceholder("C:\\Tools\\pandoc\n/opt/local/bin")
+          .setValue(settings.pandocExtraBinFolders ?? "")
+          .onChange((v) => {
+            pluginSettings.update((s) => ({ ...s, pandocExtraBinFolders: v }));
+          });
+      });
+
+    new Setting(containerEl)
       .setName(t("settings.userScriptFolder.name"))
       .setDesc(t("settings.userScriptFolder.desc"))
       .addSearch((cb) => {

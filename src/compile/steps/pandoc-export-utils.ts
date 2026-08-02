@@ -1,3 +1,4 @@
+import * as os from "os";
 import * as path from "path";
 
 /**
@@ -7,9 +8,9 @@ import * as path from "path";
 export const DEFAULT_ASSETS_DIR = "PaperBell/pandoc";
 
 /**
- * Directories to add to PATH for the pandoc subprocess. Obsidian's GUI process
- * does not inherit the login shell PATH, so pandoc/xelatex/pandoc-crossref are
- * otherwise not found (spawn ENOENT).
+ * Directories to add to PATH for the pandoc subprocess on macOS and Linux.
+ * Obsidian's GUI process does not inherit the login shell PATH there, so
+ * pandoc/xelatex/pandoc-crossref are otherwise not found (spawn ENOENT).
  */
 export const COMMON_BIN_DIRS = [
   "/opt/homebrew/bin", // Apple-Silicon Homebrew: pandoc, pandoc-crossref
@@ -19,26 +20,114 @@ export const COMMON_BIN_DIRS = [
   "/Library/TeX/texbin", // MacTeX: xelatex
 ];
 
-export function homeBinDirs(home: string): string[] {
+/**
+ * Windows fallbacks, for an install that never made it onto PATH. Deliberately
+ * short: Windows processes *do* inherit PATH and every installer writes to it,
+ * so PATH is the real mechanism and this is only a safety net. Chasing vendor
+ * layouts here is a losing game — MiKTeX and TeX Live are absent on purpose
+ * (they add themselves to PATH, and TeX Live's directory carries a year).
+ */
+export function windowsBinDirs(home: string): string[] {
+  const P = path.win32;
+  const localAppData = P.join(home, "AppData", "Local");
   return [
-    path.join(home, ".local", "bin"),
-    path.join(home, ".cargo", "bin"),
-    path.join(home, "bin"),
+    P.join(localAppData, "Pandoc"), // per-user MSI (the default)
+    P.join("C:\\Program Files", "Pandoc"), // per-machine MSI
+    "C:\\ProgramData\\chocolatey\\bin",
+    P.join(home, "scoop", "shims"),
+    P.join(localAppData, "Microsoft", "WinGet", "Links"),
   ];
 }
 
-/** All directories to search for binaries / prepend to PATH. */
-export function binSearchDirs(home: string): string[] {
-  return COMMON_BIN_DIRS.concat(homeBinDirs(home));
+/**
+ * Everything path resolution needs to know about the machine it runs on.
+ *
+ * Passed in rather than read from `process`/`os` so Windows behaviour is
+ * testable from a mac — the same reason `resolveBinary` takes an `exists`
+ * callback.
+ */
+export interface PlatformEnv {
+  isWindows: boolean;
+  home: string;
+  /** `process.env.PATH`. Searched for binaries, and inherited by the child. */
+  envPath: string;
+  /** Folders from the "Extra binary folders" setting; searched before all else. */
+  extraDirs: string[];
+}
+
+/** The `path` flavour for this platform — `path.win32` semantics on Windows. */
+function flavour(env: PlatformEnv): path.PlatformPath {
+  return env.isWindows ? path.win32 : path.posix;
+}
+
+/**
+ * The `PlatformEnv` for the machine we're running on, plus the user's
+ * "Extra binary folders" setting. The single place that reads `process`/`os`,
+ * so every function above stays injectable and testable off-platform.
+ */
+export function currentPlatformEnv(extraBinFolders?: string | null): PlatformEnv {
+  return {
+    isWindows: process.platform === "win32",
+    home: os.homedir(),
+    envPath: process.env.PATH ?? "",
+    extraDirs: splitDirList(extraBinFolders),
+  };
+}
+
+/**
+ * Split the "Extra binary folders" textarea: one folder per line. Unlike the
+ * bibliography list this does NOT split on commas — a Windows directory name
+ * may legally contain one.
+ */
+export function splitDirList(raw: string | null | undefined): string[] {
+  return (raw ?? "")
+    .split(/\r?\n/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+export function homeBinDirs(home: string, P: path.PlatformPath): string[] {
+  return [
+    P.join(home, ".local", "bin"),
+    P.join(home, ".cargo", "bin"),
+    P.join(home, "bin"),
+  ];
+}
+
+/**
+ * Every directory to search for binaries, in priority order: the user's own
+ * folders, the platform's install locations, home-relative bins, then PATH.
+ *
+ * PATH last but present — that omission is what made every Windows install
+ * fail, since there the process *does* inherit it and every installer writes
+ * to it.
+ */
+export function binSearchDirs(env: PlatformEnv): string[] {
+  const P = flavour(env);
+  const platformDirs = env.isWindows
+    ? windowsBinDirs(env.home)
+    : COMMON_BIN_DIRS;
+  return [
+    ...env.extraDirs,
+    ...platformDirs,
+    ...homeBinDirs(env.home, P),
+    ...env.envPath.split(P.delimiter),
+  ]
+    .map((d) => d.trim())
+    .filter((d) => d.length > 0);
 }
 
 /**
  * Build a PATH string with the common binary dirs prepended (deduplicated),
  * so a spawned pandoc can find itself and its own subprocesses (xelatex,
  * pandoc-crossref) regardless of the GUI process's inherited PATH.
+ *
+ * The separator is the platform's, not a hardcoded ":" — on Windows the latter
+ * splits `C:\Program Files\Pandoc` into `C` and `\Program Files\Pandoc`, so
+ * pandoc's own lookups fail even when pandoc itself was found.
  */
-export function buildExecPath(currentPath: string, home: string): string {
-  const parts = binSearchDirs(home).concat((currentPath || "").split(":"));
+export function buildExecPath(env: PlatformEnv): string {
+  const parts = binSearchDirs(env);
   const seen = new Set<string>();
   const merged: string[] = [];
   for (const p of parts) {
@@ -47,23 +136,58 @@ export function buildExecPath(currentPath: string, home: string): string {
       merged.push(p);
     }
   }
-  return merged.join(":");
+  return merged.join(flavour(env).delimiter);
+}
+
+/**
+ * Executable suffixes tried on Windows, where `pandoc` is `pandoc.exe` on disk.
+ * A practical subset of PATHEXT — `.cmd`/`.bat` cover shim-style installs
+ * (scoop, some npm-distributed tools).
+ */
+const WINDOWS_EXEC_SUFFIXES = ["", ".exe", ".cmd", ".bat"];
+
+/**
+ * Is this a path the user handed us, rather than a bare name to look up? Any
+ * separator settles it — including the forward-slash form Windows users type
+ * today as a workaround, which must keep working.
+ */
+function looksLikePath(name: string, isWindows: boolean): boolean {
+  return name.includes("/") || (isWindows && name.includes("\\"));
 }
 
 /**
  * Resolve a binary to an absolute path: honor an explicit path, else search the
  * given dirs. `exists` is injected for testability. Returns null if not found.
+ *
+ * `isWindows` controls two things a Unix-only implementation gets wrong: the
+ * name on disk carries an extension, and an absolute path looks like
+ * `C:\…` rather than `/…`.
  */
 export function resolveBinary(
   name: string,
   exists: (p: string) => boolean,
-  dirs: string[]
+  dirs: string[],
+  isWindows: boolean
 ): string | null {
   if (!name) return null;
-  if (name.includes("/")) return exists(name) ? name : null;
+  const P = isWindows ? path.win32 : path.posix;
+  const suffixes = isWindows ? WINDOWS_EXEC_SUFFIXES : [""];
+
+  // A name that carries its own extension must not gain a second one.
+  const candidates = P.extname(name) ? [""] : suffixes;
+
+  if (looksLikePath(name, isWindows)) {
+    for (const suffix of candidates) {
+      if (exists(name + suffix)) return name + suffix;
+    }
+    return null;
+  }
+
   for (const d of dirs) {
-    const p = path.join(d, name);
-    if (exists(p)) return p;
+    for (const suffix of candidates) {
+      const p = P.join(d, name + suffix);
+      if (exists(p)) return p;
+    }
   }
   return null;
 }
@@ -77,14 +201,21 @@ export function expandHome(p: string, home: string): string {
 
 /**
  * Resolve a user-supplied path: absolute / `~` as-is, otherwise relative to the
- * vault base path.
+ * vault base path. "Absolute" is platform-aware — `C:\Papers` is absolute on
+ * Windows, where a `startsWith("/")` test would call it relative and resolve it
+ * to `<vault>\C:\Papers`.
  */
-export function resolveUserPath(p: string, base: string, home: string): string {
+export function resolveUserPath(
+  p: string,
+  base: string,
+  env: PlatformEnv
+): string {
   if (!p) return p;
-  if (p.startsWith("/") || p.startsWith("~")) {
-    return path.resolve(expandHome(p, home));
+  const P = flavour(env);
+  if (P.isAbsolute(p) || p.startsWith("~")) {
+    return P.resolve(expandHome(p, env.home));
   }
-  return path.join(base, p);
+  return P.join(base, p);
 }
 
 /**

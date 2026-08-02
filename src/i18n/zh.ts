@@ -125,6 +125,10 @@ export const zh: Messages = {
   "setup.intro":
     "PDF 导出需要三个系统工具,外加 PaperBell 的 Pandoc 工具链(过滤器、模板、CSL)。可在下方的资产市场安装工具链,或粘贴一个工具链 .zip 链接。",
   "setup.notFound": "未找到",
+  "setup.optionalPdfEngine":
+    "可选 —— 仅生成 PDF 的 preset 需要；导出 Word（`to: docx`）的 preset 用不到。",
+  "setup.optionalCrossref":
+    "可选 —— 仅当 preset 的 filters 里用 pandoc-crossref 处理 @fig / @tbl 交叉引用时才需要。",
   "setup.pdfEngine": "PDF 引擎",
   "setup.assets": "Pandoc 资产",
   "setup.assetsOk": "已找到 defaults/ 与 csl/。",
@@ -223,9 +227,12 @@ export const zh: Messages = {
   "settings.globalBibliography.name": "全局参考文献库",
   "settings.globalBibliography.desc":
     "在每个项目自带 .bib 之外,额外合并进每次导出的 .bib 文件(可多个)。每行一个路径(或用逗号分隔);可填库内相对路径或绝对路径。遇到重复 cite key 时,项目自带的优先。",
+  "settings.extraBinFolders.name": "额外的二进制目录",
+  "settings.extraBinFolders.desc":
+    "查找 pandoc、PDF 引擎和 pandoc-crossref 的额外目录，每行一个。优先级高于 PATH 和内置位置 —— 当工具装在 PATH 不知道的地方时填这里。",
   "settings.pandocBinary.name": "Pandoc 可执行文件",
   "settings.pandocBinary.desc":
-    "pandoc 可执行文件的路径,或直接填 “pandoc”。常见的 Homebrew/MacTeX 目录会自动加入 PATH。",
+    "pandoc 可执行文件的路径,或直接填 “pandoc” 让插件去找。会自动搜索 PATH 和常见安装位置;Windows 下正反斜杠都可以,.exe 可以省略。",
   "settings.userScriptFolder.name": "用户脚本步骤文件夹",
   "settings.userScriptFolder.desc":
     "此文件夹中的 .js 文件会作为“用户脚本步骤”出现在编译面板中。",
