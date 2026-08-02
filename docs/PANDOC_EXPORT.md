@@ -30,6 +30,15 @@ option decides what you get:
 | `pdf` (the default) | pandoc **and** a TeX engine; `xelatex` is preferred because it is the only common one that typesets CJK |
 | `html` | pandoc alone; images and CSS are inlined into one shareable file |
 
+> **Upgrading from an earlier version?** Workflows live in your vault, and the
+> plugin never overwrites one you already have — so an existing `Quick Export`
+> keeps working exactly as before, still requiring a downloaded preset. To switch
+> it over, open the compile pane → **Quick Export** → *Run Pandoc Export* and set
+> **Format (no preset)** to `pdf` or `docx`. (Deliberately not done for you: if
+> you have the assets installed, your current Quick Export produces the full
+> PaperBell layout, and switching would quietly downgrade it to plain pandoc
+> output.)
+
 Citations work too: with a `.bib` found (see
 [Citations & bibliography](#citations--bibliography)),
 `[@key]` resolves using pandoc's own default style. A `csl:` in the note's
