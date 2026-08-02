@@ -7,7 +7,7 @@ import {
   makeBuiltinStep,
 } from "src/compile";
 import { pluginSettings, userScriptSteps, workflows } from "src/model/stores";
-import type { Unsubscriber } from "svelte/store";
+import { SubscriptionSet } from "src/utils/subscription-set";
 import { get } from "svelte/store";
 
 const DEBOUNCE_SCRIPT_LOAD_DELAY_MS = 10_000;
@@ -18,7 +18,9 @@ const DEBOUNCE_SCRIPT_LOAD_DELAY_MS = 10_000;
 export class UserScriptObserver {
   private vault: Vault;
   userScriptFolder: string | null;
-  private unsubscribeScriptFolder: Unsubscriber;
+  // A set rather than a bare Unsubscriber: destroy() and beginObserving() both
+  // tear down, and a svelte 3 unsubscriber throws when called twice.
+  private subs = new SubscriptionSet();
   private initializedSteps = false;
   private onScriptModify: any;
 
@@ -34,38 +36,38 @@ export class UserScriptObserver {
   }
 
   destroy(): void {
-    this.unsubscribeScriptFolder();
+    this.subs.teardown();
   }
 
   beginObserving(): void {
-    if (this.unsubscribeScriptFolder) {
-      this.unsubscribeScriptFolder();
-    }
-    this.unsubscribeScriptFolder = pluginSettings.subscribe(async (s) => {
-      if (
-        this.initializedSteps &&
-        s.userScriptFolder === this.userScriptFolder
-      ) {
-        return;
-      }
+    this.subs.teardown();
+    this.subs.add(
+      pluginSettings.subscribe(async (s) => {
+        if (
+          this.initializedSteps &&
+          s.userScriptFolder === this.userScriptFolder
+        ) {
+          return;
+        }
 
-      if (s.userScriptFolder == null) {
-        return;
-      }
+        if (s.userScriptFolder == null) {
+          return;
+        }
 
-      const valid = await this.vault.adapter.exists(s.userScriptFolder);
-      if (!valid) {
-        return;
-      }
+        const valid = await this.vault.adapter.exists(s.userScriptFolder);
+        if (!valid) {
+          return;
+        }
 
-      this.userScriptFolder = s.userScriptFolder;
-      if (this.userScriptFolder) {
-        await this.loadUserSteps();
-      } else {
-        userScriptSteps.set(null);
-        console.log("[PaperOut] Cleared user script steps.");
-      }
-    });
+        this.userScriptFolder = s.userScriptFolder;
+        if (this.userScriptFolder) {
+          await this.loadUserSteps();
+        } else {
+          userScriptSteps.set(null);
+          console.log("[PaperOut] Cleared user script steps.");
+        }
+      })
+    );
   }
 
   async loadUserSteps(): Promise<CompileStep[]> {

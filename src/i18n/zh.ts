@@ -285,6 +285,7 @@ export const zh: Messages = {
     "获取你的 PaperBell 账户与共享配置(语言、AI)。首次获取时 PaperBell 会请求你的授权。",
   "settings.paperbell.button.connect": "连接",
   "settings.paperbell.button.refresh": "刷新",
+  "settings.paperbell.refreshFailed": "无法读取 PaperBell 的共享设置：{error}",
   "settings.paperbell.aiAvailable":
     "AI 功能通过 PaperBell 提供 —— 本插件不存储任何 API 密钥。",
   "settings.paperbell.notConnected":

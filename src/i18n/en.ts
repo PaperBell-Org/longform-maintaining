@@ -301,6 +301,8 @@ export const en = {
     "Fetch your PaperBell account and shared config (language, AI). PaperBell asks for your consent the first time.",
   "settings.paperbell.button.connect": "Connect",
   "settings.paperbell.button.refresh": "Refresh",
+  "settings.paperbell.refreshFailed":
+    "Could not read PaperBell's shared settings: {error}",
   "settings.paperbell.aiAvailable":
     "AI features are available through PaperBell — no API key is stored in this plugin.",
   "settings.paperbell.notConnected":
