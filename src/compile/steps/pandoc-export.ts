@@ -1,7 +1,6 @@
 import { FileSystemAdapter, Notice, parseYaml, requestUrl } from "obsidian";
 import { execFile } from "child_process";
 import * as fs from "fs";
-import * as os from "os";
 import * as path from "path";
 import { get } from "svelte/store";
 
@@ -13,13 +12,20 @@ import {
 } from "./abstract-compile-step";
 import {
   binSearchDirs,
+  BUILTIN_FORMATS,
+  builtinFrom,
+  currentPlatformEnv,
   buildExecPath,
   buildExportFilename,
   buildPandocArgs,
+  builtinExportTarget,
   DEFAULT_ASSETS_DIR,
+  defaultCjkFont,
   exportTargetForDefaults,
   findDuplicateCiteKeys,
   hasCitations,
+  hasCjk,
+  isBuiltinFormat,
   isFullOutputPath,
   officialCslUrls,
   parseExportFrontmatter,
@@ -28,6 +34,7 @@ import {
   splitBibList,
   zoteroStylesDir,
   type ExportTarget,
+  type PlatformEnv,
 } from "./pandoc-export-utils";
 import { pandocSetupError } from "../recoverable";
 import { pluginSettings } from "src/model/stores";
@@ -147,7 +154,7 @@ export const RunPandocExportStep = makeBuiltinStep({
   description: {
     name: "Run Pandoc Export",
     description:
-      "Exports the compiled manuscript via Pandoc (PaperBell pipeline). The output format follows the chosen preset — most produce a PDF, a `to: docx` preset produces a Word file. Desktop only. Run after Add Zenodo Frontmatter. Uses the downloaded Pandoc assets — run the 'Set up Pandoc export' command to check prerequisites.",
+      "Exports the compiled manuscript via Pandoc. With a preset, the output format follows it — most produce a PDF, a `to: docx` preset produces a Word file — and the downloaded Pandoc assets are required; run after Add Zenodo Frontmatter. With no preset, set Format to export with pandoc alone, needing nothing downloaded. Desktop only. Run the 'Set up Pandoc export' command to check prerequisites.",
     availableKinds: [CompileStepKind.Manuscript],
     options: [
       {
@@ -158,6 +165,16 @@ export const RunPandocExportStep = makeBuiltinStep({
         type: CompileStepOptionType.Dropdown,
         dynamicChoices: "pandoc-templates",
         emptyLabel: "(use metadata template)",
+        default: "",
+      },
+      {
+        id: "format",
+        name: "Format (no preset)",
+        description:
+          "Export without any preset, using pandoc on its own — no downloaded assets needed. Word needs nothing but pandoc; PDF also needs a TeX engine (xelatex, for CJK). Only applies when no preset is named here or in the note's `template:` frontmatter. Leave blank to require a preset, as the PaperBell pipelines do.",
+        type: CompileStepOptionType.Dropdown,
+        choices: [...BUILTIN_FORMATS],
+        emptyLabel: "(require a preset)",
         default: "",
       },
       {
@@ -201,17 +218,17 @@ export const RunPandocExportStep = makeBuiltinStep({
       );
     }
     const base = adapter.getBasePath();
-    const home = os.homedir();
     const settings = get(pluginSettings);
+    const platform = currentPlatformEnv(settings.pandocExtraBinFolders);
+    const home = platform.home;
 
     // Assets folder: setting, else the default download location. Downloaded
     // from a separate assets repo via "Set up Pandoc export"; not bundled.
     const assetsSetting =
       (settings.pandocAssetsFolder ?? "").trim() || DEFAULT_ASSETS_DIR;
-    const assetsAbs = resolveUserPath(assetsSetting, base, home);
+    const assetsAbs = resolveUserPath(assetsSetting, base, platform);
     const defaultsDir = path.join(assetsAbs, "defaults");
     const cslDir = path.join(assetsAbs, "csl");
-    const cwd = assetsAbs; // so ${.}/.. and relative refs resolve inside assets
     const projectAbs = path.join(base, context.projectPath);
 
     const fm = parseExportFrontmatter(input.contents);
@@ -232,16 +249,34 @@ export const RunPandocExportStep = makeBuiltinStep({
       : "the built-in default (no template was specified)";
     const csl = String(fm.csl || "nature");
 
-    const dirs = binSearchDirs(home);
+    // Preset-free mode, for Quick Export: pandoc on its own, no downloaded
+    // assets. A named preset always wins — that's the documented escape hatch
+    // for a Quick Export that wants the full layout, and it's why the PaperBell
+    // pipelines (which leave `format` blank) never land here even when their
+    // metadata template is missing.
+    const formatOption = String(context.optionValues["format"] ?? "").trim();
+    const builtinFormat =
+      !optionTemplate && !fmTemplate && isBuiltinFormat(formatOption)
+        ? formatOption
+        : null;
+    // Presets use ${.}/.. and relative paths that resolve inside the assets
+    // folder; a built-in export reads nothing from there and it may not exist.
+    const cwd = builtinFormat ? projectAbs : assetsAbs;
+
+    const dirs = binSearchDirs(platform);
     const pandocBin = resolveBinary(
       (settings.pandocBinary ?? "pandoc").trim() || "pandoc",
       fs.existsSync,
-      dirs
+      dirs,
+      platform.isWindows
     );
 
-    const defaultsFile = path.join(defaultsDir, template + ".yaml");
-    const assetsOk = fs.existsSync(assetsAbs);
-    const defaultsOk = fs.existsSync(defaultsFile);
+    const defaultsFile = builtinFormat
+      ? null
+      : path.join(defaultsDir, template + ".yaml");
+    // The assets folder is only a requirement when a preset is read out of it.
+    const assetsOk = !!builtinFormat || fs.existsSync(assetsAbs);
+    const defaultsOk = !defaultsFile || fs.existsSync(defaultsFile);
 
     // What the preset actually produces, and what it needs to produce it. A
     // `to: docx` preset must be written to a .docx path — pandoc 3.x exits with
@@ -252,7 +287,9 @@ export const RunPandocExportStep = makeBuiltinStep({
       pdfEngine: null,
       needsCrossref: false,
     };
-    if (defaultsOk) {
+    if (builtinFormat) {
+      target = builtinExportTarget(builtinFormat);
+    } else if (defaultsFile && defaultsOk) {
       try {
         target = exportTargetForDefaults(
           parseYaml(fs.readFileSync(defaultsFile, "utf8"))
@@ -272,14 +309,19 @@ export const RunPandocExportStep = makeBuiltinStep({
     // Otherwise a missing engine escapes this checklist as a raw pandoc error.
     const engineName =
       target.pdfEngine ?? (target.ext === ".pdf" ? "pdflatex" : null);
+    // Built-in PDF asks for xelatex (the only common engine that typesets CJK)
+    // but settles for pdflatex, which is enough for a Latin-only note.
     const engineBin = engineName
-      ? resolveBinary(engineName, fs.existsSync, dirs)
+      ? resolveBinary(engineName, fs.existsSync, dirs, platform.isWindows) ??
+        (builtinFormat
+          ? resolveBinary("pdflatex", fs.existsSync, dirs, platform.isWindows)
+          : null)
       : null;
     const crossrefBin = target.needsCrossref
-      ? resolveBinary("pandoc-crossref", fs.existsSync, dirs)
+      ? resolveBinary("pandoc-crossref", fs.existsSync, dirs, platform.isWindows)
       : null;
 
-    const bibliographies = resolveBibliography(settings, context, base, home);
+    const bibliographies = resolveBibliography(settings, context, base, platform);
     const needsBib = hasCitations(input.contents);
     const bibOk = !needsBib || bibliographies.length > 0;
 
@@ -289,8 +331,13 @@ export const RunPandocExportStep = makeBuiltinStep({
     // no citations — a plain note should not need a style, let alone a network
     // round-trip, and `--csl` is omitted so pandoc never looks for one.
     const resolvedCsl = needsBib ? await ensureCsl(csl, cslDir, home) : null;
-    const cslFile = resolvedCsl ?? (needsBib ? path.join(cslDir, csl + ".csl") : null);
-    const cslOk = !needsBib || !!resolvedCsl;
+    // Built-in mode never fails over a style: with `--citeproc` and no `--csl`,
+    // pandoc formats citations with its own default. Only pass a style we
+    // actually resolved, and treat the note's explicit `csl:` as a preference.
+    const cslFile = builtinFormat
+      ? resolvedCsl
+      : resolvedCsl ?? (needsBib ? path.join(cslDir, csl + ".csl") : null);
+    const cslOk = !!builtinFormat || !needsBib || !!resolvedCsl;
 
     // pandoc silently lets the LAST --bibliography win on a duplicate cite key.
     // Detect collisions across the merged bibs and warn — the project bib is
@@ -338,19 +385,25 @@ export const RunPandocExportStep = makeBuiltinStep({
       ),
       line(
         assetsOk,
-        "Pandoc assets folder — " + assetsAbs,
+        "Pandoc assets folder — " +
+          (builtinFormat ? "not needed (no preset)" : assetsAbs),
         assetsOk
           ? ""
           : "Assets not found. Run 'Set up Pandoc export' → Download assets, or set 'Pandoc assets folder' in settings."
       ),
       line(
         defaultsOk,
-        "preset — " + defaultsFile,
+        "preset — " +
+          (defaultsFile ?? `not used (built-in ${builtinFormat} export)`),
         defaultsOk ? "" : missingPresetHelp(context.app, template, templateSource)
       ),
       line(
         cslOk,
-        "CSL style — " + (cslFile ?? "not needed (no citations)"),
+        "CSL style — " +
+          (cslFile ??
+            (needsBib
+              ? "not found — using pandoc's default style"
+              : "not needed (no citations)")),
         cslOk
           ? ""
           : `csl is "${csl}" (from the exported note's frontmatter, or metadata _longform.csl). Not in the assets folder, in Zotero's styles (~/Zotero/styles/${csl}.csl), or the official CSL repo. Install Zotero's "${csl}" style, add csl/${csl}.csl, or set the csl to a valid style id (see github.com/citation-style-language/styles).`
@@ -372,10 +425,14 @@ export const RunPandocExportStep = makeBuiltinStep({
         `PDF engine — ${
           engineName
             ? `${engineName}: ${engineBin || "not found"}`
+            : builtinFormat
+            ? `not needed (${builtinFormat} output)`
             : "not needed (this preset doesn’t build a PDF)"
         }`,
         !engineName || engineBin
           ? ""
+          : builtinFormat
+          ? "A PDF needs a TeX engine. Install MacTeX / TeX Live (macOS) or MiKTeX / TeX Live (Windows, Linux) — or set this step's Format to “docx”, which needs nothing but pandoc."
           : `The "${template}" preset declares pdf-engine: ${engineName}, which isn’t installed. Install MacTeX / TeX Live (macOS) or MiKTeX / TeX Live (Windows, Linux).`
       ),
       line(
@@ -428,16 +485,16 @@ export const RunPandocExportStep = makeBuiltinStep({
 
     let outputPath: string;
     if (settingIsFullPath && !filenamePattern.trim()) {
-      const asGiven = resolveUserPath(outputFolder, base, home);
+      const asGiven = resolveUserPath(outputFolder, base, platform);
       outputPath = path.join(
         path.dirname(asGiven),
         path.basename(asGiven, path.extname(asGiven)) + target.ext
       );
     } else {
       const outDirAbs = settingIsFullPath
-        ? path.dirname(resolveUserPath(outputFolder, base, home))
+        ? path.dirname(resolveUserPath(outputFolder, base, platform))
         : outputFolder
-        ? resolveUserPath(outputFolder, base, home)
+        ? resolveUserPath(outputFolder, base, platform)
         : projectAbs;
       const filename = buildExportFilename(
         filenamePattern,
@@ -459,8 +516,26 @@ export const RunPandocExportStep = makeBuiltinStep({
       // Obsidian files pasted attachments outside the note's own folder (vault
       // root by default), so a loose note's images resolve only if we look there.
       extraResourcePaths: attachmentResourcePaths(context.app, base),
+      builtin: builtinFormat
+        ? {
+            format: builtinFormat,
+            from: builtinFrom(builtinFormat),
+            pdfEngine: engineBin,
+            // Naming a font that isn't installed makes xelatex fail outright,
+            // so only when the note actually has CJK — and never over the
+            // note's own `CJKmainfont:`, which pandoc already picks up as
+            // document metadata.
+            cjkFont:
+              builtinFormat === "pdf" &&
+              hasCjk(input.contents) &&
+              !fm.CJKmainfont
+                ? defaultCjkFont(process.platform)
+                : null,
+            citeproc: needsBib,
+          }
+        : null,
     });
-    const env = { ...process.env, PATH: buildExecPath(process.env.PATH ?? "", home) };
+    const env = { ...process.env, PATH: buildExecPath(platform) };
 
     const dryRun = context.optionValues["dry-run"] === true;
     if (dryRun) {
@@ -561,13 +636,13 @@ export function resolveBibliography(
   },
   context: CompileContext,
   base: string,
-  home: string
+  platform: PlatformEnv
 ): string[] {
   const result: string[] = [];
 
   // 1) vault-wide global bibliographies, in listed order
   for (const entry of splitBibList(settings.pandocGlobalBibliography)) {
-    const abs = resolveUserPath(entry, base, home);
+    const abs = resolveUserPath(entry, base, platform);
     if (fs.existsSync(abs) && !result.includes(abs)) {
       result.push(abs);
     }
@@ -577,7 +652,7 @@ export function resolveBibliography(
   let projectBib: string | null = null;
   const configured = (settings.pandocBibliography ?? "").trim();
   if (configured) {
-    const abs = resolveUserPath(configured, base, home);
+    const abs = resolveUserPath(configured, base, platform);
     if (fs.existsSync(abs)) projectBib = abs;
   } else {
     const root = context.projectRoot ?? context.projectPath;

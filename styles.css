@@ -97,3 +97,10 @@
   color: var(--text-error);
   font-weight: var(--font-bold);
 }
+
+/* Optional prerequisite: only some presets need it, so it must not read as a
+   failure the user has to go fix. */
+.longform-check-warn {
+  color: var(--text-warning);
+  font-weight: var(--font-bold);
+}

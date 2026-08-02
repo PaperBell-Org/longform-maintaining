@@ -1,11 +1,11 @@
 import {
   App,
   debounce,
+  Notice,
   normalizePath,
   PluginSettingTab,
   Setting,
 } from "obsidian";
-import type { Unsubscriber } from "svelte/store";
 import { get } from "svelte/store";
 
 import type LongformPlugin from "../../main";
@@ -20,12 +20,15 @@ import { syncSceneIndices } from "src/model/store-vault-sync";
 import { PandocSetupModal } from "../pandoc-setup-modal";
 import PandocMarketModal from "../pandoc-market";
 import { DEFAULT_MARKET_INDEX_URL } from "src/model/pandoc-market";
+import { SubscriptionSet } from "src/utils/subscription-set";
 
 export class LongformSettingsTab extends PluginSettingTab {
   plugin: LongformPlugin;
-  private unsubscribeUserScripts: Unsubscriber;
-  private unsubscribeSettings: Unsubscriber;
-  private unsubscribeLocale: Unsubscriber;
+  // One set rather than three fields: an unsubscriber must never be called
+  // twice (svelte 3 throws), and both display() and hide() tear down. See
+  // src/utils/subscription-set.ts.
+  private subs = new SubscriptionSet();
+  private pendingRerender: number | null = null;
   private stepsSummary: HTMLElement;
   private stepsList: HTMLUListElement;
 
@@ -35,43 +38,61 @@ export class LongformSettingsTab extends PluginSettingTab {
   }
 
   display(): void {
-    // display() can be re-invoked (locale change, PaperBell refresh); tear down any
-    // subscriptions from the previous render before rebuilding.
-    this.unsubscribeUserScripts?.();
-    this.unsubscribeSettings?.();
-    this.unsubscribeLocale?.();
-
-    // Never deref a null store (defensive: settings are loaded at onload, but a
-    // re-entrant display() must not blow up on a transient null).
-    const settings = get(pluginSettings) ?? DEFAULT_SETTINGS;
-
     const { containerEl } = this;
 
-    containerEl.empty();
-
-    // Build the whole panel defensively: if any single control throws, we render a
-    // friendly line instead of leaving the tab permanently blank (which previously
-    // required an Obsidian reload to recover from).
+    // NOTHING here may throw out of display(): Obsidian's openTab() empties the
+    // tab container before calling renderTab(), and wraps neither that nor
+    // hide() in a try/catch — so an escaping error leaves the pane blank with no
+    // way back. Hence the whole body, teardown and subscribe included, is
+    // guarded (the previous version guarded only renderSettings, and the real
+    // throw was in the teardown above it).
     try {
+      // display() can be re-invoked (locale change, PaperBell refresh); tear down
+      // any subscriptions from the previous render before rebuilding.
+      this.teardown();
+
+      // Never deref a null store (defensive: settings are loaded at onload, but a
+      // re-entrant display() must not blow up on a transient null).
+      const settings = get(pluginSettings) ?? DEFAULT_SETTINGS;
+
+      containerEl.empty();
+
+      // Re-render in the new language whenever the resolved locale changes. Skip
+      // the immediate emission svelte stores send on subscribe (we're rendering
+      // now). Subscribed BEFORE the render so a throw mid-render can't leak it.
+      let firstLocaleEmission = true;
+      this.subs.add(
+        locale.subscribe(() => {
+          if (firstLocaleEmission) {
+            firstLocaleEmission = false;
+            return;
+          }
+          // Deferred, never synchronous: a PaperBell refresh updates `paperbell`
+          // → the derived effective locale → `locale`, all inside the awaited
+          // fetch, which would otherwise re-enter display() mid-flush and leave
+          // the outer call rebuilding a container the inner one already replaced.
+          // Cancelled by teardown(), so the refresh button's own re-render
+          // supersedes this one instead of the pane rebuilding twice — and so a
+          // hidden tab never re-renders into a detached container.
+          this.pendingRerender = window.setTimeout(() => {
+            this.pendingRerender = null;
+            this.display();
+          }, 0);
+        })
+      );
+
       this.renderSettings(settings, containerEl);
     } catch (e) {
       console.error("[PaperOut] Failed to render settings:", e);
-      containerEl.empty();
-      containerEl.createEl("p", { cls: "setting-item-description" }, (el) => {
-        el.setText(t("settings.renderError"));
-      });
-    }
-
-    // Re-render in the new language whenever the resolved locale changes. Skip the
-    // immediate emission svelte stores send on subscribe (we just rendered).
-    let firstLocaleEmission = true;
-    this.unsubscribeLocale = locale.subscribe(() => {
-      if (firstLocaleEmission) {
-        firstLocaleEmission = false;
-        return;
+      try {
+        containerEl.empty();
+        containerEl.createEl("p", { cls: "setting-item-description" }, (el) => {
+          el.setText(t("settings.renderError"));
+        });
+      } catch (nested) {
+        console.error("[PaperOut] Could not render the settings error:", nested);
       }
-      this.display();
-    });
+    }
   }
 
   private renderSettings(
@@ -239,6 +260,17 @@ export class LongformSettingsTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
+      .setName(t("settings.extraBinFolders.name"))
+      .setDesc(t("settings.extraBinFolders.desc"))
+      .addTextArea((cb) => {
+        cb.setPlaceholder("C:\\Tools\\pandoc\n/opt/local/bin")
+          .setValue(settings.pandocExtraBinFolders ?? "")
+          .onChange((v) => {
+            pluginSettings.update((s) => ({ ...s, pandocExtraBinFolders: v }));
+          });
+      });
+
+    new Setting(containerEl)
       .setName(t("settings.userScriptFolder.name"))
       .setDesc(t("settings.userScriptFolder.desc"))
       .addSearch((cb) => {
@@ -254,32 +286,34 @@ export class LongformSettingsTab extends PluginSettingTab {
     this.stepsList = containerEl.createEl("ul", {
       cls: "longform-settings-user-steps",
     });
-    this.unsubscribeUserScripts = userScriptSteps.subscribe((steps) => {
-      if (steps && steps.length > 0) {
-        this.stepsSummary.innerText = t("settings.userSteps.loaded", {
-          count: steps.length,
-          plural: steps.length !== 1 ? "s" : "",
-        });
-      } else {
-        this.stepsSummary.innerText = t("settings.userSteps.none");
-      }
-      if (this.stepsList) {
-        this.stepsList.empty();
-        if (steps) {
-          steps.forEach((s) => {
-            const stepEl = this.stepsList.createEl("li");
-            stepEl.createSpan({
-              text: s.description.name,
-              cls: "longform-settings-user-step-name",
-            });
-            stepEl.createSpan({
-              text: `(${s.description.canonicalID})`,
-              cls: "longform-settings-user-step-id",
-            });
+    this.subs.add(
+      userScriptSteps.subscribe((steps) => {
+        if (steps && steps.length > 0) {
+          this.stepsSummary.innerText = t("settings.userSteps.loaded", {
+            count: steps.length,
+            plural: steps.length !== 1 ? "s" : "",
           });
+        } else {
+          this.stepsSummary.innerText = t("settings.userSteps.none");
         }
-      }
-    });
+        if (this.stepsList) {
+          this.stepsList.empty();
+          if (steps) {
+            steps.forEach((s) => {
+              const stepEl = this.stepsList.createEl("li");
+              stepEl.createSpan({
+                text: s.description.name,
+                cls: "longform-settings-user-step-name",
+              });
+              stepEl.createSpan({
+                text: `(${s.description.canonicalID})`,
+                cls: "longform-settings-user-step-id",
+              });
+            });
+          }
+        }
+      })
+    );
     containerEl.createEl("p", { cls: "setting-item-description" }, (el) => {
       el.setText(t("settings.userSteps.desc"));
     });
@@ -409,10 +443,12 @@ export class LongformSettingsTab extends PluginSettingTab {
       });
     sessionFileStorageSettings.settingEl.style.display = "none";
 
-    this.unsubscribeSettings = pluginSettings.subscribe((settings) => {
-      sessionFileStorageSettings.settingEl.style.display =
-        settings.sessionStorage === "file" ? "flex" : "none";
-    });
+    this.subs.add(
+      pluginSettings.subscribe((settings) => {
+        sessionFileStorageSettings.settingEl.style.display =
+          settings.sessionStorage === "file" ? "flex" : "none";
+      })
+    );
 
     // ── Troubleshooting ───────────────────────────────────────────────────
     new Setting(containerEl)
@@ -482,7 +518,20 @@ export class LongformSettingsTab extends PluginSettingTab {
                 : t("settings.paperbell.button.connect")
             )
             .onClick(async () => {
-              await this.plugin.paperBell.fetchSharedConfig();
+              // The contract says this resolves to null when the scope is
+              // denied (docs/PAPERBELL_INTEGRATION.md, "Failing safe"), but the
+              // host is a separate plugin we don't control: an unhandled
+              // rejection here would leave the button silently doing nothing.
+              try {
+                await this.plugin.paperBell.fetchSharedConfig();
+              } catch (e) {
+                console.error("[PaperOut] PaperBell refresh failed:", e);
+                new Notice(
+                  t("settings.paperbell.refreshFailed", {
+                    error: (e as Error)?.message ?? String(e),
+                  })
+                );
+              }
               this.display();
             })
         );
@@ -512,8 +561,18 @@ export class LongformSettingsTab extends PluginSettingTab {
   }
 
   hide(): void {
-    this.unsubscribeUserScripts?.();
-    this.unsubscribeSettings?.();
-    this.unsubscribeLocale?.();
+    // Obsidian calls hide() on tab switch and on closing the settings modal,
+    // then display() on the way back in. teardown() is idempotent so that pair
+    // cannot double-call the same unsubscriber.
+    this.teardown();
+  }
+
+  /** Drop every subscription and any queued re-render. Idempotent. */
+  private teardown(): void {
+    if (this.pendingRerender !== null) {
+      window.clearTimeout(this.pendingRerender);
+      this.pendingRerender = null;
+    }
+    this.subs.teardown();
   }
 }

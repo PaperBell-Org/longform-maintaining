@@ -1,3 +1,4 @@
+import * as os from "os";
 import * as path from "path";
 
 /**
@@ -7,9 +8,9 @@ import * as path from "path";
 export const DEFAULT_ASSETS_DIR = "PaperBell/pandoc";
 
 /**
- * Directories to add to PATH for the pandoc subprocess. Obsidian's GUI process
- * does not inherit the login shell PATH, so pandoc/xelatex/pandoc-crossref are
- * otherwise not found (spawn ENOENT).
+ * Directories to add to PATH for the pandoc subprocess on macOS and Linux.
+ * Obsidian's GUI process does not inherit the login shell PATH there, so
+ * pandoc/xelatex/pandoc-crossref are otherwise not found (spawn ENOENT).
  */
 export const COMMON_BIN_DIRS = [
   "/opt/homebrew/bin", // Apple-Silicon Homebrew: pandoc, pandoc-crossref
@@ -19,26 +20,114 @@ export const COMMON_BIN_DIRS = [
   "/Library/TeX/texbin", // MacTeX: xelatex
 ];
 
-export function homeBinDirs(home: string): string[] {
+/**
+ * Windows fallbacks, for an install that never made it onto PATH. Deliberately
+ * short: Windows processes *do* inherit PATH and every installer writes to it,
+ * so PATH is the real mechanism and this is only a safety net. Chasing vendor
+ * layouts here is a losing game — MiKTeX and TeX Live are absent on purpose
+ * (they add themselves to PATH, and TeX Live's directory carries a year).
+ */
+export function windowsBinDirs(home: string): string[] {
+  const P = path.win32;
+  const localAppData = P.join(home, "AppData", "Local");
   return [
-    path.join(home, ".local", "bin"),
-    path.join(home, ".cargo", "bin"),
-    path.join(home, "bin"),
+    P.join(localAppData, "Pandoc"), // per-user MSI (the default)
+    P.join("C:\\Program Files", "Pandoc"), // per-machine MSI
+    "C:\\ProgramData\\chocolatey\\bin",
+    P.join(home, "scoop", "shims"),
+    P.join(localAppData, "Microsoft", "WinGet", "Links"),
   ];
 }
 
-/** All directories to search for binaries / prepend to PATH. */
-export function binSearchDirs(home: string): string[] {
-  return COMMON_BIN_DIRS.concat(homeBinDirs(home));
+/**
+ * Everything path resolution needs to know about the machine it runs on.
+ *
+ * Passed in rather than read from `process`/`os` so Windows behaviour is
+ * testable from a mac — the same reason `resolveBinary` takes an `exists`
+ * callback.
+ */
+export interface PlatformEnv {
+  isWindows: boolean;
+  home: string;
+  /** `process.env.PATH`. Searched for binaries, and inherited by the child. */
+  envPath: string;
+  /** Folders from the "Extra binary folders" setting; searched before all else. */
+  extraDirs: string[];
+}
+
+/** The `path` flavour for this platform — `path.win32` semantics on Windows. */
+function flavour(env: PlatformEnv): path.PlatformPath {
+  return env.isWindows ? path.win32 : path.posix;
+}
+
+/**
+ * The `PlatformEnv` for the machine we're running on, plus the user's
+ * "Extra binary folders" setting. The single place that reads `process`/`os`,
+ * so every function above stays injectable and testable off-platform.
+ */
+export function currentPlatformEnv(extraBinFolders?: string | null): PlatformEnv {
+  return {
+    isWindows: process.platform === "win32",
+    home: os.homedir(),
+    envPath: process.env.PATH ?? "",
+    extraDirs: splitDirList(extraBinFolders),
+  };
+}
+
+/**
+ * Split the "Extra binary folders" textarea: one folder per line. Unlike the
+ * bibliography list this does NOT split on commas — a Windows directory name
+ * may legally contain one.
+ */
+export function splitDirList(raw: string | null | undefined): string[] {
+  return (raw ?? "")
+    .split(/\r?\n/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+export function homeBinDirs(home: string, P: path.PlatformPath): string[] {
+  return [
+    P.join(home, ".local", "bin"),
+    P.join(home, ".cargo", "bin"),
+    P.join(home, "bin"),
+  ];
+}
+
+/**
+ * Every directory to search for binaries, in priority order: the user's own
+ * folders, the platform's install locations, home-relative bins, then PATH.
+ *
+ * PATH last but present — that omission is what made every Windows install
+ * fail, since there the process *does* inherit it and every installer writes
+ * to it.
+ */
+export function binSearchDirs(env: PlatformEnv): string[] {
+  const P = flavour(env);
+  const platformDirs = env.isWindows
+    ? windowsBinDirs(env.home)
+    : COMMON_BIN_DIRS;
+  return [
+    ...env.extraDirs,
+    ...platformDirs,
+    ...homeBinDirs(env.home, P),
+    ...env.envPath.split(P.delimiter),
+  ]
+    .map((d) => d.trim())
+    .filter((d) => d.length > 0);
 }
 
 /**
  * Build a PATH string with the common binary dirs prepended (deduplicated),
  * so a spawned pandoc can find itself and its own subprocesses (xelatex,
  * pandoc-crossref) regardless of the GUI process's inherited PATH.
+ *
+ * The separator is the platform's, not a hardcoded ":" — on Windows the latter
+ * splits `C:\Program Files\Pandoc` into `C` and `\Program Files\Pandoc`, so
+ * pandoc's own lookups fail even when pandoc itself was found.
  */
-export function buildExecPath(currentPath: string, home: string): string {
-  const parts = binSearchDirs(home).concat((currentPath || "").split(":"));
+export function buildExecPath(env: PlatformEnv): string {
+  const parts = binSearchDirs(env);
   const seen = new Set<string>();
   const merged: string[] = [];
   for (const p of parts) {
@@ -47,23 +136,58 @@ export function buildExecPath(currentPath: string, home: string): string {
       merged.push(p);
     }
   }
-  return merged.join(":");
+  return merged.join(flavour(env).delimiter);
+}
+
+/**
+ * Executable suffixes tried on Windows, where `pandoc` is `pandoc.exe` on disk.
+ * A practical subset of PATHEXT — `.cmd`/`.bat` cover shim-style installs
+ * (scoop, some npm-distributed tools).
+ */
+const WINDOWS_EXEC_SUFFIXES = ["", ".exe", ".cmd", ".bat"];
+
+/**
+ * Is this a path the user handed us, rather than a bare name to look up? Any
+ * separator settles it — including the forward-slash form Windows users type
+ * today as a workaround, which must keep working.
+ */
+function looksLikePath(name: string, isWindows: boolean): boolean {
+  return name.includes("/") || (isWindows && name.includes("\\"));
 }
 
 /**
  * Resolve a binary to an absolute path: honor an explicit path, else search the
  * given dirs. `exists` is injected for testability. Returns null if not found.
+ *
+ * `isWindows` controls two things a Unix-only implementation gets wrong: the
+ * name on disk carries an extension, and an absolute path looks like
+ * `C:\…` rather than `/…`.
  */
 export function resolveBinary(
   name: string,
   exists: (p: string) => boolean,
-  dirs: string[]
+  dirs: string[],
+  isWindows: boolean
 ): string | null {
   if (!name) return null;
-  if (name.includes("/")) return exists(name) ? name : null;
+  const P = isWindows ? path.win32 : path.posix;
+  const suffixes = isWindows ? WINDOWS_EXEC_SUFFIXES : [""];
+
+  // A name that carries its own extension must not gain a second one.
+  const candidates = P.extname(name) ? [""] : suffixes;
+
+  if (looksLikePath(name, isWindows)) {
+    for (const suffix of candidates) {
+      if (exists(name + suffix)) return name + suffix;
+    }
+    return null;
+  }
+
   for (const d of dirs) {
-    const p = path.join(d, name);
-    if (exists(p)) return p;
+    for (const suffix of candidates) {
+      const p = P.join(d, name + suffix);
+      if (exists(p)) return p;
+    }
   }
   return null;
 }
@@ -77,14 +201,21 @@ export function expandHome(p: string, home: string): string {
 
 /**
  * Resolve a user-supplied path: absolute / `~` as-is, otherwise relative to the
- * vault base path.
+ * vault base path. "Absolute" is platform-aware — `C:\Papers` is absolute on
+ * Windows, where a `startsWith("/")` test would call it relative and resolve it
+ * to `<vault>\C:\Papers`.
  */
-export function resolveUserPath(p: string, base: string, home: string): string {
+export function resolveUserPath(
+  p: string,
+  base: string,
+  env: PlatformEnv
+): string {
   if (!p) return p;
-  if (p.startsWith("/") || p.startsWith("~")) {
-    return path.resolve(expandHome(p, home));
+  const P = flavour(env);
+  if (P.isAbsolute(p) || p.startsWith("~")) {
+    return P.resolve(expandHome(p, env.home));
   }
-  return path.join(base, p);
+  return P.join(base, p);
 }
 
 /**
@@ -315,9 +446,91 @@ export function exportTargetForDefaults(parsed: unknown): ExportTarget {
   return { ext, pdfEngine, needsCrossref };
 }
 
+/** Output formats the built-in, preset-free export can produce. */
+export const BUILTIN_FORMATS = ["pdf", "docx", "html"] as const;
+export type BuiltinFormat = (typeof BUILTIN_FORMATS)[number];
+
+export function isBuiltinFormat(value: string): value is BuiltinFormat {
+  return (BUILTIN_FORMATS as readonly string[]).indexOf(value) !== -1;
+}
+
+const BUILTIN_FROM_BASE =
+  "markdown+tex_math_single_backslash+wikilinks_title_after_pipe" +
+  "+autolink_bare_uris+pipe_tables";
+
+/**
+ * The markdown dialect the built-in export reads: the same `from:` the
+ * downloaded presets declare, so a note exports much the same either way —
+ * `[[wikilinks]]` and `\(x\)` are Obsidian syntax that plain `markdown` passes
+ * through as literal text.
+ *
+ * PDF is the exception and omits `+mark`. Pandoc renders `==highlight==` into
+ * LaTeX via the `soul` package, whose `\hl` cannot break CJK: it aborts the
+ * whole run with "Package soul Error: Reconstruction failed" and writes no
+ * file. Dropping the extension costs a literal `==…==` in the PDF; keeping it
+ * costs every CJK note that highlights anything. docx and html mark up
+ * highlights natively, so they keep it.
+ */
+export function builtinFrom(format: BuiltinFormat): string {
+  return format === "pdf" ? BUILTIN_FROM_BASE : BUILTIN_FROM_BASE + "+mark";
+}
+
+const BUILTIN_EXTENSIONS: Record<BuiltinFormat, string> = {
+  pdf: ".pdf",
+  docx: ".docx",
+  html: ".html",
+};
+
+/**
+ * What the built-in export produces. Only PDF needs an engine, and nothing here
+ * needs pandoc-crossref — `@fig:` references are a preset feature.
+ */
+export function builtinExportTarget(format: BuiltinFormat): ExportTarget {
+  return {
+    ext: BUILTIN_EXTENSIONS[format],
+    // Resolved by the caller against what's actually installed; xelatex is the
+    // only common engine that can typeset CJK.
+    pdfEngine: format === "pdf" ? "xelatex" : null,
+    needsCrossref: false,
+  };
+}
+
+/** CJK ideographs, kana and hangul — the ranges pdflatex cannot typeset. */
+const CJK_RANGE =
+  /[぀-ヿ㐀-䶿一-鿿豈-﫿가-힯]/;
+
+export function hasCjk(text: string): boolean {
+  return CJK_RANGE.test(text);
+}
+
+/**
+ * A CJK font to hand xelatex, chosen so it ships with the platform: naming a
+ * font that isn't installed makes xelatex fail outright and write nothing, so
+ * this must never be a guess. Callers only pass it when the document actually
+ * contains CJK and the note doesn't name its own `CJKmainfont`.
+ */
+export function defaultCjkFont(platform: string): string {
+  if (platform === "darwin") return "Songti SC";
+  if (platform === "win32") return "SimSun";
+  return "Noto Sans CJK SC";
+}
+
+/** What a built-in export needs in place of a preset's directives. */
+export type BuiltinExportOptions = {
+  format: BuiltinFormat;
+  from: string;
+  /** Absolute path to the PDF engine; null for non-PDF output. */
+  pdfEngine: string | null;
+  /** `-V CJKmainfont=…`; null leaves the choice to the document's metadata. */
+  cjkFont: string | null;
+  /** Adds `--citeproc`, which a preset would normally supply via `filters:`. */
+  citeproc: boolean;
+};
+
 export type PandocArgPaths = {
   inputFile: string;
-  defaultsFile: string;
+  /** The preset to export with, or null for the built-in preset-free export. */
+  defaultsFile: string | null;
   /**
    * The CSL style to pass. `null` when the manuscript has no citations — a
    * style is then neither needed nor worth failing over, so `--csl` is omitted.
@@ -333,6 +546,8 @@ export type PandocArgPaths = {
    * (which Obsidian files outside the note's own folder) still resolve.
    */
   extraResourcePaths?: string[] | null;
+  /** Required when `defaultsFile` is null; ignored otherwise. */
+  builtin?: BuiltinExportOptions | null;
 };
 
 /**
@@ -433,7 +648,28 @@ export function officialCslUrls(csl: string): string[] {
 
 /** Build the pandoc argument vector, mirroring PaperBell spec §11. */
 export function buildPandocArgs(p: PandocArgPaths): string[] {
-  const args = [p.inputFile, "--defaults=" + p.defaultsFile];
+  const args = [p.inputFile];
+  if (p.defaultsFile) {
+    args.push("--defaults=" + p.defaultsFile);
+  } else if (p.builtin) {
+    // Everything a preset would have declared, spelled out. Nothing here reads
+    // a downloaded file, so this path works with pandoc alone.
+    args.push("--from=" + p.builtin.from, "--standalone");
+    if (p.builtin.format === "html") {
+      // Inline images and CSS so the .html is one shareable file. Pandoc
+      // rejects this flag for non-HTML writers.
+      args.push("--embed-resources");
+    }
+    if (p.builtin.pdfEngine) {
+      args.push("--pdf-engine=" + p.builtin.pdfEngine);
+    }
+    if (p.builtin.cjkFont) {
+      args.push("-V", "CJKmainfont=" + p.builtin.cjkFont);
+    }
+    if (p.builtin.citeproc) {
+      args.push("--citeproc");
+    }
+  }
   if (p.cslFile) {
     args.push("--csl=" + p.cslFile);
   }

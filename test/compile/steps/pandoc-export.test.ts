@@ -1,11 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { unzipSync, zipSync, strToU8, strFromU8 } from "fflate";
 import {
+  binSearchDirs,
   buildExecPath,
   buildExportFilename,
   buildPandocArgs,
+  builtinExportTarget,
+  builtinFrom,
   commonTopDir,
   COMMON_BIN_DIRS,
+  defaultCjkFont,
+  hasCjk,
+  isBuiltinFormat,
   exportTargetForDefaults,
   extractCiteKeys,
   findDuplicateCiteKeys,
@@ -20,6 +26,8 @@ import {
   resolveUserPath,
   splitBibList,
   zoteroStylesDir,
+  type PandocArgPaths,
+  type PlatformEnv,
 } from "src/compile/steps/pandoc-export-utils";
 
 describe("parseExportFrontmatter", () => {
@@ -85,39 +93,212 @@ describe("resolveBinary", () => {
   const dirs = ["/opt/homebrew/bin", "/usr/bin"];
 
   it("finds a bare name in the search dirs", () => {
-    expect(resolveBinary("pandoc", exists, dirs)).toBe("/opt/homebrew/bin/pandoc");
-    expect(resolveBinary("xelatex", exists, dirs)).toBe("/usr/bin/xelatex");
+    expect(resolveBinary("pandoc", exists, dirs, false)).toBe("/opt/homebrew/bin/pandoc");
+    expect(resolveBinary("xelatex", exists, dirs, false)).toBe("/usr/bin/xelatex");
   });
 
   it("honors an explicit path when it exists", () => {
-    expect(resolveBinary("/opt/homebrew/bin/pandoc", exists, dirs)).toBe(
+    expect(resolveBinary("/opt/homebrew/bin/pandoc", exists, dirs, false)).toBe(
       "/opt/homebrew/bin/pandoc"
     );
-    expect(resolveBinary("/nope/pandoc", exists, dirs)).toBeNull();
+    expect(resolveBinary("/nope/pandoc", exists, dirs, false)).toBeNull();
   });
 
   it("returns null when not found", () => {
-    expect(resolveBinary("pandoc-crossref", exists, dirs)).toBeNull();
+    expect(resolveBinary("pandoc-crossref", exists, dirs, false)).toBeNull();
+  });
+
+  describe("on Windows", () => {
+    const win = new Set([
+      "C:\\Users\\Admin\\AppData\\Local\\Pandoc\\pandoc.exe",
+      "C:\\Program Files\\MiKTeX\\miktex\\bin\\x64\\xelatex.exe",
+    ]);
+    const winExists = (p: string) => win.has(p);
+    const winDirs = [
+      "C:\\Users\\Admin\\AppData\\Local\\Pandoc",
+      "C:\\Program Files\\MiKTeX\\miktex\\bin\\x64",
+    ];
+
+    it("appends .exe, which is what is actually on disk", () => {
+      expect(resolveBinary("pandoc", winExists, winDirs, true)).toBe(
+        "C:\\Users\\Admin\\AppData\\Local\\Pandoc\\pandoc.exe"
+      );
+      expect(resolveBinary("xelatex", winExists, winDirs, true)).toBe(
+        "C:\\Program Files\\MiKTeX\\miktex\\bin\\x64\\xelatex.exe"
+      );
+    });
+
+    it("does not double an extension the caller already gave", () => {
+      expect(resolveBinary("pandoc.exe", winExists, winDirs, true)).toBe(
+        "C:\\Users\\Admin\\AppData\\Local\\Pandoc\\pandoc.exe"
+      );
+    });
+
+    it("treats a backslash absolute path as a path, not a name to search for", () => {
+      // This is what a user types into the "Pandoc binary" setting. It has no
+      // "/", so the old check sent it to the directory scan and it never matched.
+      expect(
+        resolveBinary(
+          "C:\\Users\\Admin\\AppData\\Local\\Pandoc\\pandoc.exe",
+          winExists,
+          winDirs,
+          true
+        )
+      ).toBe("C:\\Users\\Admin\\AppData\\Local\\Pandoc\\pandoc.exe");
+      expect(resolveBinary("D:\\nope\\pandoc.exe", winExists, winDirs, true)).toBeNull();
+    });
+
+    it("still accepts a forward-slash absolute path", () => {
+      // The only workaround available to Windows users today. Breaking it would
+      // strand anyone who already worked around the bug this way.
+      const fwd = new Set(["C:/Tools/pandoc.exe"]);
+      expect(
+        resolveBinary("C:/Tools/pandoc.exe", (p) => fwd.has(p), winDirs, true)
+      ).toBe("C:/Tools/pandoc.exe");
+    });
+
+    it("does not append .exe on other platforms", () => {
+      const posix = new Set(["/usr/bin/pandoc.exe"]);
+      expect(
+        resolveBinary("pandoc", (p) => posix.has(p), ["/usr/bin"], false)
+      ).toBeNull();
+    });
+  });
+});
+
+describe("binSearchDirs", () => {
+  it("searches PATH — the reason Windows found nothing", () => {
+    // The hardcoded list exists because macOS GUI processes don't inherit the
+    // login shell's PATH. Windows processes do, and every Windows installer
+    // (MSI, MiKTeX, choco, scoop, winget) puts its bin dir on PATH — so not
+    // searching PATH is what actually broke Windows, not the missing dirs.
+    const dirs = binSearchDirs({
+      isWindows: true,
+      home: "C:\\Users\\Admin",
+      envPath: "C:\\Users\\Admin\\AppData\\Local\\Pandoc;C:\\Windows",
+      extraDirs: [],
+    });
+    expect(dirs).toContain("C:\\Users\\Admin\\AppData\\Local\\Pandoc");
+    expect(dirs).toContain("C:\\Windows");
+  });
+
+  it("searches PATH on macOS too, after the hardcoded dirs", () => {
+    const dirs = binSearchDirs({
+      isWindows: false,
+      home: "/home/u",
+      envPath: "/opt/mytools/bin",
+      extraDirs: [],
+    });
+    expect(dirs).toContain("/opt/mytools/bin");
+    expect(dirs.indexOf("/opt/mytools/bin")).toBeGreaterThan(
+      dirs.indexOf("/opt/homebrew/bin")
+    );
+  });
+
+  it("puts the user's extra folders first, ahead of everything", () => {
+    // The escape hatch for an install PATH doesn't know about: it must win, or
+    // it can't rescue a machine where a wrong binary is found first.
+    const dirs = binSearchDirs({
+      isWindows: false,
+      home: "/home/u",
+      envPath: "/usr/bin",
+      extraDirs: ["/opt/custom/bin"],
+    });
+    expect(dirs[0]).toBe("/opt/custom/bin");
+  });
+
+  it("offers Windows install locations as a fallback for a PATH-less install", () => {
+    const dirs = binSearchDirs({
+      isWindows: true,
+      home: "C:\\Users\\Admin",
+      envPath: "",
+      extraDirs: [],
+    });
+    expect(dirs.some((d) => d.endsWith("\\AppData\\Local\\Pandoc"))).toBe(true);
+    expect(dirs.some((d) => d.includes("chocolatey"))).toBe(true);
+    // The Unix-only list is noise on Windows; it can never match.
+    expect(dirs).not.toContain("/opt/homebrew/bin");
+  });
+
+  it("keeps the macOS dirs on macOS", () => {
+    const dirs = binSearchDirs({
+      isWindows: false,
+      home: "/home/u",
+      envPath: "",
+      extraDirs: [],
+    });
+    for (const d of COMMON_BIN_DIRS) expect(dirs).toContain(d);
   });
 });
 
 describe("buildExecPath", () => {
   it("prepends common bin dirs and dedupes existing entries", () => {
-    const out = buildExecPath("/usr/bin:/opt/homebrew/bin", "/home/u").split(":");
+    const out = buildExecPath({
+      isWindows: false,
+      home: "/home/u",
+      envPath: "/usr/bin:/opt/homebrew/bin",
+      extraDirs: [],
+    }).split(":");
     for (const d of COMMON_BIN_DIRS) expect(out).toContain(d);
     // no duplicates
     expect(new Set(out).size).toBe(out.length);
     // common dirs come first
     expect(out[0]).toBe("/opt/homebrew/bin");
   });
+
+  it("uses ';' on Windows and leaves drive letters intact", () => {
+    // Splitting a Windows PATH on ":" tears "C:\\Program Files\\Pandoc" into
+    // "C" and "\\Program Files\\Pandoc". Pandoc then can't find xelatex or
+    // pandoc-crossref even when it was itself resolved — so this breaks the
+    // export a second time, after the binary lookup already failed.
+    const out = buildExecPath({
+      isWindows: true,
+      home: "C:\\Users\\Admin",
+      envPath: "C:\\Program Files\\Pandoc;C:\\Windows\\system32",
+      extraDirs: [],
+    });
+    const parts = out.split(";");
+    expect(parts).toContain("C:\\Program Files\\Pandoc");
+    expect(parts).toContain("C:\\Windows\\system32");
+    expect(parts).not.toContain("C");
+    expect(out).not.toContain(":\\Program Files\\Pandoc:");
+    expect(new Set(parts).size).toBe(parts.length);
+  });
 });
 
 describe("resolveUserPath", () => {
+  const mac: PlatformEnv = {
+    isWindows: false,
+    home: "/home/u",
+    envPath: "",
+    extraDirs: [],
+  };
+
   it("keeps absolute paths, expands ~, and joins vault-relative paths", () => {
-    expect(resolveUserPath("/abs/x", "/vault", "/home/u")).toBe("/abs/x");
-    expect(resolveUserPath("~/x", "/vault", "/home/u")).toBe("/home/u/x");
-    expect(resolveUserPath("assets/pandoc", "/vault", "/home/u")).toBe(
+    expect(resolveUserPath("/abs/x", "/vault", mac)).toBe("/abs/x");
+    expect(resolveUserPath("~/x", "/vault", mac)).toBe("/home/u/x");
+    expect(resolveUserPath("assets/pandoc", "/vault", mac)).toBe(
       "/vault/assets/pandoc"
+    );
+  });
+
+  it("recognizes a drive-letter path on Windows as absolute", () => {
+    // startsWith("/") says C:\Papers is relative, so the output folder setting
+    // used to resolve to <vault>\C:\Papers and the export landed nowhere near
+    // where the user asked for it.
+    const win: PlatformEnv = {
+      isWindows: true,
+      home: "C:\\Users\\Admin",
+      envPath: "",
+      extraDirs: [],
+    };
+    expect(resolveUserPath("C:\\Papers", "D:\\Vault", win)).toBe("C:\\Papers");
+    expect(resolveUserPath("C:/Papers", "D:\\Vault", win)).toBe("C:\\Papers");
+    expect(resolveUserPath("exports\\pdf", "D:\\Vault", win)).toBe(
+      "D:\\Vault\\exports\\pdf"
+    );
+    expect(resolveUserPath("~/Papers", "D:\\Vault", win)).toBe(
+      "C:\\Users\\Admin\\Papers"
     );
   });
 });
@@ -333,6 +514,84 @@ describe("exportTargetForDefaults", () => {
 });
 
 
+describe("builtinExportTarget", () => {
+  it("only asks for an engine when it is building a PDF", () => {
+    expect(builtinExportTarget("pdf")).toEqual({
+      ext: ".pdf",
+      pdfEngine: "xelatex",
+      needsCrossref: false,
+    });
+    expect(builtinExportTarget("docx")).toEqual({
+      ext: ".docx",
+      pdfEngine: null,
+      needsCrossref: false,
+    });
+    expect(builtinExportTarget("html").pdfEngine).toBeNull();
+  });
+
+  it("never asks for pandoc-crossref", () => {
+    // @fig:/@tbl: cross-references are a preset feature; requiring the binary
+    // would defeat the point of an export that needs nothing downloaded.
+    for (const f of ["pdf", "docx", "html"] as const) {
+      expect(builtinExportTarget(f).needsCrossref).toBe(false);
+    }
+  });
+});
+
+describe("builtinFrom", () => {
+  it("reads Obsidian's markdown extensions", () => {
+    for (const f of ["pdf", "docx", "html"] as const) {
+      expect(builtinFrom(f)).toContain("wikilinks_title_after_pipe");
+      expect(builtinFrom(f)).toContain("tex_math_single_backslash");
+    }
+  });
+
+  it("drops +mark for PDF only", () => {
+    // ==highlight== goes through LaTeX's soul package, whose \hl cannot break
+    // CJK: the run aborts with "Package soul Error: Reconstruction failed" and
+    // writes nothing. docx and html mark up highlights natively.
+    expect(builtinFrom("pdf")).not.toContain("+mark");
+    expect(builtinFrom("docx")).toContain("+mark");
+    expect(builtinFrom("html")).toContain("+mark");
+  });
+});
+
+describe("isBuiltinFormat", () => {
+  it("accepts only the three supported formats", () => {
+    expect(isBuiltinFormat("pdf")).toBe(true);
+    expect(isBuiltinFormat("docx")).toBe(true);
+    expect(isBuiltinFormat("html")).toBe(true);
+    // "" is how the PaperBell pipelines say "a preset is required".
+    expect(isBuiltinFormat("")).toBe(false);
+    expect(isBuiltinFormat("epub")).toBe(false);
+    expect(isBuiltinFormat("PDF")).toBe(false);
+  });
+});
+
+describe("hasCjk", () => {
+  it("detects the scripts pdflatex cannot typeset", () => {
+    expect(hasCjk("一个测试文档")).toBe(true);
+    expect(hasCjk("かな")).toBe(true);
+    expect(hasCjk("한글")).toBe(true);
+  });
+
+  it("does not fire on Latin text or on typographic punctuation", () => {
+    // A false positive costs a working export: it would add a CJK font that
+    // may not be installed, and xelatex then fails outright.
+    expect(hasCjk("A plain English abstract.")).toBe(false);
+    expect(hasCjk("“smart quotes” — em dash… ±½")).toBe(false);
+    expect(hasCjk("café naïve Ω")).toBe(false);
+  });
+});
+
+describe("defaultCjkFont", () => {
+  it("names a font that ships with each platform", () => {
+    expect(defaultCjkFont("darwin")).toBe("Songti SC");
+    expect(defaultCjkFont("win32")).toBe("SimSun");
+    expect(defaultCjkFont("linux")).toBe("Noto Sans CJK SC");
+  });
+});
+
 describe("buildPandocArgs", () => {
   const base = {
     inputFile: "/v/p/.tmp.md",
@@ -377,6 +636,99 @@ describe("buildPandocArgs", () => {
       const args = buildPandocArgs({ ...base, bibliographies });
       expect(args.some((a) => a.startsWith("--bibliography="))).toBe(false);
     }
+  });
+
+  describe("the built-in, preset-free export", () => {
+    const builtin: PandocArgPaths = {
+      inputFile: "/v/p/.tmp.md",
+      defaultsFile: null,
+      cslFile: null,
+      projectAbs: "/v/p",
+      outputPath: "/v/p/OUT.pdf",
+    };
+
+    it("spells out what a preset would have declared, and reads no assets", () => {
+      const args = buildPandocArgs({
+        ...builtin,
+        builtin: {
+          format: "pdf",
+          from: builtinFrom("pdf"),
+          pdfEngine: "/usr/local/bin/xelatex",
+          cjkFont: "Songti SC",
+          citeproc: true,
+        },
+        bibliographies: ["/v/p/references.bib"],
+      });
+      expect(args).toEqual([
+        "/v/p/.tmp.md",
+        "--from=" + builtinFrom("pdf"),
+        "--standalone",
+        "--pdf-engine=/usr/local/bin/xelatex",
+        "-V",
+        "CJKmainfont=Songti SC",
+        "--citeproc",
+        "--resource-path=/v/p",
+        "--resource-path=/v/p/figs",
+        "--resource-path=/v/figs",
+        "--bibliography=/v/p/references.bib",
+        "-o",
+        "/v/p/OUT.pdf",
+      ]);
+      // The whole point: nothing here points into the downloaded assets folder.
+      expect(args.some((a) => a.startsWith("--defaults="))).toBe(false);
+      expect(args.some((a) => a.startsWith("--csl="))).toBe(false);
+    });
+
+    it("asks for no engine and no CJK font when the target is Word", () => {
+      // docx is the one format that needs nothing but pandoc itself; passing a
+      // --pdf-engine or a font variable there would be noise at best.
+      const args = buildPandocArgs({
+        ...builtin,
+        outputPath: "/v/p/OUT.docx",
+        builtin: {
+          format: "docx",
+          from: builtinFrom("pdf"),
+          pdfEngine: null,
+          cjkFont: null,
+          citeproc: false,
+        },
+      });
+      expect(args.some((a) => a.startsWith("--pdf-engine="))).toBe(false);
+      expect(args).not.toContain("-V");
+      expect(args).not.toContain("--citeproc");
+      expect(args).not.toContain("--embed-resources");
+    });
+
+    it("embeds resources only for HTML", () => {
+      // pandoc rejects --embed-resources for non-HTML writers.
+      const html = buildPandocArgs({
+        ...builtin,
+        outputPath: "/v/p/OUT.html",
+        builtin: {
+          format: "html",
+          from: builtinFrom("pdf"),
+          pdfEngine: null,
+          cjkFont: null,
+          citeproc: false,
+        },
+      });
+      expect(html).toContain("--embed-resources");
+    });
+
+    it("still passes a CSL when one was resolved", () => {
+      const args = buildPandocArgs({
+        ...builtin,
+        cslFile: "/home/u/Zotero/styles/nature.csl",
+        builtin: {
+          format: "pdf",
+          from: builtinFrom("pdf"),
+          pdfEngine: "/bin/xelatex",
+          cjkFont: null,
+          citeproc: true,
+        },
+      });
+      expect(args).toContain("--csl=/home/u/Zotero/styles/nature.csl");
+    });
   });
 
   it("omits --csl entirely when there is no style to pass", () => {
