@@ -87,12 +87,26 @@ and skips entirely when no bundle is installed.
 
 - Beta channel: install via [BRAT](https://github.com/TfTHacker/obsidian42-brat) against this repo;
   BRAT reads `manifest-beta.json`.
-- Cut a release: `npm version <x.y.z[-beta.N]>` → `version-bump.mjs` syncs `manifest.json` +
-  `versions.json` (and `manifest-beta.json`) → push the tag. `.github/workflows/release.yml` verifies
-  the tag equals the manifest version and publishes `main.js`, `manifest.json`, `styles.css`. A `-`
-  in the tag marks it a GitHub prerelease.
-- Keep `manifest.json`, `manifest-beta.json`, and `package.json` versions in sync — the release
-  workflow fails the build if the tag and `manifest.json` disagree.
+- **Normal path — merge the release PR.** Every push to `main`,
+  `.github/workflows/release-please.yml` recomputes the next version from the conventional commits
+  since the last tag and keeps a `chore(main): release <version>` PR open, containing the bumped
+  `package.json` / `manifest.json` / `manifest-beta.json` and a generated `CHANGELOG.md`. Merging
+  that PR *is* the release: it tags, publishes the GitHub release, attaches `main.js`,
+  `manifest.json`, `styles.css`, and appends the `versions.json` entry. Merging any other PR never
+  cuts a version.
+- **Write commit subjects release-please can read.** `fix:` → patch, `feat:` → minor, `!` or a
+  `BREAKING CHANGE:` footer → major — all within the prerelease line configured in
+  `release-please-config.json` (currently `2.4.0-beta.N`). To pin a version by hand, put
+  `Release-As: 2.5.0` in a commit body. To graduate the beta line to a stable `2.4.0`, drop
+  `"prerelease": true` (and `"versioning": "prerelease"`) from that config in the same PR.
+- **Manual path — push a tag.** `npm version <x.y.z[-beta.N]>` → `version-bump.mjs` syncs
+  `manifest.json` + `versions.json` (and `manifest-beta.json`) → push the tag.
+  `.github/workflows/release.yml` verifies the tag equals the manifest version and publishes the
+  same three files. A `-` in the tag marks it a GitHub prerelease. Use this only when you need a
+  release the commit history would not produce; afterwards set `.release-please-manifest.json` to
+  the version you published, or release-please will keep proposing it.
+- Keep `manifest.json`, `manifest-beta.json`, and `package.json` versions in sync — both release
+  workflows fail the build if the tag and `manifest.json` disagree.
 
 ## Localization (i18n)
 

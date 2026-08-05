@@ -1,3 +1,9 @@
+# The manual release path: publishes whatever tag you push by hand, after
+# `npm version <x.y.z>`. The automated path is .github/workflows/release-please.yml,
+# which tags and publishes when its release PR is merged — a tag it creates does
+# not reach this workflow (GitHub does not re-trigger on GITHUB_TOKEN pushes), so
+# the two cannot both publish one release. Keep the build and asset list here in
+# step with that file.
 name: Release
 
 on:
