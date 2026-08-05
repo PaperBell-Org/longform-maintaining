@@ -1,0 +1,121 @@
+# Automated releases, driven by conventional commits.
+#
+# Every push to main, release-please recomputes the next version from the
+# commits since the last tag (`fix:` → patch, `feat:` → minor, `!`/BREAKING →
+# major, all within the prerelease line configured in release-please-config.json)
+# and keeps a "chore(main): release <version>" PR open with the bumped
+# package.json / manifest.json / manifest-beta.json and a generated CHANGELOG.md.
+# Merging that PR is the release: release-please tags it and publishes the
+# GitHub release, then the jobs below attach the built plugin files and record
+# the version in versions.json.
+#
+# Nothing is released by merging an ordinary PR — only by merging the release
+# PR — so a docs-only merge cannot mint a version.
+#
+# The tag release-please creates does NOT fire .github/workflows/release.yml:
+# GitHub does not re-trigger workflows for refs pushed with GITHUB_TOKEN. That
+# file remains the manual escape hatch for a hand-pushed tag; this one is the
+# automated path. Keep the two in sync if the build or the asset list changes.
+name: Release Please
+
+on:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  # The release exists but is empty until this runs: Obsidian installs a plugin
+  # from these three files, so a release without them is unusable.
+  publish-assets:
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+
+      - name: Use Node.js 20.x
+        uses: actions/setup-node@v5
+        with:
+          node-version: "20.x"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build plugin
+        run: npm run build
+
+      # Same assertion release.yml makes: manifest.json ships inside the release
+      # and Obsidian trusts its version field, so a drift between it and the tag
+      # would install as the wrong version.
+      - name: Verify manifest version matches tag
+        run: |
+          tag="${{ needs.release-please.outputs.tag_name }}"
+          manifest_version=$(node -p "require('./manifest.json').version")
+          if [ "$tag" != "$manifest_version" ]; then
+            echo "::error::Tag '$tag' does not match manifest.json version '$manifest_version'."
+            exit 1
+          fi
+
+      - name: Attach plugin files to the release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ needs.release-please.outputs.tag_name }}" \
+            main.js manifest.json styles.css --clobber
+
+  # versions.json maps every published plugin version to the minimum Obsidian
+  # version it needs. release-please cannot write it — the key is the version
+  # itself, not a fixed path — so version-bump.mjs (the same script the manual
+  # `npm version` flow uses) appends the entry afterwards. Obsidian reads this
+  # file from the default branch, not from the release, so landing it one commit
+  # after the tag is fine.
+  record-version:
+    needs: [release-please, publish-assets]
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Use Node.js 20.x
+        uses: actions/setup-node@v5
+        with:
+          node-version: "20.x"
+
+      - name: Record the release in versions.json
+        env:
+          npm_package_version: ${{ needs.release-please.outputs.version }}
+        run: node version-bump.mjs
+
+      - name: Commit if anything changed
+        run: |
+          if git diff --quiet; then
+            echo "versions.json already records ${{ needs.release-please.outputs.version }}."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add manifest.json manifest-beta.json versions.json
+          git commit -m "chore: record ${{ needs.release-please.outputs.version }} in versions.json"
+          git push origin main
