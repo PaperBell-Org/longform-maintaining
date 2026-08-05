@@ -41,6 +41,12 @@ nothing but pandoc itself; PDF also needs a TeX engine. See
   the workflow's own asset is picked, or you are asked which one.)
 - If the note **belongs to no project**, it is compiled as a one-off single file.
   No `longform:` frontmatter, no project setup.
+- If the workflow **starts with a manuscript step** — *Quick Export* and
+  *PaperBell Cover Letter*, whose only step is *Run Pandoc Export* — the open
+  note alone is exported, even inside a project, and a notice says so. Such a
+  workflow cannot take a list of scenes at all, so compiling the multi-scene
+  draft the note belongs to would only fail validation. Shared project files are
+  still resolved from the note's folder up to the project root.
 - The note is saved first, so a hotkey pressed mid-sentence exports what you see.
 
 Because a single file has nothing to concatenate, **Concatenate Text** steps are

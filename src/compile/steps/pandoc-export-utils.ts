@@ -454,6 +454,31 @@ export function isBuiltinFormat(value: string): value is BuiltinFormat {
   return (BUILTIN_FORMATS as readonly string[]).indexOf(value) !== -1;
 }
 
+/**
+ * Which preset-free format to export in, if any — `null` means "use a preset".
+ *
+ * Only the step's own *Template / preset* dropdown outranks the *Format* option:
+ * both are explicit choices made in the same step, and naming a preset there is
+ * the more specific of the two. The `template:` key in the exported note's
+ * frontmatter deliberately does **not** appear here. It is inherited, not chosen
+ * — Add Zenodo Frontmatter copies it out of `metadata.json`, and every scaffolded
+ * PaperBell project has one — so letting it win made an explicit "Format: docx"
+ * silently produce a PDF.
+ *
+ * The PaperBell pipelines are unaffected: they leave Format blank, so a missing
+ * preset still fails loudly instead of dropping their submission layout.
+ */
+export function resolveBuiltinFormat(
+  optionTemplate: string,
+  formatOption: string
+): BuiltinFormat | null {
+  if (optionTemplate.trim()) {
+    return null;
+  }
+  const format = formatOption.trim();
+  return isBuiltinFormat(format) ? format : null;
+}
+
 const BUILTIN_FROM_BASE =
   "markdown+tex_math_single_backslash+wikilinks_title_after_pipe" +
   "+autolink_bare_uris+pipe_tables";

@@ -40,6 +40,8 @@ export const en = {
   "notice.noActiveNote":
     "Open the markdown note you want to compile, then run this command again.",
   "notice.workflowMissing": "No workflow named “{name}”.",
+  "notice.exportedOpenNoteOnly":
+    "This workflow starts with a manuscript step, so only the open note was exported — not the whole draft.",
   "menu.newPaperProject": "New PaperBell paper project…",
   "menu.addComponents": "Add paper components…",
 

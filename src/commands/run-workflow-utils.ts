@@ -6,6 +6,8 @@ import {
   projectRootPath,
 } from "src/model/project-resources";
 import { findScene } from "src/model/scene-navigation";
+import { calculateWorkflow, WorkflowError } from "src/compile";
+import type { Workflow } from "src/compile/steps/abstract-compile-step";
 
 /** Is this a note a workflow can be run against? */
 export function isExportableNote(file: { extension: string } | null): boolean {
@@ -31,6 +33,35 @@ export function draftsForNote(path: string, allDrafts: Draft[]): Draft[] {
   }
   const scene = findScene(path, allDrafts);
   return scene ? [scene.draft] : [];
+}
+
+/**
+ * The candidates this workflow can actually compile.
+ *
+ * A workflow that cannot start on a scene list — Quick Export and Cover Letter,
+ * whose lone step is Manuscript-only — has no valid multi-scene target, and
+ * `draftsForNote` resolves any scene of a project to that project's scenes
+ * draft. Dropping those candidates lets the caller fall back to the ephemeral
+ * single-file draft: "export the note you have open" is Quick Export's whole
+ * premise, and it now holds inside a project as well as outside one.
+ *
+ * The verdict comes from `calculateWorkflow` rather than a copy of its first-step
+ * rule, so a workflow that fails validation for some *other* reason (an unloaded
+ * step, say) is left alone and reports its own error.
+ *
+ * Only scenes drafts are dropped: a single-file draft runs such a workflow fine
+ * and keeps its project context (metadata.json, references.bib, title).
+ */
+export function draftsRunnableBy(
+  candidates: Draft[],
+  workflow: Workflow
+): Draft[] {
+  // A multi-scene draft never has Join steps stripped, so the workflow is its
+  // own `effectiveWorkflow` here.
+  const [validation] = calculateWorkflow(workflow, true);
+  return validation.error === WorkflowError.BadFirstStep
+    ? candidates.filter((d) => d.format !== "scenes")
+    : candidates;
 }
 
 /**

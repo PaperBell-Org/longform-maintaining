@@ -35,6 +35,8 @@ export const zh: Messages = {
   "notice.goalMet": "已达成写作目标!",
   "notice.noActiveNote": "请先打开要编纂的 Markdown 笔记，再运行此命令。",
   "notice.workflowMissing": "找不到名为“{name}”的工作流。",
+  "notice.exportedOpenNoteOnly":
+    "该工作流以“手稿”步骤开头，因此只导出了当前打开的这篇笔记，而非整份草稿。",
   "menu.newPaperProject": "新建 PaperBell 论文项目…",
   "menu.addComponents": "添加论文组件…",
 

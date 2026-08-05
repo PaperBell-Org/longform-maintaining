@@ -54,15 +54,27 @@ would abort the export outright. Word and HTML highlight normally.
 ### Using a preset instead
 
 Add `template: <preset>` to the note's own frontmatter (and `csl:` for the
-citation style). A named preset always wins over the *Format* option, so this is
-how a Quick Export gets the full PaperBell layout once you have downloaded the
-assets.
+citation style), and **leave *Format* blank** — that is how a Quick Export gets
+the full PaperBell layout once you have downloaded the assets.
+
+The step decides what to export with in this order:
+
+1. the step's **Template / preset** dropdown, when one is chosen;
+2. the step's **Format** option (`pdf` / `docx` / `html`), when one is chosen —
+   an explicit choice here overrides the note's `template:`;
+3. the `template:` key in the exported note's frontmatter (which, in a PaperBell
+   project, *Add Zenodo Frontmatter* copies out of `metadata.json`);
+4. otherwise the export fails, listing the presets it looked for.
+
+Rule 2 is why a *Format* you set actually takes effect: a `template:` you never
+typed yourself would otherwise silently turn your `docx` back into a PDF. The
+four *PaperBell …* workflows are unaffected — they leave *Format* blank on
+purpose, so their preset is still required and a missing one fails loudly instead
+of silently dropping the submission layout.
 
 If something is missing, the error dialog lists what's needed, which presets are
 installed, and offers buttons to jump straight to **Set up Pandoc export** or the
-asset marketplace. The four *PaperBell …* workflows always require their preset —
-they leave *Format* blank on purpose, so a missing preset fails loudly instead of
-silently dropping the submission layout.
+asset marketplace.
 
 ## Quick start
 

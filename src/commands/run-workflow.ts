@@ -20,6 +20,7 @@ import type { Draft } from "src/model/types";
 import { JumpModal } from "./helpers";
 import {
   draftsForNote,
+  draftsRunnableBy,
   ephemeralDraftForNote,
   isExportableNote,
   resolveEphemeralProjectRoot,
@@ -53,6 +54,9 @@ export function compileStatusHandler(
  * If the note belongs to a Longform draft, that draft is compiled. Otherwise the
  * note is wrapped in an ephemeral single-file draft, so a plain markdown file
  * can be compiled and exported without first being made into a project.
+ *
+ * A workflow that starts on a Manuscript step always takes the second path, even
+ * for a note that belongs to a project — see `draftsRunnableBy`.
  */
 export async function runWorkflowOnActiveNote(
   plugin: LongformPlugin,
@@ -78,16 +82,24 @@ export async function runWorkflowOnActiveNote(
   }
 
   const candidates = draftsForNote(file.path, get(drafts));
+  // A Manuscript-first workflow (Quick Export, Cover Letter) cannot compile a
+  // scenes draft, so it exports the open note on its own instead of failing.
+  const runnable = draftsRunnableBy(candidates, workflow);
+  if (candidates.length > 0 && runnable.length === 0) {
+    // Every draft this note belongs to was dropped; the tail of this function
+    // exports the note on its own, which is worth saying out loud.
+    new Notice(translate("notice.exportedOpenNoteOnly"));
+  }
 
-  if (candidates.length > 1) {
+  if (runnable.length > 1) {
     // An index note shared by several assets. Prefer the asset that already
     // names this workflow; otherwise ask.
-    const preferred = candidates.filter((d) => d.workflow === workflowName);
+    const preferred = runnable.filter((d) => d.workflow === workflowName);
     if (preferred.length === 1) {
       compileDraft(plugin, preferred[0], workflow, file);
       return;
     }
-    const choices = preferred.length > 0 ? preferred : candidates;
+    const choices = preferred.length > 0 ? preferred : runnable;
     const opts = new Map<string, Draft>();
     choices.forEach((d) => opts.set(draftTitle(d), d));
     new JumpModal(
@@ -103,7 +115,7 @@ export async function runWorkflowOnActiveNote(
     return;
   }
 
-  const draft = candidates[0];
+  const draft = runnable[0];
   if (draft) {
     compileDraft(plugin, draft, workflow, file);
   } else {

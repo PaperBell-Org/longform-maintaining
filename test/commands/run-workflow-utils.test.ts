@@ -2,11 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import {
   draftsForNote,
+  draftsRunnableBy,
   ephemeralDraftForNote,
   isExportableNote,
   resolveEphemeralProjectRoot,
   workflowCommandId,
 } from "src/commands/run-workflow-utils";
+import { DEFAULT_WORKFLOWS } from "src/compile";
+import { deserializeWorkflow } from "src/compile/serialization";
+import { PLACEHOLDER_MISSING_STEP } from "src/compile/steps/abstract-compile-step";
 import type { Draft } from "src/model/types";
 
 function singleDraft(vaultPath: string, title: string): Draft {
@@ -19,6 +23,25 @@ function singleDraft(vaultPath: string, title: string): Draft {
     workflow: null,
   };
 }
+
+function scenesDraft(vaultPath: string, title: string): Draft {
+  return {
+    format: "scenes",
+    title,
+    titleInFrontmatter: false,
+    draftTitle: null,
+    vaultPath,
+    workflow: null,
+    sceneFolder: "Scenes",
+    scenes: [{ title: "One", indent: 0 }],
+    ignoredFiles: [],
+    unknownFiles: [],
+    sceneTemplate: null,
+  };
+}
+
+const builtinWorkflow = (name: string) =>
+  deserializeWorkflow(DEFAULT_WORKFLOWS[name]);
 
 describe("workflowCommandId", () => {
   it("percent-encodes the workflow name", () => {
@@ -56,6 +79,46 @@ describe("workflowCommandId", () => {
     expect(workflowCommandId("Cover Letter (v2)!")).toMatch(
       /^run-workflow-[A-Za-z0-9\-_.~%]+$/
     );
+  });
+});
+
+describe("draftsRunnableBy", () => {
+  it("drops a scenes draft for a Manuscript-first workflow", () => {
+    // Quick Export cannot take a scene list; the caller falls back to exporting
+    // the open note instead of failing validation with BadFirstStep.
+    const candidates = [scenesDraft("Papers/Alpha/Alpha.md", "Alpha")];
+    expect(draftsRunnableBy(candidates, builtinWorkflow("Quick Export"))).toEqual(
+      []
+    );
+  });
+
+  it("keeps a single-file draft for a Manuscript-first workflow", () => {
+    const candidates = [singleDraft("Papers/Alpha/Cover Letter.md", "Alpha")];
+    expect(
+      draftsRunnableBy(candidates, builtinWorkflow("PaperBell Cover Letter"))
+    ).toEqual(candidates);
+  });
+
+  it("keeps every candidate for a workflow that starts on scenes", () => {
+    const candidates = [
+      scenesDraft("Papers/Alpha/Alpha.md", "Alpha"),
+      singleDraft("Papers/Alpha/SI.md", "Alpha"),
+    ];
+    expect(
+      draftsRunnableBy(candidates, builtinWorkflow("PaperBell Manuscript"))
+    ).toEqual(candidates);
+  });
+
+  it("leaves a workflow that fails validation for another reason alone", () => {
+    // An unloaded first step offers no kinds either, but it must report its own
+    // UnloadedStep error rather than being silently rerouted to the open note.
+    const broken = {
+      name: "Broken",
+      description: "",
+      steps: [PLACEHOLDER_MISSING_STEP],
+    };
+    const candidates = [scenesDraft("Papers/Alpha/Alpha.md", "Alpha")];
+    expect(draftsRunnableBy(candidates, broken)).toEqual(candidates);
   });
 });
 
