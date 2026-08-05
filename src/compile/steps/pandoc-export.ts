@@ -25,11 +25,11 @@ import {
   findDuplicateCiteKeys,
   hasCitations,
   hasCjk,
-  isBuiltinFormat,
   isFullOutputPath,
   officialCslUrls,
   parseExportFrontmatter,
   resolveBinary,
+  resolveBuiltinFormat,
   resolveUserPath,
   splitBibList,
   zoteroStylesDir,
@@ -154,14 +154,14 @@ export const RunPandocExportStep = makeBuiltinStep({
   description: {
     name: "Run Pandoc Export",
     description:
-      "Exports the compiled manuscript via Pandoc. With a preset, the output format follows it — most produce a PDF, a `to: docx` preset produces a Word file — and the downloaded Pandoc assets are required; run after Add Zenodo Frontmatter. With no preset, set Format to export with pandoc alone, needing nothing downloaded. Desktop only. Run the 'Set up Pandoc export' command to check prerequisites.",
+      "Exports the compiled manuscript via Pandoc. With a preset, the output format follows it — most produce a PDF, a `to: docx` preset produces a Word file — and the downloaded Pandoc assets are required; run after Add Zenodo Frontmatter. Set Format instead to export with pandoc alone, needing nothing downloaded; leave both blank to fall back to the note's `template:` frontmatter. Desktop only. Run the 'Set up Pandoc export' command to check prerequisites.",
     availableKinds: [CompileStepKind.Manuscript],
     options: [
       {
         id: "template",
         name: "Template / preset",
         description:
-          "Which downloaded Pandoc preset (defaults/*.yaml) to export with — e.g. a Manuscript vs. an SI layout. Leave blank to use the template from your project metadata (_longform.template).",
+          "Which downloaded Pandoc preset (defaults/*.yaml) to export with — e.g. a Manuscript vs. an SI layout. Wins over the Format option below. Leave blank to use the Format option, or, when that is blank too, the template from your project metadata (_longform.template).",
         type: CompileStepOptionType.Dropdown,
         dynamicChoices: "pandoc-templates",
         emptyLabel: "(use metadata template)",
@@ -171,7 +171,7 @@ export const RunPandocExportStep = makeBuiltinStep({
         id: "format",
         name: "Format (no preset)",
         description:
-          "Export without any preset, using pandoc on its own — no downloaded assets needed. Word needs nothing but pandoc; PDF also needs a TeX engine (xelatex, for CJK). Only applies when no preset is named here or in the note's `template:` frontmatter. Leave blank to require a preset, as the PaperBell pipelines do.",
+          "Export without any preset, using pandoc on its own — no downloaded assets needed. Word needs nothing but pandoc; PDF also needs a TeX engine (xelatex, for CJK). Setting this overrides the note's `template:` frontmatter; only the Template / preset option above wins over it. Leave blank to require a preset, as the PaperBell pipelines do.",
         type: CompileStepOptionType.Dropdown,
         choices: [...BUILTIN_FORMATS],
         emptyLabel: "(require a preset)",
@@ -181,7 +181,7 @@ export const RunPandocExportStep = makeBuiltinStep({
         id: "filename",
         name: "File name",
         description:
-          "Name for the exported file. Variables: {title}, {acronym}, {date}, {csl}, {template}, {draft}. E.g. {acronym}_{date} → PBMIN_2026-07-01.pdf. The extension is added automatically and follows the preset (.pdf, .docx, …). Leave blank to use the compiled manuscript's name.",
+          "Name for the exported file. Variables: {title}, {acronym}, {date}, {csl}, {template}, {draft}. E.g. {acronym}_{date} → PBMIN_2026-07-01.pdf. The extension is added automatically and follows the preset or Format (.pdf, .docx, …). Leave blank to use the compiled manuscript's name.",
         type: CompileStepOptionType.Text,
         default: "",
       },
@@ -234,31 +234,37 @@ export const RunPandocExportStep = makeBuiltinStep({
     const fm = parseExportFrontmatter(input.contents);
     const acronym = String(fm.acronym || context.draft.title || "manuscript");
     const date = String(fm.date || new Date().toISOString().slice(0, 10));
-    // The step's template dropdown overrides the template named in the document
+    // Both of this step's own options outrank the template named in the document
     // being exported. That name comes from the document's own frontmatter, which
     // is either what Add Zenodo Frontmatter wrote from metadata.json or — for a
     // loose note — whatever the note itself declares. `templateSource` keeps
     // that distinction so the preflight message can point at the right place.
     const optionTemplate = String(context.optionValues["template"] ?? "").trim();
     const fmTemplate = String(fm.template ?? "").trim();
-    const template = optionTemplate || fmTemplate || "undefined";
+
+    // Preset-free mode, for Quick Export: pandoc on its own, no downloaded
+    // assets. See `resolveBuiltinFormat` for the precedence.
+    const formatOption = String(context.optionValues["format"] ?? "").trim();
+    const builtinFormat = resolveBuiltinFormat(optionTemplate, formatOption);
+    if (!builtinFormat && optionTemplate && formatOption) {
+      console.warn(
+        `[Pandoc Export] Both a preset ("${optionTemplate}") and a Format ` +
+          `("${formatOption}") are set on this step; the preset wins. Clear the ` +
+          `Template / preset option to export with Format instead.`
+      );
+    }
+
+    // Unused in built-in mode: no preset is read, and `{template}` must not
+    // expand to a name that had no effect on the output.
+    const template = builtinFormat
+      ? ""
+      : optionTemplate || fmTemplate || "undefined";
     const templateSource = optionTemplate
       ? "this step’s Template / preset option"
       : fmTemplate
       ? "the `template:` key in the exported note’s frontmatter"
       : "the built-in default (no template was specified)";
     const csl = String(fm.csl || "nature");
-
-    // Preset-free mode, for Quick Export: pandoc on its own, no downloaded
-    // assets. A named preset always wins — that's the documented escape hatch
-    // for a Quick Export that wants the full layout, and it's why the PaperBell
-    // pipelines (which leave `format` blank) never land here even when their
-    // metadata template is missing.
-    const formatOption = String(context.optionValues["format"] ?? "").trim();
-    const builtinFormat =
-      !optionTemplate && !fmTemplate && isBuiltinFormat(formatOption)
-        ? formatOption
-        : null;
     // Presets use ${.}/.. and relative paths that resolve inside the assets
     // folder; a built-in export reads nothing from there and it may not exist.
     const cwd = builtinFormat ? projectAbs : assetsAbs;

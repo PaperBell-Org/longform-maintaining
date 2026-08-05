@@ -391,6 +391,11 @@
             };
             $workflows[currentWorkflowName] = newWorkflow;
           }}
+          on:optionChanged={() => {
+            // The step object was mutated in place; reassign so the store
+            // publishes and main.ts's debounced save writes data.json.
+            $workflows[currentWorkflowName] = $workflows[currentWorkflowName];
+          }}
           calculatedKind={kindAtIndex(item.index)}
           error={errorAtIndex(item.index)}
         />

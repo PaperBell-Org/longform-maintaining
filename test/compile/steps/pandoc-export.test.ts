@@ -23,6 +23,7 @@ import {
   renderFilenamePattern,
   sanitizeExportFilename,
   resolveBinary,
+  resolveBuiltinFormat,
   resolveUserPath,
   splitBibList,
   zoteroStylesDir,
@@ -565,6 +566,26 @@ describe("isBuiltinFormat", () => {
     expect(isBuiltinFormat("")).toBe(false);
     expect(isBuiltinFormat("epub")).toBe(false);
     expect(isBuiltinFormat("PDF")).toBe(false);
+  });
+});
+
+describe("resolveBuiltinFormat", () => {
+  // The note's `template:` frontmatter is deliberately not an argument here: a
+  // scaffolded PaperBell project writes `template: paperbell` into every
+  // compiled manuscript, which used to suppress an explicitly chosen Format and
+  // silently export a PDF. Only the step's own two options decide.
+  it("uses the Format option when no preset is named in the step", () => {
+    expect(resolveBuiltinFormat("", "docx")).toBe("docx");
+    expect(resolveBuiltinFormat("  ", " pdf ")).toBe("pdf");
+  });
+
+  it("lets the step's own preset win over the Format option", () => {
+    expect(resolveBuiltinFormat("paperbell", "docx")).toBeNull();
+  });
+
+  it("requires a preset when the Format is blank or unknown", () => {
+    expect(resolveBuiltinFormat("", "")).toBeNull();
+    expect(resolveBuiltinFormat("", "epub")).toBeNull();
   });
 });
 

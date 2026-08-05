@@ -21,6 +21,19 @@
   function removeStep() {
     dispatch("removeStep");
   }
+
+  // `bind:` writes straight into `step.optionValues`, which the parent hands us
+  // by reference — so the new value is live, but the `workflows` store never
+  // sees a write and the debounced save in main.ts never fires. Tell the parent
+  // to reassign the workflow so the edit reaches data.json.
+  //
+  // Fired on `change`, not `input`: republishing the store re-runs the pane's
+  // whole validation pass and re-renders every step card, which is not worth
+  // doing per keystroke when the value is already live and the save is debounced
+  // by three seconds anyway.
+  function optionChanged() {
+    dispatch("optionChanged");
+  }
 </script>
 
 <div class="longform-compile-step">
@@ -61,7 +74,10 @@
       {step.description.description}
     </p>
     {#if step.description.options.length > 0}
-      <div class="longform-compile-step-options">
+      <!-- One delegated listener rather than one per control: `change` bubbles
+      from every input, textarea and select below, so an option type added to
+      the chain persists without having to remember the handler. -->
+      <div class="longform-compile-step-options" on:change={optionChanged}>
         <div>
           {#each step.description.options as option}
             <div class="longform-compile-step-option">
