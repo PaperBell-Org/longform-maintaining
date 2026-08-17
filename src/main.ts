@@ -112,7 +112,7 @@ export default class LongformPlugin extends Plugin {
             .setTitle(translate("menu.newPaperProject"))
             .setIcon(ICON_NAME)
             .onClick(() => {
-              new NewPaperModal(this.app, file).open();
+              new NewPaperModal(this, file).open();
             });
         });
         // Only offered where there is something to add to, so this doesn't

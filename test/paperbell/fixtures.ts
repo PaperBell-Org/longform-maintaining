@@ -22,11 +22,19 @@ import type {
   PPBGrant,
   PPBHostApi,
   PPBLLMCredentials,
+  PPBProjectsQuery,
+  PPBProjectsResult,
   PPBRequestSource,
   PPBScope,
 } from "src/paperbell/shared-config";
 
-/** The full set of scopes the real host advertises. */
+/**
+ * The full set of scopes the real host advertises today.
+ *
+ * `projects` is deliberately NOT here: it is a proposal no shipped host implements
+ * (see docs/PROPOSAL_PROJECTS_SCOPE.md), so the default mock reproduces the "host
+ * too old" case that our degradation path has to survive.
+ */
 const ALL_SCOPES: PPBScope[] = [
   "account",
   "config",
@@ -106,6 +114,14 @@ export interface MockHostOptions {
   downloadTicket?: PPBDownloadTicket | null;
   /** If true, `registerPPBplugin` throws (host rejects the handshake). */
   rejectRegistration?: boolean;
+  /**
+   * Value returned by the proposed `requestProjects()`. Providing it also makes
+   * the mock *implement* the method — omit it to mimic a host predating the
+   * proposal, whose client handle has no such method at all.
+   */
+  projects?: PPBProjectsResult | null;
+  /** If true, `requestProjects()` rejects (host blew up mid-call). */
+  projectsThrow?: boolean;
 }
 
 /**
@@ -125,6 +141,9 @@ export class MockPaperBellHost implements PPBHostApi {
   activation: PPBActivationInfo | null;
   downloadTicket: PPBDownloadTicket | null;
   lastDownloadTicketParams: PPBDownloadTicketParams | undefined;
+  lastProjectsQuery: PPBProjectsQuery | undefined;
+  private projects: PPBProjectsResult | null | undefined;
+  private projectsThrow: boolean;
   private rejectRegistration: boolean;
   private configSubscribers: Array<(c: PaperBellSharedConfigPublic) => void> = [];
 
@@ -144,6 +163,13 @@ export class MockPaperBellHost implements PPBHostApi {
     this.activation = opts.activation ?? null;
     this.downloadTicket = opts.downloadTicket ?? null;
     this.rejectRegistration = opts.rejectRegistration ?? false;
+    this.projects = opts.projects;
+    this.projectsThrow = opts.projectsThrow ?? false;
+  }
+
+  /** Whether this mock pretends to be new enough to serve a project list. */
+  private get implementsProjects(): boolean {
+    return this.projects !== undefined || this.projectsThrow;
   }
 
   registerPPBplugin(source: PPBRequestSource): PPBClient {
@@ -151,7 +177,20 @@ export class MockPaperBellHost implements PPBHostApi {
       throw new Error("host rejected registration");
     }
     this.registeredSources.push(source);
+    // Spread the optional method in only when this mock claims to support it, so
+    // an "old host" handle genuinely lacks the property rather than having an
+    // undefined one — that is exactly what the client's typeof check looks at.
+    const projectsApi = this.implementsProjects
+      ? {
+          requestProjects: async (params?: PPBProjectsQuery) => {
+            this.lastProjectsQuery = params;
+            if (this.projectsThrow) throw new Error("host exploded");
+            return this.projects ?? null;
+          },
+        }
+      : {};
     return {
+      ...projectsApi,
       requestAccountInfo: async () => this.account,
       requestSharedConfig: async () => this.sharedConfig,
       requestPluginInfo: async () => this.pluginInfo,

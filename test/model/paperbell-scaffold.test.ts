@@ -9,6 +9,7 @@ import {
 import {
   ALL_PAPER_PARTS,
   PAPER_PARTS,
+  yamlScalar,
   type PaperPartId,
   type ScaffoldFile,
 } from "src/model/scaffold/parts";
@@ -256,6 +257,117 @@ describe("buildPaperbellScaffold — selections", () => {
       "references.bib",
       "results.json",
     ]);
+  });
+});
+
+describe("buildPaperbellScaffold — the PaperBell project link", () => {
+  /** The index notes that carry a draft's frontmatter, for every part. */
+  const INDEX_NOTES = [
+    "Main Manuscript (Index).md",
+    "supplementary/Supplementary (Index).md",
+    "Response Letter (Index).md",
+    "Cover Letter.md",
+  ];
+
+  const withProject = (project?: string) =>
+    buildPaperbellScaffold({
+      title: "My Paper",
+      project,
+      parts: ALL,
+      examples: false,
+    });
+
+  it("writes project: on every index note as a top-level key", () => {
+    const files = withProject("ColMemo");
+    for (const path of INDEX_NOTES) {
+      const text = textOf(files, path);
+      // Top-level means column 0 — indented, it would land inside `longform:`
+      // and be read as part of the draft definition instead of the note's own
+      // frontmatter, which is what sibling plugins query.
+      expect(text, path).toMatch(/^project: ColMemo$/m);
+      // …and inside the frontmatter block, not the body.
+      const frontmatter = text.split("---")[1];
+      expect(frontmatter, path).toContain("project: ColMemo");
+    }
+  });
+
+  it("omits the key entirely when no project is chosen", () => {
+    // An empty `project:` reads as a null association to a plugin querying
+    // frontmatter — worse than no key at all.
+    for (const files of [withProject(undefined), withProject("   ")]) {
+      for (const path of INDEX_NOTES) {
+        expect(textOf(files, path), path).not.toMatch(/^project:/m);
+      }
+    }
+  });
+
+  it("does not touch metadata.json — it stays pure publication metadata", () => {
+    const metadata = JSON.parse(textOf(withProject("ColMemo"), "metadata.json"));
+    expect(metadata._longform).not.toHaveProperty("project");
+    expect(metadata).not.toHaveProperty("project");
+  });
+
+  it("keeps the paper's own acronym distinct from the project's", () => {
+    const text = textOf(
+      buildPaperbellScaffold({
+        title: "Sea Level Memory",
+        acronym: "SLM",
+        project: "ColMemo",
+        parts: ["main", "cover"],
+        examples: false,
+      }),
+      "Cover Letter.md"
+    );
+    expect(text).toMatch(/^acronym: SLM$/m);
+    expect(text).toMatch(/^project: ColMemo$/m);
+  });
+
+  it("quotes a hand-typed value that would break the YAML", () => {
+    const text = textOf(withProject("Ocean: Memory"), "Main Manuscript (Index).md");
+    expect(text).toMatch(/^project: "Ocean: Memory"$/m);
+  });
+
+  it("leaves the frontmatter well-formed for every part", () => {
+    // Interpolating an optional line is exactly the kind of edit that leaves a
+    // stray blank line behind — which ends the YAML block early in some parsers.
+    for (const files of [withProject("ColMemo"), withProject(undefined)]) {
+      for (const path of INDEX_NOTES) {
+        const text = textOf(files, path);
+        expect(text.startsWith("---\n"), path).toBe(true);
+        const frontmatter = text.split("\n---\n")[0].slice("---\n".length);
+        expect(frontmatter.split("\n"), path).not.toContain("");
+      }
+    }
+  });
+});
+
+describe("yamlScalar", () => {
+  it("writes plain identifiers bare", () => {
+    for (const value of ["ColMemo", "PROJ-1", "my project", "v1.0", "A_B"]) {
+      expect(yamlScalar(value)).toBe(value);
+    }
+  });
+
+  it("quotes anything that could confuse a YAML parser", () => {
+    expect(yamlScalar("Ocean: Memory")).toBe('"Ocean: Memory"');
+    expect(yamlScalar("[bracket]")).toBe('"[bracket]"');
+    expect(yamlScalar("#hash")).toBe('"#hash"');
+    expect(yamlScalar("集体记忆")).toBe('"集体记忆"');
+    expect(yamlScalar('say "hi"')).toBe('"say \\"hi\\""');
+    expect(yamlScalar("- leading dash")).toBe('"- leading dash"');
+  });
+
+  it("quotes bare words YAML would read back as a non-string", () => {
+    // `project: 2024` would come back as a number and `project: no` as a boolean,
+    // so a sibling reading the key would not get the string that was written.
+    for (const value of ["2024", "1.5", "-3", "no", "yes", "true", "off", "null", "~"]) {
+      expect(yamlScalar(value), value).toBe(`"${value}"`);
+    }
+    // Case-insensitively, since YAML resolves NO/False/On too.
+    expect(yamlScalar("NO")).toBe('"NO"');
+    // …but a word that merely starts with one is a perfectly good acronym.
+    expect(yamlScalar("Nova")).toBe("Nova");
+    expect(yamlScalar("2024Project")).toBe("2024Project");
   });
 });
 

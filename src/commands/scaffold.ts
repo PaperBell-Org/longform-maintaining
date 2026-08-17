@@ -15,6 +15,6 @@ export const newPaperProject: CommandBuilder = (plugin) => ({
       active?.parent instanceof TFolder
         ? active.parent
         : plugin.app.vault.getRoot();
-    new NewPaperModal(plugin.app, parent).open();
+    new NewPaperModal(plugin, parent).open();
   },
 });

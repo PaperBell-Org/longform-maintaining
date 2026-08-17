@@ -6,6 +6,7 @@ import {
   PPB_READY_EVENT,
   PPB_CONFIG_CHANGED_EVENT,
   PPB_PLUGINS_CHANGED_EVENT,
+  PPB_PROJECTS_CHANGED_EVENT,
 } from "src/paperbell/shared-config";
 
 /**
@@ -67,6 +68,34 @@ describe.skipIf(!present)(
       ]) {
         expect(src, `capabilities should include ${scope}`).toContain(scope);
       }
+    });
+  }
+);
+
+/**
+ * The proposed `projects` scope (docs/PROPOSAL_PROJECTS_SCOPE.md).
+ *
+ * No shipped host implements it yet, so this whole block stays skipped — asserting
+ * it unconditionally would fail against every host that exists today. It arms
+ * itself the moment a bundle carrying `requestProjects` is installed, which is
+ * exactly when we want to check the shape actually matches what we vendored.
+ */
+describe.skipIf(!present || !src.includes("requestProjects"))(
+  "PaperBell host bundle — projects scope (proposal)",
+  () => {
+    // The skip condition already proves `requestProjects` is there, so asserting it
+    // again would be vacuous. These check the parts a host could plausibly ship
+    // without — and that our client would then silently ignore.
+    it("advertises the `projects` scope alongside the method", () => {
+      // Our client refuses to call `requestProjects` unless the scope is in
+      // `capabilities`, so a host shipping one without the other is a no-op for us.
+      expect(src, "capabilities should include the projects scope").toMatch(
+        /["']projects["']/
+      );
+    });
+
+    it("fires the projects-changed event we vendored", () => {
+      expect(src).toContain(PPB_PROJECTS_CHANGED_EVENT);
     });
   }
 );

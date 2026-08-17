@@ -8,6 +8,17 @@ Create one via the folder right-click menu **New PaperBell paper project…**, o
 of the same name (`newPaperProject`). Enter a title; the acronym is auto-derived from the
 initials (editable).
 
+## Linking the paper to a project
+
+The modal also asks which **PaperBell project** the paper is a deliverable of. The answer
+is written as a top-level `project:` key in every draft index note's frontmatter — the hook
+sibling plugins use to count a project's outputs. Leave it empty and the key is omitted.
+
+This is the *project's* acronym (`ColMemo`), not the paper's own acronym above (`SLM`) —
+they are separate values with separate jobs. When the PaperBell host is installed and new
+enough, the field is a dropdown of your real projects; otherwise it is a text box you fill
+in yourself. See [PAPERBELL_INTEGRATION.md](./PAPERBELL_INTEGRATION.md#link-a-new-paper-to-its-project).
+
 ## Choosing the parts
 
 The modal asks which parts the paper needs. **Only the Main Manuscript is created by

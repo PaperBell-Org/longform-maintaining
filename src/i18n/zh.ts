@@ -78,6 +78,13 @@ export const zh: Messages = {
   "scaffold.acronymLabel": "缩写",
   "scaffold.acronymDesc":
     "用于 PDF 文件名和标签的短代码。默认取标题首字母,之后可在 metadata.json 中修改。",
+  "scaffold.projectLabel": "所属 PaperBell 项目",
+  "scaffold.projectDesc":
+    "这篇论文作为交付物所属的研究项目 —— 不是上面那个论文自身的缩写。它会写进每个 draft 笔记的 project: 字段,供 Project Manager 统计项目产出。留空表示不关联。",
+  "scaffold.projectPlaceholder": "例如 ColMemo",
+  "scaffold.projectNone": "— 不关联项目 —",
+  "scaffold.projectManual": "手动输入…",
+  "scaffold.projectBackToList": "改为从项目列表中选择",
   "scaffold.create": "创建项目",
   "scaffold.invalidName": "请输入不含 : \\ 或 / 的项目标题。",
   "scaffold.created": "已创建 PaperBell 项目“{title}”。",
