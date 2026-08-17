@@ -14,6 +14,14 @@
  * scopes and their `request*` methods, the `paperbell:plugins-changed` event, and the
  * `providerId` / `providerName` / `hasApiKey` fields on the public LLM config.
  *
+ * ⚠️ PROPOSAL — NOT YET UPSTREAM: the `projects` scope and everything it drags in
+ * (`PPB_PROJECTS_CHANGED_EVENT`, `PPBProject`, `PPBProjectsQuery`, `PPBProjectsResult`,
+ * `PPBClient.requestProjects` / `onProjectsChange`) are *our* proposal to the host, written
+ * up in docs/PROPOSAL_PROJECTS_SCOPE.md. No shipped host implements them yet, which is why
+ * the client methods are optional and every consumer gates on capability + `typeof` checks
+ * rather than on `PPB_SCHEMA_VERSION` — which stays at 1 until the host really bumps it,
+ * so the "host schema is newer than vendored" warning keeps working.
+ *
  * ── Original header ──────────────────────────────────────────────────────────
  * PaperBell 对外共享契约(消费方 / IPC 表面)。
  * 安全约定:
@@ -42,6 +50,12 @@ export const PPB_CONFIG_CHANGED_EVENT = "paperbell:config-changed";
  * 供其设置页刷新入口卡片列表)。子插件通常无需订阅 —— 仅为契约完整性而保留。
  */
 export const PPB_PLUGINS_CHANGED_EVENT = "paperbell:plugins-changed";
+
+/**
+ * **提案(尚未上游实现)**:项目清单发生变化时宿主在 `app.workspace` 上 trigger 的事件名。
+ * 语义对齐 {@link PPB_CONFIG_CHANGED_EVENT} —— 有它子插件就不必每次开界面都重新拉取。
+ */
+export const PPB_PROJECTS_CHANGED_EVENT = "paperbell:projects-changed";
 
 /** Cards Wrangler 期望从 PaperBell 主插件读到的共享配置(消费方契约)。 */
 export interface PaperBellSharedConfig {
@@ -118,7 +132,9 @@ export type PPBScope =
 	| "llm-invoke"
 	| "llm-credentials"
 	| "activation"
-	| "download-ticket";
+	| "download-ticket"
+	/** **提案(尚未上游实现)**:宿主维护的项目清单。见 docs/PROPOSAL_PROJECTS_SCOPE.md。 */
+	| "projects";
 
 /**
  * `llm-invoke`:请求宿主用其 AI 配置代发一次**非流式**补全。
@@ -174,6 +190,47 @@ export interface PPBDownloadTicketParams {
 export interface PPBDownloadTicket {
 	url: string;
 	[key: string]: unknown;
+}
+
+/**
+ * `projects`(**提案,尚未上游实现**):宿主(Project Manager)维护的一条项目记录。
+ *
+ * 子插件用它把自己的产出挂到某个项目下 —— 展示用 `name`,写入交付物 frontmatter 用
+ * `acronym`,将来做反向上报用 `id`。
+ */
+export interface PPBProject {
+	/** 稳定 id。项目笔记重命名 / 移动后必须保持不变(因此不宜直接用 vault 路径)。 */
+	id: string;
+	/** 项目全称,下拉菜单的展示名。 */
+	name: string;
+	/**
+	 * 项目缩写 / 代号 —— 交付物 frontmatter `project:` 实际写入的值。
+	 * 宿主须保证同一 vault 内唯一;缺省时消费方回退到 `name`。
+	 */
+	acronym?: string;
+	/** 项目笔记的 vault 路径(可选),供跳转 / 生成链接。 */
+	notePath?: string;
+	/** 生命周期状态。消费方默认只列 active / planned。 */
+	status?: "active" | "planned" | "paused" | "done" | "archived";
+	/** 项目根文件夹(可选),供子插件建议交付物落盘位置。 */
+	folder?: string;
+	/** 关联的 featured concepts(可选),供子插件预填 `concepts:`。 */
+	concepts?: string[];
+}
+
+/** 拉取项目清单的过滤条件。全部可选,由宿主端做匹配。 */
+export interface PPBProjectsQuery {
+	/** 只返回这些状态的项目;缺省 `["active", "planned"]`。 */
+	status?: NonNullable<PPBProject["status"]>[];
+	/** 名称 / 缩写关键词。 */
+	query?: string;
+}
+
+export interface PPBProjectsResult {
+	ok: boolean;
+	projects: PPBProject[];
+	/** ok=false 时的错误描述。 */
+	error?: string;
 }
 
 /** 调用方(子插件)身份。用于同意弹框展示、授权名单存储与设置入口卡片。 */
@@ -237,6 +294,20 @@ export interface PPBClient {
 	onConfigChange(
 		cb: (config: PaperBellSharedConfigPublic) => void,
 	): () => void;
+	/**
+	 * 请求宿主的项目清单(scope: projects)。拒绝授权 / 宿主缺失返回 null。
+	 *
+	 * **提案,尚未上游实现** —— 因此是可选成员:已发布的宿主返回的 handle 上没有这个
+	 * 方法,声明成必选会让类型撒谎。调用前必须做 `typeof` 检查。
+	 */
+	requestProjects?(
+		params?: PPBProjectsQuery,
+	): Promise<PPBProjectsResult | null>;
+	/**
+	 * 订阅项目清单变更;返回取消订阅函数。底层即 workspace 事件
+	 * {@link PPB_PROJECTS_CHANGED_EVENT}。**提案,尚未上游实现**(同上,可选)。
+	 */
+	onProjectsChange?(cb: () => void): () => void;
 	/** 注销客户端并清理订阅(不撤销授权)。 */
 	unregister(): void;
 }

@@ -12,8 +12,11 @@ import {
   type PPBActivationInfo,
   type PPBDownloadTicket,
   type PPBDownloadTicketParams,
+  type PPBProject,
+  type PPBProjectsQuery,
   type PaperBellAccountInfo,
   type PaperBellSharedConfigPublic,
+  type PPBScope,
 } from "./shared-config";
 import { paperbell, DISCONNECTED } from "./store";
 
@@ -40,6 +43,8 @@ export class PaperBellClient {
   private plugin: LongformPlugin;
   private client: PPBClientHandle | null = null;
   private unsubscribeConfig: (() => void) | null = null;
+  /** Host-advertised scopes, mirrored into the store for the UI to read. */
+  private capabilities: PPBScope[] = [];
 
   constructor(plugin: LongformPlugin) {
     this.plugin = plugin;
@@ -107,6 +112,7 @@ export class PaperBellClient {
       console.warn("[PaperOut] Could not read PaperBell plugin info:", e);
     }
 
+    this.capabilities = capabilities;
     paperbell.set({ connected: true, config: null, capabilities });
     console.log("[PaperOut] Connected to PaperBell host.");
 
@@ -178,6 +184,50 @@ export class PaperBellClient {
       : null;
   }
 
+  /**
+   * The host's project-list method, or null when it cannot serve one.
+   *
+   * Both halves matter: `capabilities` comes from `getPluginInfo()` and says what the
+   * host *advertises* (and therefore what it will prompt for consent on), while the
+   * `typeof` check is what stops us calling a method an older host's handle simply
+   * does not have. Neither alone is trustworthy.
+   */
+  private get projectsRequester(): PPBClientHandle["requestProjects"] | null {
+    if (!this.client) return null;
+    if (!this.capabilities.includes("projects")) return null;
+    const request = this.client.requestProjects;
+    return typeof request === "function" ? request.bind(this.client) : null;
+  }
+
+  /**
+   * Request the host's project list (scope: `projects`). First call prompts for consent.
+   *
+   * Returns `null` for every "no list available" case — host absent, host too old to
+   * implement it, consent denied, host-side error, or a thrown exception. Callers are
+   * meant to treat them identically and fall back to manual entry, so a missing project
+   * list can never block creating a paper.
+   */
+  async fetchProjects(query?: PPBProjectsQuery): Promise<PPBProject[] | null> {
+    const requestProjects = this.projectsRequester;
+    if (!requestProjects) return null;
+    try {
+      const result = await requestProjects(query);
+      if (!result) return null; // consent denied
+      if (!result.ok) {
+        console.warn(
+          "[PaperOut] PaperBell could not list projects:",
+          result.error ?? "(no error given)"
+        );
+        return null;
+      }
+      return result.projects ?? [];
+    } catch (e) {
+      // The host is a plugin we do not control; a throw here must not reach the modal.
+      console.warn("[PaperOut] Error requesting PaperBell projects:", e);
+      return null;
+    }
+  }
+
   /** Tear down: unsubscribe, unregister from the host, reset the store. */
   destroy(): void {
     if (this.unsubscribeConfig) {
@@ -192,6 +242,7 @@ export class PaperBellClient {
       }
       this.client = null;
     }
+    this.capabilities = [];
     paperbell.set({ ...DISCONNECTED });
   }
 

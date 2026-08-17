@@ -32,6 +32,16 @@ export interface PartContext {
   acronym: string;
   author: string;
   /**
+   * The PaperBell project this paper is a deliverable of, written as the top-level
+   * `project:` frontmatter key on every index note. This is the *project's* acronym
+   * (e.g. "ColMemo") — not `acronym` above, which is this paper's own.
+   *
+   * Undefined when the user did not pick one, in which case the key is omitted
+   * entirely: an empty `project:` would read as a null association to a sibling
+   * plugin querying frontmatter, which is worse than no key at all.
+   */
+  project?: string;
+  /**
    * Whether `figs/example_*` are available in the project — either written by
    * this same operation, or already on disk. Body text that references them is
    * omitted when they are not, so a scaffold never ships a dangling image link.
@@ -75,6 +85,42 @@ export interface PaperPart {
 /** JSON.stringify with the 2-space, trailing-newline shape the fixtures use. */
 export function json(value: unknown): string {
   return JSON.stringify(value, null, 2) + "\n";
+}
+
+/** Characters safe to write bare in YAML — no quoting, no escaping, no ambiguity. */
+const PLAIN_YAML_SCALAR = /^[A-Za-z0-9][A-Za-z0-9 ._-]*$/;
+
+/**
+ * Bare words YAML resolves to something other than a string. Left unquoted, an
+ * acronym like `2024` would come back as a number and `no` as a boolean, so a
+ * sibling reading `project:` would not get the string it was written.
+ */
+const YAML_NON_STRING = /^(-?\d+(\.\d+)?|true|false|yes|no|on|off|null|~)$/i;
+
+/**
+ * Render a string as a YAML scalar, quoting it whenever writing it bare would be
+ * ambiguous, invalid, or read back as a non-string.
+ *
+ * Project acronyms are usually plain (`ColMemo`), but this value can be typed by
+ * hand — a colon, a leading `[`, or CJK punctuation would otherwise produce
+ * frontmatter Obsidian cannot parse. JSON's string syntax is a subset of YAML's
+ * double-quoted style, so `JSON.stringify` is a correct escaper here.
+ */
+export function yamlScalar(value: string): string {
+  const bare =
+    PLAIN_YAML_SCALAR.test(value) && !YAML_NON_STRING.test(value);
+  return bare ? value : JSON.stringify(value);
+}
+
+/**
+ * The top-level `project:` line for an index note, or "" when unset.
+ *
+ * Includes its own trailing newline so callers can interpolate it directly before
+ * the frontmatter's closing `---` without leaving a blank line behind.
+ */
+function projectLine(ctx: PartContext): string {
+  const project = ctx.project?.trim();
+  return project ? `project: ${yamlScalar(project)}\n` : "";
 }
 
 // ── Body text ───────────────────────────────────────────────────────────────
@@ -209,7 +255,8 @@ ${figureSection}`;
 
 // ── Index notes (legacy form) ───────────────────────────────────────────────
 
-function mainIndex(title: string): string {
+function mainIndex(ctx: PartContext): string {
+  const title = ctx.title;
   return `---
 longform:
   format: scenes
@@ -222,13 +269,14 @@ longform:
     - methods
     - results
   ignoredFiles: []
----
+${projectLine(ctx)}---
 
 Main manuscript of **${title}**. Shared publication metadata lives in \`metadata.json\` in this folder; compile it with the **PaperBell Manuscript** workflow.
 `;
 }
 
-function responseIndex(title: string): string {
+function responseIndex(ctx: PartContext): string {
+  const title = ctx.title;
   return `---
 longform:
   format: scenes
@@ -239,13 +287,14 @@ longform:
   scenes:
     - response
   ignoredFiles: []
----
+${projectLine(ctx)}---
 
 Response-letter draft of **${title}**. Compile the **Main Manuscript** first (it harvests \`manuscript-lines.json\` / \`figure-numbers.json\`), then compile this with **PaperBell Response Letter**: the \`\`\`manuscript\`\`\` fences pull the manuscript's current text into a Page/Line box, and figure labels resolve to the manuscript's figure numbers.
 `;
 }
 
-function supplementaryIndex(title: string): string {
+function supplementaryIndex(ctx: PartContext): string {
+  const title = ctx.title;
   return `---
 longform:
   format: scenes
@@ -256,7 +305,7 @@ longform:
   scenes:
     - supplementary results
   ignoredFiles: []
----
+${projectLine(ctx)}---
 
 Supplementary draft of **${title}**. Its own \`metadata.json\` in this folder (found before the shared one at the project root) adds \`supplementary: true\`, so figures and tables are numbered S1, S2, …
 `;
@@ -284,7 +333,7 @@ function coverLetter(ctx: PartContext, form: ProjectForm): string {
 ${longform}title: Cover letter
 manuscript: ${ctx.title}
 acronym: ${ctx.acronym}
-date:
+${projectLine(ctx)}date:
 to: Dear Editor,
 corresponding: ${ctx.author} (you@example.com)
 ---
@@ -357,7 +406,7 @@ export const PAPER_PARTS: readonly PaperPart[] = [
       if (form === "legacy") {
         files.push({
           path: "Main Manuscript (Index).md",
-          text: mainIndex(ctx.title),
+          text: mainIndex(ctx),
         });
         return { files };
       }
@@ -396,7 +445,7 @@ export const PAPER_PARTS: readonly PaperPart[] = [
       if (form === "legacy") {
         files.push({
           path: "supplementary/Supplementary (Index).md",
-          text: supplementaryIndex(ctx.title),
+          text: supplementaryIndex(ctx),
         });
         return { files };
       }
@@ -454,7 +503,7 @@ export const PAPER_PARTS: readonly PaperPart[] = [
       if (form === "legacy") {
         files.push({
           path: "Response Letter (Index).md",
-          text: responseIndex(ctx.title),
+          text: responseIndex(ctx),
         });
         return { files };
       }

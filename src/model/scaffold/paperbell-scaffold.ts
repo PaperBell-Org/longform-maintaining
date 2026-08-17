@@ -31,6 +31,13 @@ export interface ScaffoldOptions {
   /** Short acronym for the PDF name / labels. Defaults to initials of `title`. */
   acronym?: string;
   /**
+   * The PaperBell project this paper is a deliverable of — the *project's* acronym
+   * (e.g. "ColMemo"), not this paper's `acronym` above. Written as a top-level
+   * `project:` frontmatter key on every index note, which is the hook sibling
+   * plugins use to count a project's outputs. Omitted entirely when unset.
+   */
+  project?: string;
+  /**
    * Which parts to create. Required, with no default: the whole point of the
    * option is that the file set follows the selection, and a default would leave
    * a path that silently reproduces the old always-everything behavior.
@@ -236,6 +243,7 @@ export function scaffoldContext(opts: ScaffoldOptions): PartContext {
     title: opts.title.trim(),
     acronym: (opts.acronym || acronymFromTitle(opts.title.trim())).trim(),
     author: PLACEHOLDER_AUTHOR,
+    project: opts.project?.trim() || undefined,
     examples: opts.examples,
     present: new Set(opts.parts),
   };

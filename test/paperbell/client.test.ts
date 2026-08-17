@@ -4,8 +4,16 @@ import { get } from "svelte/store";
 import { PaperBellClient } from "src/paperbell/client";
 import { paperbell } from "src/paperbell/store";
 import { PPB_READY_EVENT } from "src/paperbell/shared-config";
-import type { PPBCompletionResult } from "src/paperbell/shared-config";
-import { MockPlugin, MockPaperBellHost, makePublicConfig } from "./fixtures";
+import type {
+  PPBCompletionResult,
+  PPBProject,
+} from "src/paperbell/shared-config";
+import {
+  MockPlugin,
+  MockPaperBellHost,
+  makePublicConfig,
+  type MockHostOptions,
+} from "./fixtures";
 
 function newClient(): { client: PaperBellClient; plugin: MockPlugin } {
   const plugin = new MockPlugin();
@@ -45,6 +53,87 @@ describe("PaperBellClient — standalone (no host)", () => {
     expect(await client.fetchSharedConfig()).toBeNull();
     expect(await client.fetchAccountInfo()).toBeNull();
     expect(await client.requestCompletion({ messages: [] })).toBeNull();
+    expect(await client.fetchProjects()).toBeNull();
+  });
+});
+
+describe("PaperBellClient — project list (proposed `projects` scope)", () => {
+  const PROJECTS: PPBProject[] = [
+    { id: "p1", name: "Collective Memory", acronym: "ColMemo" },
+  ];
+
+  /** Connect to a host, opting it into the proposal via capability + options. */
+  function connect(opts: MockHostOptions = {}): {
+    client: PaperBellClient;
+    host: MockPaperBellHost;
+  } {
+    const { client, plugin } = newClient();
+    const host = new MockPaperBellHost({
+      capabilities: ["plugin-info", "projects"],
+      ...opts,
+    });
+    plugin.app.installHost(host);
+    client.init();
+    return { client, host };
+  }
+
+  it("returns the host's projects and passes the query through", async () => {
+    const { client, host } = connect({
+      projects: { ok: true, projects: PROJECTS },
+    });
+
+    const query = { status: ["active" as const] };
+    expect(await client.fetchProjects(query)).toEqual(PROJECTS);
+    expect(host.lastProjectsQuery).toEqual(query);
+  });
+
+  it("returns null when the host does not advertise the capability", async () => {
+    // Capability list is the pre-proposal one, but the handle can serve projects:
+    // we must still not call it, since consent is keyed on an unadvertised scope.
+    const { client } = connect({
+      capabilities: ["plugin-info", "config"],
+      projects: { ok: true, projects: PROJECTS },
+    });
+
+    expect(await client.fetchProjects()).toBeNull();
+  });
+
+  it("returns null when the host advertises it but has no such method", async () => {
+    // The realistic mixed case: a host that lies (or whose capabilities are stale)
+    // while its client handle predates the proposal. Must not throw.
+    const { client } = connect(); // capability set, `projects` option omitted
+
+    expect(await client.fetchProjects()).toBeNull();
+  });
+
+  it("returns null when consent is denied", async () => {
+    const { client } = connect({ projects: null });
+
+    expect(await client.fetchProjects()).toBeNull();
+  });
+
+  it("returns null and warns when the host reports failure", async () => {
+    const warnSpy = vi
+      .spyOn(console, "warn")
+      .mockImplementation((): void => undefined);
+    const { client } = connect({
+      projects: { ok: false, projects: [], error: "no project index" },
+    });
+
+    expect(await client.fetchProjects()).toBeNull();
+    expect(String(warnSpy.mock.calls[0]?.[1])).toContain("no project index");
+    warnSpy.mockRestore();
+  });
+
+  it("returns null and warns when the host throws", async () => {
+    const warnSpy = vi
+      .spyOn(console, "warn")
+      .mockImplementation((): void => undefined);
+    const { client } = connect({ projectsThrow: true });
+
+    await expect(client.fetchProjects()).resolves.toBeNull();
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
   });
 });
 

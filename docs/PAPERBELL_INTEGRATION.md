@@ -40,6 +40,7 @@ the user the first time it touches a scope; approval is remembered, denial retur
 | `llm-credentials` | full LLM credentials **including the API key** (for streaming) | Wired, not yet used by a feature |
 | `activation` | license / activation status | Wired, not yet used by a feature |
 | `download-ticket` | a ticket for a protected download | Wired, not yet used by a feature |
+| `projects` | the host's project list, for linking an output to its project | **Proposed** — consumed by the new-paper modal, but no shipped host implements it |
 
 We deliberately request **no** scopes at startup — that would trigger a consent prompt on
 every launch. Only `plugin-info` (which needs no consent) is read eagerly to learn the
@@ -74,6 +75,46 @@ an "AI available" hint gated on `capabilities.includes("llm-invoke")`.
 > any feature — they are the seams for the roadmap in
 > [PAPERBELL_SUITE.md](./PAPERBELL_SUITE.md).
 
+### Link a new paper to its project
+
+The **New PaperBell paper project…** modal asks which PaperBell project the paper is a
+deliverable of, and writes the answer as a top-level `project:` key in the frontmatter of
+**every** draft index note it creates:
+
+```yaml
+---
+longform:
+  format: scenes
+  title: Sea Level Memory
+  draftTitle: Main Manuscript
+  ...
+project: ColMemo
+---
+```
+
+That key is the hook Project Manager uses to count a project's outputs. `metadata.json` is
+deliberately left alone — it stays pure publication metadata. Note that `project` (the
+*project's* acronym) and `_longform.acronym` (this *paper's*, used for PDF filenames) are
+different values; the modal labels them distinctly for the same reason.
+
+Where the dropdown's contents come from, in order:
+
+1. **Host list** — `fetchProjects()` calls the proposed `requestProjects` (scope:
+   `projects`) and the field becomes a dropdown of real projects. Gated on
+   `capabilities.includes("projects")` **and** `typeof client.requestProjects === "function"`:
+   capabilities can be stale, and an older host's handle simply has no such method.
+2. **Free text** — every other case. Host absent, host too old, consent denied, host-side
+   error, or an empty list all return `null` from `fetchProjects`, and the field stays the
+   plain text box it was built as. The fetch is fire-and-forget, so creating a paper never
+   waits on — or fails because of — PaperBell.
+
+Leaving the field empty omits the key entirely rather than writing an empty `project:`,
+which a sibling querying frontmatter would read as a null association.
+
+The contract for `projects` is a **proposal**, not something any host ships today; it is
+vendored (and marked as such) in `src/paperbell/shared-config.ts` and written up for the
+host team in [PROPOSAL_PROJECTS_SCOPE.md](./PROPOSAL_PROJECTS_SCOPE.md).
+
 ## Failing safe (standalone mode)
 
 - No host → client stays disconnected; `connected` is `false`, `config` is `null`,
@@ -90,3 +131,9 @@ PaperBell's contract, pinned to `PPB_SCHEMA_VERSION`. If the host advertises a *
 schema version than we vendored, the client logs a warning (it does not break). When the
 host bumps its schema, re-vendor this file and reconcile the check — the procedure and a
 decoupled conformance test are described in [MAINTAINING.md](../MAINTAINING.md).
+
+One block of that file is **ours, not upstream's**: the proposed `projects` scope, flagged
+in the file header. `PPB_SCHEMA_VERSION` stays at `1` while it is a proposal — raising it
+unilaterally would silence the "host schema is newer than vendored" warning for a real
+upstream v2. Feature detection never reads the schema version anyway; it reads
+capabilities and checks the method exists.

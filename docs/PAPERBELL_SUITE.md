@@ -32,10 +32,14 @@ The host plugin (`paperbell`) sits across all of them, dispatching LLM calls cen
 - A paper project is a folder of drafts sharing one `metadata.json`
   ([PAPER_PROJECT.md](./PAPER_PROJECT.md)). Any sibling that reads the vault can discover a
   paper's parts from the project index frontmatter and `metadata.json`.
-- Outputs are meant to link back to their project (`project: <acronym>`) and to select
-  `concepts:` — the hooks by which Project Manager counts deliverables and Cards Wrangler
-  reverse-queries "outputs around this concept". PaperOut writes manuscripts; these
-  conventions live in the notes.
+- Outputs link back to their project via a top-level `project: <acronym>` key, **written
+  by the new-paper scaffold** onto every draft index note (the modal asks for it; the
+  dropdown is populated from the host when it supports the proposed `projects` scope, and
+  is a plain text box otherwise). This is the hook by which Project Manager counts
+  deliverables — see [PROPOSAL_PROJECTS_SCOPE.md](./PROPOSAL_PROJECTS_SCOPE.md) for the
+  contract and the open questions we have put to the host team.
+- `concepts:` — by which Cards Wrangler reverse-queries "outputs around this concept" —
+  is still a convention that lives in the notes; PaperOut does not write it.
 - Compile writes stable JSON sidecars (`manuscript-lines.json`, `figure-numbers.json`, …)
   and a PDF at a predictable path ([MANUSCRIPT_REFS.md](./MANUSCRIPT_REFS.md)).
 - The Pandoc toolchain is pulled on demand from **paperout-assets-market**
@@ -45,6 +49,8 @@ The host plugin (`paperbell`) sits across all of them, dispatching LLM calls cen
 
 - PaperOut registers with the host and **follows its UI language**; it reads account status
   and host capabilities ([PAPERBELL_INTEGRATION.md](./PAPERBELL_INTEGRATION.md)).
+- The new-paper modal offers the host's **project list** to link the paper to, via the
+  proposed `projects` scope — degrading to manual entry on any host that lacks it.
 
 **The gap:** PaperOut currently sits somewhat isolated at the Output end. It does **not** yet
 consume the concept network, the scholar/publication ledger, or a shared citation source; and
@@ -66,9 +72,12 @@ Closing that gap is the roadmap below.
 4. **Citations via Zotero / Cards.** Resolve `[@citekey]` and produce `references.bib` from
    Zotero (Better BibTeX) or from Cards Wrangler's citekey footnotes, instead of a
    hand-maintained `.bib`.
-5. **Deliverables to Project Manager.** PaperOut publishes a read API / events so Project
-   Manager can count a paper's drafts and compile status as a project deliverable, and a
-   review-tracking sibling can read the harvested sidecars.
+5. **Deliverables to Project Manager.** *Partly done:* outputs now carry `project:` in
+   their frontmatter, so Project Manager can attribute a paper by scanning the vault.
+   Still open: PaperOut publishes a read API / events so Project Manager can count a
+   paper's drafts and compile status without scanning, and a review-tracking sibling can
+   read the harvested sidecars. The contract is one-way today — see
+   [PROPOSAL_PROJECTS_SCOPE.md §6](./PROPOSAL_PROJECTS_SCOPE.md).
 6. **Compile-finished hooks.** A "compile finished" event triggers downstream packaging /
    submission, or a `results.json` refresh from an analysis plugin.
 
@@ -129,6 +138,8 @@ ready to pick up.
 ## See also
 
 - [PAPERBELL_INTEGRATION.md](./PAPERBELL_INTEGRATION.md) — the host handshake and scopes.
+- [PROPOSAL_PROJECTS_SCOPE.md](./PROPOSAL_PROJECTS_SCOPE.md) — the `projects` scope we have
+  proposed to the host, and the frontmatter questions that go with it.
 - [PAPER_PROJECT.md](./PAPER_PROJECT.md) — the paper project scaffold and layout.
 - [MANUSCRIPT_REFS.md](./MANUSCRIPT_REFS.md) — sidecars and response-letter sync.
 - [METADATA_AND_PLACEHOLDERS.md](./METADATA_AND_PLACEHOLDERS.md) — `metadata.json` and `{{ }}`.

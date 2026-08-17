@@ -87,6 +87,13 @@ export const en = {
   "scaffold.acronymLabel": "Acronym",
   "scaffold.acronymDesc":
     "Short code used for the PDF name and labels. Defaults to the title’s initials; editable later in metadata.json.",
+  "scaffold.projectLabel": "PaperBell project",
+  "scaffold.projectDesc":
+    "The research project this paper is a deliverable of — not the paper’s own acronym above. Written as a project: key in each draft’s frontmatter, which is how Project Manager counts a project’s outputs. Leave empty for none.",
+  "scaffold.projectPlaceholder": "e.g. ColMemo",
+  "scaffold.projectNone": "— No project —",
+  "scaffold.projectManual": "Enter manually…",
+  "scaffold.projectBackToList": "Choose from the project list instead",
   "scaffold.create": "Create project",
   "scaffold.invalidName": "Enter a project title without : \\ or / characters.",
   "scaffold.created": "Created PaperBell project “{title}”.",

@@ -45,6 +45,18 @@ config, account, AI via `requestCompletion`) only when PaperBell is present.
   `paperbell-shared-config.ts` (zero-dependency by design).
 - It is pinned to `PPB_SCHEMA_VERSION`. When PaperBell bumps its schema, **re-vendor** the file and
   update the compatibility check.
+- ⚠️ **Re-vendoring overwrites our proposal block.** A straight copy from upstream — for *any*
+  reason, not just a projects-related one — deletes the `projects` additions below and breaks
+  `src/paperbell/client.ts` and the new-paper modal. After every re-vendor, either re-apply that
+  block or, if upstream has adopted it, reconcile the two and drop the proposal marker. `npm run
+  lint` catches the breakage, but only if you run it.
+- One block of that file is **not** vendored from upstream: the proposed `projects` scope, flagged
+  as such in the file header and written up in
+  [docs/PROPOSAL_PROJECTS_SCOPE.md](./docs/PROPOSAL_PROJECTS_SCOPE.md). Its client methods are
+  declared **optional** and every caller checks `capabilities` *and* `typeof method === "function"`,
+  so it stays inert against every host that exists today. `PPB_SCHEMA_VERSION` stays at `1` while it
+  is a proposal — bumping it unilaterally would silence the newer-schema warning for a real upstream
+  v2. When the host ships it, re-vendor as usual and delete the proposal marker.
 
 ### Contract conformance (verified against PaperBell 0.4.4)
 
