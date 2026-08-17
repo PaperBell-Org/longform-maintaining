@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.4.0-beta.5](https://github.com/PaperBell-Org/longform-maintaining/compare/2.4.0-beta.4...2.4.0-beta.5) (2026-08-17)
+
+
+### Features
+
+* pick the paper's PaperBell project when scaffolding it ([544170d](https://github.com/PaperBell-Org/longform-maintaining/commit/544170d7861e38a57de453a25ec31e8505ffac5c))
+* pick the paper's PaperBell project when scaffolding it ([205ba52](https://github.com/PaperBell-Org/longform-maintaining/commit/205ba52f23ea9e1e3984e56e3fa5e574eeebd133))
+
 ## [2.4.0-beta.4](https://github.com/PaperBell-Org/longform-maintaining/compare/2.4.0-beta.3...2.4.0-beta.4) (2026-08-05)
 
 
