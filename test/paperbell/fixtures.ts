@@ -12,21 +12,22 @@
 import type {
   PaperBellAccountInfo,
   PaperBellPluginInfo,
-  PaperBellSharedConfigPublic,
-  PPBActivationInfo,
+  PaperBellRestrictedConfig,
+  PaperBellActivationInfo,
   PPBClient,
   PPBCompletionParams,
   PPBCompletionResult,
-  PPBDownloadTicket,
-  PPBDownloadTicketParams,
+  PPBProtectedDownloadTicket,
+  PPBProtectedDownloadParams,
   PPBGrant,
   PPBHostApi,
-  PPBLLMCredentials,
+  PaperBellLLMCredentials,
   PPBProjectsQuery,
   PPBProjectsResult,
   PPBRequestSource,
   PPBScope,
 } from "src/paperbell/shared-config";
+import { THIS_PLUGIN_ID, THIS_PLUGIN_NAME } from "src/paperbell/client";
 
 /**
  * The full set of scopes the real host advertises today.
@@ -101,17 +102,17 @@ export interface MockHostOptions {
   /** Capabilities advertised via `getPluginInfo()`. Defaults to all scopes. */
   capabilities?: PPBScope[];
   /** Value returned by `requestSharedConfig()`. Default null (as if consent denied). */
-  sharedConfig?: PaperBellSharedConfigPublic | null;
+  sharedConfig?: PaperBellRestrictedConfig | null;
   /** Value returned by `requestAccountInfo()`. */
   account?: PaperBellAccountInfo | null;
   /** Value returned by `requestCompletion()`. */
   completion?: PPBCompletionResult | null;
   /** Value returned by `requestLLMCredentials()`. */
-  llmCredentials?: PPBLLMCredentials | null;
+  llmCredentials?: PaperBellLLMCredentials | null;
   /** Value returned by `requestActivationInfo()`. */
-  activation?: PPBActivationInfo | null;
+  activation?: PaperBellActivationInfo | null;
   /** Value returned by `requestProtectedDownloadTicket()`. */
-  downloadTicket?: PPBDownloadTicket | null;
+  downloadTicket?: PPBProtectedDownloadTicket | null;
   /** If true, `registerPPBplugin` throws (host rejects the handshake). */
   rejectRegistration?: boolean;
   /**
@@ -122,6 +123,10 @@ export interface MockHostOptions {
   projects?: PPBProjectsResult | null;
   /** If true, `requestProjects()` rejects (host blew up mid-call). */
   projectsThrow?: boolean;
+  /** Grants the user has already approved, as `listGrants()` reports them. */
+  grants?: PPBGrant[];
+  /** If true, `listGrants()` throws (host blew up). */
+  grantsThrow?: boolean;
 }
 
 /**
@@ -134,25 +139,29 @@ export class MockPaperBellHost implements PPBHostApi {
   lastCompletionParams: PPBCompletionParams | null = null;
 
   pluginInfo: PaperBellPluginInfo;
-  sharedConfig: PaperBellSharedConfigPublic | null;
+  sharedConfig: PaperBellRestrictedConfig | null;
   account: PaperBellAccountInfo | null;
   completion: PPBCompletionResult | null;
-  llmCredentials: PPBLLMCredentials | null;
-  activation: PPBActivationInfo | null;
-  downloadTicket: PPBDownloadTicket | null;
-  lastDownloadTicketParams: PPBDownloadTicketParams | undefined;
+  llmCredentials: PaperBellLLMCredentials | null;
+  activation: PaperBellActivationInfo | null;
+  downloadTicket: PPBProtectedDownloadTicket | null;
+  lastDownloadTicketParams: PPBProtectedDownloadParams | undefined;
   lastProjectsQuery: PPBProjectsQuery | undefined;
   private projects: PPBProjectsResult | null | undefined;
   private projectsThrow: boolean;
+  private grants: PPBGrant[];
+  private grantsThrow: boolean;
+  /** Set by {@link reload}; makes every handle this host already issued inert. */
+  private stale = false;
   private rejectRegistration: boolean;
-  private configSubscribers: Array<(c: PaperBellSharedConfigPublic) => void> = [];
+  private configSubscribers: Array<(c: PaperBellRestrictedConfig) => void> = [];
 
   constructor(opts: MockHostOptions = {}) {
     this.pluginInfo = {
       id: "paperbell",
       name: "PaperBell",
       version: "1.0.0",
-      schemaVersion: 1,
+      schemaVersion: 2,
       isActivated: true,
       capabilities: opts.capabilities ?? [...ALL_SCOPES],
     };
@@ -165,6 +174,8 @@ export class MockPaperBellHost implements PPBHostApi {
     this.rejectRegistration = opts.rejectRegistration ?? false;
     this.projects = opts.projects;
     this.projectsThrow = opts.projectsThrow ?? false;
+    this.grants = opts.grants ?? [];
+    this.grantsThrow = opts.grantsThrow ?? false;
   }
 
   /** Whether this mock pretends to be new enough to serve a project list. */
@@ -185,29 +196,33 @@ export class MockPaperBellHost implements PPBHostApi {
           requestProjects: async (params?: PPBProjectsQuery) => {
             this.lastProjectsQuery = params;
             if (this.projectsThrow) throw new Error("host exploded");
-            return this.projects ?? null;
+            return this.stale ? null : this.projects ?? null;
           },
         }
       : {};
+    // Everything a handle can answer goes through here, so {@link reload} makes the
+    // WHOLE handle inert in one place — a real 0.4.7 host nulls every `request*`, and a
+    // mock that only nulled some of them would let a test pass against a zombie.
+    const live = <T>(value: T): T | null => (this.stale ? null : value);
     return {
       ...projectsApi,
-      requestAccountInfo: async () => this.account,
-      requestSharedConfig: async () => this.sharedConfig,
-      requestPluginInfo: async () => this.pluginInfo,
+      requestAccountInfo: async () => live(this.account),
+      requestSharedConfig: async () => live(this.sharedConfig),
+      requestPluginInfo: async () => live(this.pluginInfo),
       requestCompletion: async (params: PPBCompletionParams) => {
         this.lastCompletionParams = params;
-        return this.completion;
+        return live(this.completion);
       },
-      requestLLMCredentials: async () => this.llmCredentials,
-      requestActivationInfo: async () => this.activation,
+      requestLLMCredentials: async () => live(this.llmCredentials),
+      requestActivationInfo: async () => live(this.activation),
       requestProtectedDownloadTicket: async (
-        params?: PPBDownloadTicketParams
+        params?: PPBProtectedDownloadParams
       ) => {
         this.lastDownloadTicketParams = params;
-        return this.downloadTicket;
+        return live(this.downloadTicket);
       },
-      onConfigChange: (cb: (c: PaperBellSharedConfigPublic) => void) => {
-        this.configSubscribers.push(cb);
+      onConfigChange: (cb: (c: PaperBellRestrictedConfig) => void) => {
+        if (!this.stale) this.configSubscribers.push(cb);
         return () => {
           this.configSubscribers = this.configSubscribers.filter(
             (c) => c !== cb
@@ -225,7 +240,8 @@ export class MockPaperBellHost implements PPBHostApi {
   }
 
   listGrants(): PPBGrant[] {
-    return [];
+    if (this.grantsThrow) throw new Error("host exploded");
+    return this.grants;
   }
 
   revokeGrant(_sourceId: string): void {
@@ -233,8 +249,19 @@ export class MockPaperBellHost implements PPBHostApi {
   }
 
   // ── test helpers ──────────────────────────────────────────────────────────
-  /** Simulate the host broadcasting a public-config change to subscribers. */
-  emitConfigChange(config: PaperBellSharedConfigPublic): void {
+  /**
+   * Mimic PaperBell 0.4.7 being reloaded: handles it already handed out keep working
+   * as objects but go inert — every `request*` resolves to `null` (no throw) and the
+   * config push is gone. A test then installs a fresh host and fires the ready event,
+   * which is exactly what the real host does on each load.
+   */
+  reload(): void {
+    this.stale = true;
+    this.configSubscribers = [];
+  }
+
+  /** Simulate the host pushing a restricted-config change to its subscribers. */
+  emitConfigChange(config: PaperBellRestrictedConfig): void {
     this.configSubscribers.slice().forEach((cb) => cb(config));
   }
 
@@ -244,12 +271,26 @@ export class MockPaperBellHost implements PPBHostApi {
   }
 }
 
-/** A valid public shared config for tests, with an overridable schema version. */
-export function makePublicConfig(
-  overrides: Partial<PaperBellSharedConfigPublic> = {}
-): PaperBellSharedConfigPublic {
+/**
+ * A grant of `scopes` to our own plugin id, as the host would report it. Reuses the
+ * client's own constants: a copy that drifted would make `hasGrant` quietly return
+ * false and the test pass for the wrong reason.
+ */
+export function grantFor(...scopes: PPBScope[]): PPBGrant {
   return {
-    schemaVersion: 1,
+    sourceId: THIS_PLUGIN_ID,
+    sourceName: THIS_PLUGIN_NAME,
+    scopes,
+    grantedAt: 0,
+  };
+}
+
+/** A valid restricted shared config for tests, with an overridable schema version. */
+export function makeRestrictedConfig(
+  overrides: Partial<PaperBellRestrictedConfig> = {}
+): PaperBellRestrictedConfig {
+  return {
+    schemaVersion: 2,
     language: "en",
     llm: {
       providerId: "anthropic",

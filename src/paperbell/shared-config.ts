@@ -9,18 +9,31 @@
  * schema, re-vendor this file and reconcile the compatibility check in `client.ts`.
  * See MAINTAINING.md → "PaperBell relationship".
  *
- * Last synced against PaperBell host build `paperbell` v0.4.4: `schemaVersion` is still 1,
- * with backward-compatible additions — the `llm-credentials` / `activation` / `download-ticket`
- * scopes and their `request*` methods, the `paperbell:plugins-changed` event, and the
- * `providerId` / `providerName` / `hasApiKey` fields on the public LLM config.
+ * Last synced against PaperBell **0.4.7**, whose published contract is "附录 A" of the host's
+ * README-ZH (its plugin repo ships docs + release binaries, not sources — that appendix *is*
+ * the upstream file for vendoring purposes). Type names here match it verbatim so the next
+ * re-vendor is a readable diff. What 0.4.7 changed for us:
+ *   - `schemaVersion` is **2** (v1 → v2 narrowed the broadcast payload from the full config
+ *     to {@link PaperBellPublicConfig}; the per-client push still carries the restricted one);
+ *   - `PaperBellSharedConfigPublic` was renamed {@link PaperBellRestrictedConfig}, with the
+ *     old name kept upstream as a deprecated alias;
+ *   - `profile` / `cimpoFolders` (optional) and the completion-result quota fields were added;
+ *   - `llm.baseUrl` / `llm.model` are now *effective* values — `baseUrl` has no trailing slash
+ *     and both fall back to the host's built-in defaults instead of echoing empty user input.
+ * Additions are not a schema bump upstream, so treat unknown optional fields as absent and
+ * never compare `schemaVersion` for equality.
+ *
+ * One deliberate deviation from the appendix: `PPBClient.requestSharedConfig()` is typed
+ * with the current name, `PaperBellRestrictedConfig`, where upstream's own appendix still
+ * writes the deprecated alias. Identical type, quieter deprecation.
  *
  * ⚠️ PROPOSAL — NOT YET UPSTREAM: the `projects` scope and everything it drags in
  * (`PPB_PROJECTS_CHANGED_EVENT`, `PPBProject`, `PPBProjectsQuery`, `PPBProjectsResult`,
  * `PPBClient.requestProjects` / `onProjectsChange`) are *our* proposal to the host, written
- * up in docs/PROPOSAL_PROJECTS_SCOPE.md. No shipped host implements them yet, which is why
- * the client methods are optional and every consumer gates on capability + `typeof` checks
- * rather than on `PPB_SCHEMA_VERSION` — which stays at 1 until the host really bumps it,
- * so the "host schema is newer than vendored" warning keeps working.
+ * up in docs/PROPOSAL_PROJECTS_SCOPE.md. 0.4.7 still does not implement it, which is why the
+ * client methods are optional and every consumer gates on capability + `typeof` checks rather
+ * than on `PPB_SCHEMA_VERSION` — that constant tracks the host's number and nothing else, so
+ * the "host schema is newer than vendored" warning keeps working.
  *
  * ── Original header ──────────────────────────────────────────────────────────
  * PaperBell 对外共享契约(消费方 / IPC 表面)。
@@ -30,18 +43,21 @@
  */
 
 /** 契约版本号,便于未来兼容判断。 */
-export const PPB_SCHEMA_VERSION = 1;
+export const PPB_SCHEMA_VERSION = 2;
 
 /**
  * 宿主挂载完成后在 `app.workspace` 上 trigger 的事件名,载荷为 {@link PPBHostApi}。
- * 子插件与 PaperBell 的加载顺序不确定,推荐握手模式(事件只在宿主加载时触发一次,
- * 后加载的一方必须先主动探测)。
+ * 子插件与 PaperBell 的加载顺序不确定,推荐握手模式(先主动探测,探不到再等事件)。
+ *
+ * 宿主**每次**装载都会广播它 —— 所以这条监听同时承担「首次握手」和「宿主重载后重新
+ * 握手」两个职责,必须常驻:握手成功后摘掉监听,PaperBell 更新一次就再也连不回来。
  */
 export const PPB_READY_EVENT = "paperbell:ready";
 
 /**
- * 宿主核心配置(语言 / LLM / 账户)变更时在 `app.workspace` 上 trigger 的事件名,
- * 载荷为 {@link PaperBellSharedConfigPublic}(去密钥)。
+ * 宿主核心配置(语言 / 用户资料)变更时在 `app.workspace` 上 trigger 的事件名,
+ * 载荷为公开层的 {@link PaperBellPublicConfig} —— schema v2 起已由完整配置收窄至此。
+ * 要拿到含 LLM / 账户的受限层,用 {@link PPBClient.onConfigChange}。
  */
 export const PPB_CONFIG_CHANGED_EVENT = "paperbell:config-changed";
 
@@ -57,17 +73,47 @@ export const PPB_PLUGINS_CHANGED_EVENT = "paperbell:plugins-changed";
  */
 export const PPB_PROJECTS_CHANGED_EVENT = "paperbell:projects-changed";
 
+/** 用户资料。宿主未填任何一项时整个 `profile` 字段缺席。 */
+export interface PaperBellUserProfile {
+	name?: string;
+	title?: string;
+	email?: string;
+	institution?: string;
+	avatar?: string;
+}
+
+/** 宿主的 CIMPO 文件夹布局(可选)。 */
+export interface PaperBellCimpoFolders {
+	concepts: string;
+	inputs: string;
+	metadata: string;
+	projects: string;
+	outputs: string;
+}
+
+/**
+ * 公开层广播载荷:{@link PPB_CONFIG_CHANGED_EVENT} 在 workspace 总线上携带的形态,
+ * 无需握手、无需 scope。schema v1 → v2 的破坏性变更就是把它从完整配置收窄到这里。
+ * 注意与 {@link PPBClient.onConfigChange} 区分 —— 后者是宿主对已授权子插件的定向推送,
+ * 载荷是更宽的 {@link PaperBellRestrictedConfig}。
+ */
+export interface PaperBellPublicConfig {
+	schemaVersion: number;
+	language: "en" | "zh";
+	profile?: PaperBellUserProfile;
+}
+
 /** Cards Wrangler 期望从 PaperBell 主插件读到的共享配置(消费方契约)。 */
 export interface PaperBellSharedConfig {
 	schemaVersion: number; // 便于未来兼容判断
 	language: "en" | "zh"; // 统一 UI 语言,供子插件跟随
 	llm: {
-		providerId: string; // AI 提供方 id(如 "anthropic" / "openai" / 自定义提供方)
-		providerName: string; // 提供方展示名
+		providerId?: string; // AI 提供方 id(如 "anthropic" / "openai" / 自定义提供方)
+		providerName?: string; // 提供方展示名
 		api: "anthropic" | "openai"; // 决定请求/响应形态(复用现有 ProviderApi)
-		baseUrl: string; // 调度网关基址
+		baseUrl: string; // 调度网关基址(0.4.7 起为生效值:已去掉尾部斜杠,留空时回落到默认地址)
 		apiKey: string; // 鉴权密钥 / 会话 token
-		model: string; // 默认模型 id
+		model: string; // 默认模型 id(0.4.7 起用户没选过时回落到内置默认模型)
 		models?: { extract?: string; query?: string }; // 可选:按任务路由
 	};
 	account?: {
@@ -76,6 +122,7 @@ export interface PaperBellSharedConfig {
 		plan?: string; // free | pro | ...
 		displayName?: string;
 	};
+	cimpoFolders?: PaperBellCimpoFolders;
 }
 
 /**
@@ -93,7 +140,7 @@ export type PaperBellLLMConfigPublic = Omit<
  * 完整 LLM 凭据(**含 `apiKey`**),经 `requestLLMCredentials()`(scope: `llm-credentials`)
  * 取回。属敏感数据 —— 首次请求会弹同意框,子插件须自行妥善保管、避免落盘或日志外泄。
  */
-export type PPBLLMCredentials = PaperBellSharedConfig["llm"];
+export type PaperBellLLMCredentials = PaperBellSharedConfig["llm"];
 
 /** IPC 默认返回的账户信息(非敏感)。 */
 export interface PaperBellAccountInfo {
@@ -105,13 +152,18 @@ export interface PaperBellAccountInfo {
 	isActive: boolean;
 }
 
-/** 经 IPC 对外暴露的共享配置(去密钥)。 */
-export interface PaperBellSharedConfigPublic {
+/** 经 IPC 对外暴露的共享配置(去密钥)。受限层,需 `config` scope。 */
+export interface PaperBellRestrictedConfig {
 	schemaVersion: number;
 	language: "en" | "zh";
 	llm: PaperBellLLMConfigPublic;
 	account?: PaperBellAccountInfo;
+	profile?: PaperBellUserProfile;
+	cimpoFolders?: PaperBellCimpoFolders;
 }
+
+/** @deprecated 上游 0.4.7 起改名为 {@link PaperBellRestrictedConfig};别名同样保留。 */
+export type PaperBellSharedConfigPublic = PaperBellRestrictedConfig;
 
 /** 主插件自身信息(供子插件发现能力)。 */
 export interface PaperBellPluginInfo {
@@ -159,13 +211,17 @@ export interface PPBCompletionResult {
 	model: string;
 	/** ok=false 时的错误描述(不含密钥等敏感信息)。 */
 	error?: string;
+	/** ok=false 时的机读原因;目前只有免费档额度耗尽一种。 */
+	errorCode?: "quota-exhausted";
+	/** 免费档额度快照(宿主给出时)。`resetsAt` 为 epoch ms。 */
+	quota?: { limit: number; remaining: number; resetsAt: number };
 }
 
 /**
  * `activation`:宿主许可证 / 激活状态(经 `requestActivationInfo()` 取回)。
  * 不含激活码本身 —— 仅暴露是否激活及其派生信息。
  */
-export interface PPBActivationInfo {
+export interface PaperBellActivationInfo {
 	/** 许可证是否处于激活态。 */
 	isActive: boolean;
 	/** 到期时间(epoch ms),不适用时省略。 */
@@ -176,7 +232,7 @@ export interface PPBActivationInfo {
 }
 
 /** `download-ticket`:请求受保护下载链接时的参数。 */
-export interface PPBDownloadTicketParams {
+export interface PPBProtectedDownloadParams {
 	/** 下载服务基址,缺省 `https://paperbell.cn`。 */
 	baseUrl?: string;
 	/** 产品标识,缺省 `paperbell-core`。 */
@@ -187,8 +243,13 @@ export interface PPBDownloadTicketParams {
  * `download-ticket`:宿主凭激活码换取的受保护下载凭据。至少含一个可下载 `url`;
  * 其余字段随宿主/产品而定。
  */
-export interface PPBDownloadTicket {
+export interface PPBProtectedDownloadTicket {
 	url: string;
+	filename?: string;
+	/** 链接有效期(秒)。 */
+	expires_in?: number;
+	version?: string;
+	sha256?: string;
 	[key: string]: unknown;
 }
 
@@ -264,7 +325,7 @@ export interface PPBGrant {
  */
 export interface PPBClient {
 	requestAccountInfo(): Promise<PaperBellAccountInfo | null>;
-	requestSharedConfig(): Promise<PaperBellSharedConfigPublic | null>;
+	requestSharedConfig(): Promise<PaperBellRestrictedConfig | null>;
 	requestPluginInfo(): Promise<PaperBellPluginInfo | null>;
 	/**
 	 * 请求宿主代发一次补全(scope: llm-invoke)。
@@ -277,22 +338,24 @@ export interface PPBClient {
 	 * 请求完整 LLM 凭据(**含 apiKey**;scope: llm-credentials)。
 	 * 拒绝授权 / 宿主缺失返回 null。属敏感数据,请勿落盘或写日志。
 	 */
-	requestLLMCredentials(): Promise<PPBLLMCredentials | null>;
+	requestLLMCredentials(): Promise<PaperBellLLMCredentials | null>;
 	/** 请求宿主许可证 / 激活状态(scope: activation)。拒绝授权 / 宿主缺失返回 null。 */
-	requestActivationInfo(): Promise<PPBActivationInfo | null>;
+	requestActivationInfo(): Promise<PaperBellActivationInfo | null>;
 	/**
 	 * 请求受保护下载链接(scope: download-ticket)。需宿主处于激活态;
 	 * 拒绝授权 / 宿主缺失返回 null,未激活或换取失败由宿主抛错。
 	 */
 	requestProtectedDownloadTicket(
-		params?: PPBDownloadTicketParams,
-	): Promise<PPBDownloadTicket | null>;
+		params?: PPBProtectedDownloadParams,
+	): Promise<PPBProtectedDownloadTicket | null>;
 	/**
-	 * 订阅公开配置变更;返回取消订阅函数。
-	 * 底层即 workspace 事件 {@link PPB_CONFIG_CHANGED_EVENT}。
+	 * 订阅受限层配置变更;返回取消订阅函数。
+	 *
+	 * 这是宿主对**本 client** 的定向推送,不是 workspace 总线 —— 因此它随 client 一起
+	 * 失效:宿主重载后必须在 {@link PPB_READY_EVENT} 上重新握手并重新订阅。
 	 */
 	onConfigChange(
-		cb: (config: PaperBellSharedConfigPublic) => void,
+		cb: (config: PaperBellRestrictedConfig) => void,
 	): () => void;
 	/**
 	 * 请求宿主的项目清单(scope: projects)。拒绝授权 / 宿主缺失返回 null。
@@ -323,4 +386,15 @@ export interface PPBHostApi {
 	listGrants(): PPBGrant[];
 	/** 撤销某来源的全部授权。 */
 	revokeGrant(sourceId: string): void;
+}
+
+/**
+ * 宿主同时把握手函数挂到 `window` 上(早于 `api` 存在,为 QuickAdd 一类用户保留)。
+ * 我们不用这条路径 —— 走 `app.plugins.plugins["paperbell"].api` 才有加载顺序保证 ——
+ * 但它属于契约的一部分,保留声明以便与上游附录逐行对齐。
+ */
+declare global {
+	interface Window {
+		registerPPBplugin?: RegisterPPBPlugin;
+	}
 }
