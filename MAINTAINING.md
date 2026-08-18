@@ -42,7 +42,10 @@ an **optional** dependency: the plugin works standalone, and lights up host-back
 config, account, AI via `requestCompletion`) only when PaperBell is present.
 
 - The shared contract lives at `src/paperbell/shared-config.ts`, a **vendored copy** of PaperBell's
-  `paperbell-shared-config.ts` (zero-dependency by design).
+  `paperbell-shared-config.ts` (zero-dependency by design). The host's plugin repo publishes
+  binaries and docs, not sources, so the thing you actually vendor from is **"附录 A —— 完整契约声明"
+  in its [README-ZH](https://github.com/PaperBell-Org/Obsidian-PaperBell-Plugin/blob/main/README-ZH.md)**.
+  Our type names match that appendix verbatim so each re-vendor is a readable diff.
 - It is pinned to `PPB_SCHEMA_VERSION`. When PaperBell bumps its schema, **re-vendor** the file and
   update the compatibility check.
 - ⚠️ **Re-vendoring overwrites our proposal block.** A straight copy from upstream — for *any*
@@ -54,25 +57,34 @@ config, account, AI via `requestCompletion`) only when PaperBell is present.
   as such in the file header and written up in
   [docs/PROPOSAL_PROJECTS_SCOPE.md](./docs/PROPOSAL_PROJECTS_SCOPE.md). Its client methods are
   declared **optional** and every caller checks `capabilities` *and* `typeof method === "function"`,
-  so it stays inert against every host that exists today. `PPB_SCHEMA_VERSION` stays at `1` while it
-  is a proposal — bumping it unilaterally would silence the newer-schema warning for a real upstream
-  v2. When the host ships it, re-vendor as usual and delete the proposal marker.
+  so it stays inert against every host that exists today. `PPB_SCHEMA_VERSION` tracks the **host's**
+  number and nothing else — never bump it for a proposal, or the newer-schema warning goes quiet for
+  a real upstream bump. When the host ships it, re-vendor as usual and delete the proposal marker.
 
-### Contract conformance (verified against PaperBell 0.4.4)
+### Contract conformance (verified against PaperBell 0.4.7)
 
 The real host's `install()` does exactly what our client assumes:
 `this.plugin.api = api` (so `app.plugins.plugins["paperbell"].api` works), `window.registerPPBplugin = api.registerPPBplugin`, then `workspace.trigger("paperbell:ready", api)`. Its `getPluginInfo()`
-returns `schemaVersion: 1` and
+returns `schemaVersion: 2` and
 `capabilities: ["account","config","plugin-info","llm-invoke","llm-credentials","activation","download-ticket"]`
 — matching our vendored `PPB_SCHEMA_VERSION` and feature gating. We depend ONLY on this handshake
 contract, never on PaperBell's main features (which change independently).
 
-The host has since grown three backward-compatible scopes/methods on top of the original four —
-`requestLLMCredentials` (`llm-credentials`), `requestActivationInfo` (`activation`), and
-`requestProtectedDownloadTicket` (`download-ticket`) — plus the `providerId` / `providerName` /
-`hasApiKey` fields on the public LLM config and a host-internal `paperbell:plugins-changed` event.
-`schemaVersion` stayed `1` (additions only), so no compatibility break; the vendored contract and the
-thin `PaperBellClient` wrappers are synced to this surface.
+What 0.4.7 changed, and how we answer it (upstream's own
+[MIGRATION-0.4.7.md](https://github.com/PaperBell-Org/Obsidian-PaperBell-Plugin/blob/main/MIGRATION-0.4.7.md)):
+
+| Host change | Us |
+| --- | --- |
+| `app.plugins.plugins["paperbell"]` now exposes only `api` + `settings`; every internal object is private | Nothing to do — we only ever read `.api`, and never `plugin.settings` |
+| `settings.pluginGrants` is no longer a writable array (it was a real privilege-escalation hole) | Nothing to do — we never forged grants; consent has always been the normal flow |
+| A handle from a **previous** host load goes inert: every `request*` returns `null`, no throw | **Fixed here.** `client.ts` re-handshakes on every `paperbell:ready` instead of guarding against a second connect |
+| `llm.baseUrl` / `llm.model` are now *effective* values (no trailing slash, defaults filled in) | Nothing to do — no feature builds a URL from them yet. When one does, still strip trailing slashes defensively |
+| Only plugins **holding at least one scope** get a card in PaperBell's settings | Accepted deliberately — see "Deferred consent" in [docs/PAPERBELL_INTEGRATION.md](./docs/PAPERBELL_INTEGRATION.md) |
+
+Schema `1` → `2` narrowed the *broadcast* payload (`paperbell:config-changed`) to a public
+language/profile layer; the per-client `onConfigChange` push we actually consume still carries the
+restricted config, so the vendored types and the thin `PaperBellClient` wrappers stay as they were,
+plus the optional `profile` / `cimpoFolders` / completion-quota fields 0.4.7 added.
 
 ### Verifying the handshake live
 
@@ -89,6 +101,10 @@ needed. To verify against the **real** host in Obsidian:
 4. Check: our settings tab shows a "PaperBell" section reading *Connected*; the console logs
    `[PaperOut] Connected to PaperBell host.`; the "Connect/Refresh" button pulls account/config
    (PaperBell prompts for consent the first time); disabling our plugin calls `unregister()`.
+5. **Reload recovery** (the 0.4.7 case): with both plugins running, disable and re-enable *PaperBell*
+   only. The console must log `[PaperOut] Reconnected to PaperBell host after it reloaded.`, our
+   settings section must still read *Connected*, and switching PaperBell's language must still
+   re-render our UI — all without touching our plugin.
 
 An **automated, decoupled** guard also runs in the test suite: `test/paperbell/host-conformance.test.ts`
 statically checks that any bundle present at that path still exposes the handshake surface (events,

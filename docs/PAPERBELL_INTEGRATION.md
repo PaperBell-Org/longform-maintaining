@@ -11,17 +11,45 @@ safe. The contract itself is a **vendored copy** of PaperBell's IPC surface; see
 
 ## The handshake
 
-The host plugin (`app.plugins.plugins["paperbell"]`) exposes an `api` object and, on load,
-fires a one-shot `paperbell:ready` workspace event carrying that API. Load order between
-the two plugins is unspecified, so our client (`src/paperbell/client.ts`) covers both cases:
+The host plugin (`app.plugins.plugins["paperbell"]`) exposes an `api` object and, on **every**
+load, fires a `paperbell:ready` workspace event carrying that API. Load order between the two
+plugins is unspecified, so our client (`src/paperbell/client.ts`) covers both cases:
 
 1. **Probe** for `app.plugins.plugins["paperbell"].api` immediately, and
-2. **Listen once** for `paperbell:ready` in case the host loads after us.
+2. **Stay subscribed** to `paperbell:ready` for as long as we are loaded.
 
-Whichever fires first wins; a guard prevents double-registration. Registration calls
-`host.registerPPBplugin({ id, name, description, icon, onOpen })`. Our `onOpen` deep-links
-back to this plugin's own settings tab, so PaperBell's settings can show a "PaperOut" entry
-card that opens our settings. On plugin unload we call `unregister()` and reset our store.
+Registration calls `host.registerPPBplugin({ id, name, description, icon, onOpen })`. Our
+`onOpen` deep-links back to this plugin's own settings tab, so PaperBell's settings can show a
+"PaperOut" entry card that opens our settings. On plugin unload we call `unregister()` and
+reset our store.
+
+### Why the listener is permanent
+
+The handle `registerPPBplugin()` returns is bound to *that* load of the host. When PaperBell
+updates — or is disabled and re-enabled — the handle survives as an object but goes inert:
+since host 0.4.7 every `request*` on it resolves to `null` (deliberately, instead of throwing
+something cryptic) and its `onConfigChange` push is gone.
+
+So `attach()` runs on each ready event, not just the first: it releases the old handle
+(`unsubscribe` + `unregister`, both wrapped — they reach into a host that may already be gone),
+registers again, re-reads capabilities, and re-subscribes. Two details make the recovery
+invisible to the user:
+
+- the last known config is **kept** — across the reconnect, and even if re-registering fails —
+  so the UI doesn't flip back to the fallback language for the split second before a fresh one
+  arrives. Only unloading our plugin clears it; and
+- **on a reconnect only**, if `listGrants()` says the user already granted `config`, we refetch
+  it. The grant outlived the reload, so that costs no consent prompt, and it is how we notice a
+  language the host changed while our handle was dead. A first connect stays scope-free — see
+  *Deferred consent* under **Scopes** below.
+
+Note there is no "same host object, skip the handshake" shortcut. Whether a reloaded host hands
+back a fresh `api` is its business, and guessing wrong would leave us on a dead handle forever —
+the exact bug this replaced. A redundant re-register costs one `unregister()` and one
+`registerPPBplugin()`; we never hold two at once.
+
+Guarding against a "double connect" here instead — the shape this code had before host 0.4.7 —
+is what makes a plugin silently stop following the host after the first PaperBell update.
 
 If no host is found, the client simply stays disconnected and every method below returns
 `null` — the rest of the plugin never notices.
@@ -42,9 +70,18 @@ the user the first time it touches a scope; approval is remembered, denial retur
 | `download-ticket` | a ticket for a protected download | Wired, not yet used by a feature |
 | `projects` | the host's project list, for linking an output to its project | **Proposed** — consumed by the new-paper modal, but no shipped host implements it |
 
+### Deferred consent (and what it costs)
+
 We deliberately request **no** scopes at startup — that would trigger a consent prompt on
 every launch. Only `plugin-info` (which needs no consent) is read eagerly to learn the
 host's `capabilities`; everything else is requested lazily on an explicit user action.
+
+Since host 0.4.7 a plugin's card only appears in PaperBell's own settings page once it
+**holds at least one scope** — registering is no longer enough. Combined with the above,
+that means a user who has never pressed **Connect / Refresh** (and never used a host-backed
+feature) won't see PaperOut listed there. We accept that: a consent dialog on every launch is
+a worse trade than a card that appears the moment the integration is actually used. Once any
+scope is granted the card shows up and stays, reload after reload.
 
 ## What the integration does today
 
@@ -120,7 +157,8 @@ host team in [PROPOSAL_PROJECTS_SCOPE.md](./PROPOSAL_PROJECTS_SCOPE.md).
 - No host → client stays disconnected; `connected` is `false`, `config` is `null`,
   `capabilities` is `[]`.
 - Every `fetch*` / `request*` helper on `PaperBellClient` returns `null` when disconnected,
-  so callers can treat "host absent" and "scope denied" identically.
+  so callers can treat "host absent" and "scope denied" identically — and, for the window
+  between a host reload and the ready event that heals it, "host restarting" too.
 - Language falls back to Obsidian's UI language; account UI shows "not connected".
 - Nothing about compiling, scaffolding, or Pandoc export depends on the host.
 
@@ -132,8 +170,12 @@ schema version than we vendored, the client logs a warning (it does not break). 
 host bumps its schema, re-vendor this file and reconcile the check — the procedure and a
 decoupled conformance test are described in [MAINTAINING.md](../MAINTAINING.md).
 
+It currently tracks host **0.4.7** (`PPB_SCHEMA_VERSION = 2`). The v1 → v2 bump narrowed the
+*broadcast* `paperbell:config-changed` payload to a public language/profile layer; the directed
+`onConfigChange` push we consume still carries the restricted config, so nothing we read moved.
+
 One block of that file is **ours, not upstream's**: the proposed `projects` scope, flagged
-in the file header. `PPB_SCHEMA_VERSION` stays at `1` while it is a proposal — raising it
-unilaterally would silence the "host schema is newer than vendored" warning for a real
-upstream v2. Feature detection never reads the schema version anyway; it reads
-capabilities and checks the method exists.
+in the file header. `PPB_SCHEMA_VERSION` tracks the host's number and nothing else — raising
+it for a proposal would silence the "host schema is newer than vendored" warning for a real
+upstream bump. Feature detection never reads the schema version anyway; it reads capabilities
+and checks the method exists.
