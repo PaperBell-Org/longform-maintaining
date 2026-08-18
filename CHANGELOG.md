@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.4.0-beta.6](https://github.com/PaperBell-Org/longform-maintaining/compare/2.4.0-beta.5...2.4.0-beta.6) (2026-08-18)
+
+
+### Bug Fixes
+
+* **paperbell:** re-handshake with the host on every PaperBell ready event ([9578be6](https://github.com/PaperBell-Org/longform-maintaining/commit/9578be61ad139af895860e51fd14290e6c31a485))
+* **paperbell:** re-handshake with the host on every ready event ([f7dfce6](https://github.com/PaperBell-Org/longform-maintaining/commit/f7dfce682891a407fd8f75578640b41b9ca3c17f))
+
 ## [2.4.0-beta.5](https://github.com/PaperBell-Org/longform-maintaining/compare/2.4.0-beta.4...2.4.0-beta.5) (2026-08-17)
 
 
