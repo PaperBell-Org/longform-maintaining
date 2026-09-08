@@ -75,6 +75,21 @@ export interface CompileStepOption {
    * lets the step fall back to its own default behavior. Defaults to "(default)".
    */
   emptyLabel?: string;
+  /**
+   * The id of another option **of the same step** that outranks this one: while
+   * that option holds a value, this control is disabled in the compile UI and
+   * shows {@link disabledDescription} instead of its own.
+   *
+   * For precedences the step already enforces at compile time. Declaring it here
+   * is what makes the precedence visible *before* the export, rather than only in
+   * a console warning nobody reads.
+   */
+  disabledBy?: string;
+  /**
+   * Shown in place of `description` while {@link disabledBy} holds a value.
+   * `{value}` is replaced with that value. Ignored without `disabledBy`.
+   */
+  disabledDescription?: string;
 }
 
 /**

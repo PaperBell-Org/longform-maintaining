@@ -101,7 +101,7 @@ function missingPresetHelp(
   template: string,
   templateSource: string
 ): string {
-  const installed = listPandocTemplates(app);
+  const installed = listPandocTemplates(app).map((t) => t.name);
   const where = `The preset "${template}" comes from ${templateSource}.`;
   if (installed.length === 0) {
     return (
@@ -176,6 +176,9 @@ export const RunPandocExportStep = makeBuiltinStep({
         choices: [...BUILTIN_FORMATS],
         emptyLabel: "(require a preset)",
         default: "",
+        disabledBy: "template",
+        disabledDescription:
+          'Ignored — the preset "{value}" decides the output format (the Template / preset dropdown above names it). Clear the preset to export with Format instead.',
       },
       {
         id: "filename",
@@ -251,6 +254,16 @@ export const RunPandocExportStep = makeBuiltinStep({
         `[Pandoc Export] Both a preset ("${optionTemplate}") and a Format ` +
           `("${formatOption}") are set on this step; the preset wins. Clear the ` +
           `Template / preset option to export with Format instead.`
+      );
+      // The step editor greys the Format control out while a preset is set, but
+      // that only reaches someone who opens it: a workflow saved before it did,
+      // or run headlessly from the `Run workflow: <name>` command, still arrives
+      // here with both. Say it where a writer will actually see it.
+      new Notice(
+        `PaperOut: the preset "${optionTemplate}" decides the format — the ` +
+          `Format option ("${formatOption}") is ignored. Clear the preset to ` +
+          `export with Format instead.`,
+        8000
       );
     }
 

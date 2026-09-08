@@ -1,6 +1,8 @@
 import { derived, writable } from "svelte/store";
 import { groupBy, sortBy } from "lodash";
 
+// Type-only, so the `pandoc-templates` → `stores` import stays the only runtime edge.
+import type { PandocTemplateChoice } from "./pandoc-templates";
 import type {
   WordCountSession,
   Draft,
@@ -62,12 +64,13 @@ export const draftWordCounts = writable<DraftWordCounts>({});
 export const waitingForSync = writable<boolean>(false);
 
 /**
- * Writeable store of the basenames (without `.yaml`) of the downloaded Pandoc
- * `defaults/` presets. Populates the "Template / preset" dropdown on the Run
- * Pandoc Export compile step. Refreshed on layout-ready and after assets are
- * downloaded via `refreshPandocTemplates`.
+ * Writeable store of the downloaded Pandoc `defaults/` presets — basename
+ * (without `.yaml`) plus the extension each exports to. Populates the
+ * "Template / preset" dropdown on the Run Pandoc Export compile step, which
+ * labels every entry with its format. Refreshed on layout-ready and after
+ * assets are downloaded via `refreshPandocTemplates`.
  */
-export const pandocTemplates = writable<string[]>([]);
+export const pandocTemplates = writable<PandocTemplateChoice[]>([]);
 
 // DERIVED STORES
 

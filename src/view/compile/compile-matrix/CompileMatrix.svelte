@@ -19,6 +19,11 @@
     workflows,
     pandocTemplates,
   } from "src/model/stores";
+  import {
+    dropdownChoices,
+    optionDescription,
+    optionIsInert,
+  } from "../option-display";
   import { draftTitle } from "src/model/draft-utils";
   import { projectRootPath } from "src/model/project-resources";
   import { useApp } from "../../utils";
@@ -401,14 +406,14 @@
                   <label for={step.id + "-" + option.id}>{option.name}</label>
                   <select
                     id={step.id + "-" + option.id}
-                    disabled={running}
+                    disabled={running || optionIsInert(option, step.optionValues)}
                     value={step.optionValues[option.id] ?? ""}
                     on:change={(e) =>
                       setOption(item, item.openStep, option.id, e.currentTarget.value)}
                   >
                     <option value="">{option.emptyLabel ?? "(default)"}</option>
-                    {#each option.dynamicChoices === "pandoc-templates" ? $pandocTemplates : option.choices ?? [] as choice}
-                      <option value={choice}>{choice}</option>
+                    {#each dropdownChoices(option, $pandocTemplates) as choice}
+                      <option value={choice.value}>{choice.label}</option>
                     {/each}
                   </select>
                 {:else}
@@ -424,7 +429,9 @@
                     <label for={step.id + "-" + option.id}>{option.name}</label>
                   </div>
                 {/if}
-                <p class="step-editor-option-desc">{option.description}</p>
+                <p class="step-editor-option-desc">
+                  {optionDescription(option, step.optionValues)}
+                </p>
               </div>
             {/each}
           </div>
