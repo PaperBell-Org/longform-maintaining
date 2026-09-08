@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.0-beta.7](https://github.com/PaperBell-Org/longform-maintaining/compare/2.4.0-beta.6...2.4.0-beta.7) (2026-09-08)
+
+
+### Features
+
+* pre-fill authors from the host profile; make the preset/Format precedence visible ([ece5a81](https://github.com/PaperBell-Org/longform-maintaining/commit/ece5a81d35a68b939f1337c1cf62d999a84ef154)), closes [#38](https://github.com/PaperBell-Org/longform-maintaining/issues/38) [#30](https://github.com/PaperBell-Org/longform-maintaining/issues/30) [#34](https://github.com/PaperBell-Org/longform-maintaining/issues/34)
+
 ## [2.4.0-beta.6](https://github.com/PaperBell-Org/longform-maintaining/compare/2.4.0-beta.5...2.4.0-beta.6) (2026-08-18)
 
 
