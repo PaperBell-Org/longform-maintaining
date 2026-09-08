@@ -2,6 +2,7 @@ import type { App } from "obsidian";
 
 import type LongformPlugin from "../main";
 import {
+  PPB_PLUGINS_CHANGED_EVENT,
   PPB_READY_EVENT,
   PPB_SCHEMA_VERSION,
   type PPBHostApi,
@@ -90,6 +91,22 @@ export class PaperBellClient {
         }
       }) as never)
     );
+
+    // The host broadcasts this when its registered sub-plugin list changes — a
+    // sibling loading or unloading. Its own use is refreshing the settings card
+    // list, but it is also the only consent-free push we get between host
+    // reloads, so we take it as a cue to re-read plugin-info: capabilities the
+    // host gained or dropped in the meantime would otherwise stay stale until
+    // the next ready event. Cheap, and it prompts for nothing.
+    this.plugin.registerEvent(
+      this.app.workspace.on(PPB_PLUGINS_CHANGED_EVENT as never, (() => {
+        if (!this.client) return;
+        const host = this.lookupHost();
+        if (host) {
+          this.refreshCapabilities(host);
+        }
+      }) as never)
+    );
   }
 
   private lookupHost(): PPBHostApi | null {
@@ -137,23 +154,11 @@ export class PaperBellClient {
     }
     this.client = handle;
 
-    // plugin-info is consent-free; use it to gate features (e.g. llm-invoke).
-    let capabilities = DISCONNECTED.capabilities;
-    try {
-      capabilities = host.getPluginInfo()?.capabilities ?? [];
-    } catch (e) {
-      console.warn("[PaperOut] Could not read PaperBell plugin info:", e);
-    }
-
-    this.capabilities = capabilities;
     // Keep whatever config we already had: on a reconnect it is the last value the host
     // gave us, and dropping it would flip the UI back to the fallback language for as
     // long as it takes to fetch a fresh one.
-    paperbell.update((s) => ({
-      ...s,
-      connected: true,
-      capabilities,
-    }));
+    paperbell.update((s) => ({ ...s, connected: true }));
+    this.refreshCapabilities(host);
     console.log(
       reconnecting
         ? "[PaperOut] Reconnected to PaperBell host after it reloaded."
@@ -177,6 +182,23 @@ export class PaperBellClient {
         console.warn("[PaperOut] Could not refresh PaperBell config:", e);
       });
     }
+  }
+
+  /**
+   * Re-read the host's advertised scopes and mirror them into the store; they gate
+   * features (e.g. llm-invoke). plugin-info needs no consent, so this is safe to
+   * call on any host signal.
+   */
+  private refreshCapabilities(host: PPBHostApi): PPBScope[] {
+    let capabilities = DISCONNECTED.capabilities;
+    try {
+      capabilities = host.getPluginInfo()?.capabilities ?? [];
+    } catch (e) {
+      console.warn("[PaperOut] Could not read PaperBell plugin info:", e);
+    }
+    this.capabilities = capabilities;
+    paperbell.update((s) => ({ ...s, capabilities }));
+    return capabilities;
   }
 
   /** Whether the user has already granted us `scope`, per the host's grant list. */
