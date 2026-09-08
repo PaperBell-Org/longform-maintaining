@@ -122,6 +122,15 @@ and skips entirely when no bundle is installed.
   that PR *is* the release: it tags, publishes the GitHub release, attaches `main.js`,
   `manifest.json`, `styles.css`, and appends the `versions.json` entry. Merging any other PR never
   cuts a version.
+- **Squash-merge feature PRs into `main`.** A `dev` → `main` merge commit inherits the PR
+  title, and a PR titled `feat: …` is itself a conventional commit — release-please walks
+  every commit since the last tag and counts the merge *and* the original as one feature
+  each, which is how `2.4.0-beta.5` shipped with its one feature listed twice. Squashing
+  leaves one commit whose subject is the PR title, which is what the tooling expects.
+  (GitHub's *default* merge subject, `Merge pull request #NN from …`, is ignored by
+  release-please — but that only holds while nobody overrides it, and overriding it is the
+  normal thing to do.) The repo allows squash merges; setting it as the repository's
+  default merge method takes the choice off whoever clicks the button.
 - **Write commit subjects release-please can read.** `fix:` → patch, `feat:` → minor, `!` or a
   `BREAKING CHANGE:` footer → major — all within the prerelease line configured in
   `release-please-config.json` (currently `2.4.0-beta.N`). To pin a version by hand, put
