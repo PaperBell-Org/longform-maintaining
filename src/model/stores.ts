@@ -1,8 +1,7 @@
 import { derived, writable } from "svelte/store";
 import { groupBy, sortBy } from "lodash";
 
-// Type-only, so the `pandoc-templates` → `stores` import stays the only runtime edge.
-import type { PandocTemplateChoice } from "./pandoc-templates";
+import type { PandocTemplateChoice } from "./pandoc-templates-utils";
 import type {
   WordCountSession,
   Draft,

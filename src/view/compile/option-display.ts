@@ -1,5 +1,12 @@
-import type { CompileStepOption } from "src/compile/steps/abstract-compile-step";
-import type { PandocTemplateChoice } from "src/model/pandoc-templates";
+import {
+  fillOptionText,
+  type CompileStepOption,
+} from "src/compile/steps/abstract-compile-step";
+import {
+  formatAside,
+  templateLabel,
+  type PandocTemplateChoice,
+} from "src/model/pandoc-templates-utils";
 
 /**
  * How a compile step's option is presented right now: whether another option is
@@ -31,16 +38,25 @@ export function optionIsInert(
 }
 
 /**
- * The description to show under `option`: its `disabledDescription` (with
- * `{value}` filled in) while it is overridden, otherwise its own.
+ * The description to show under `option`: its `disabledDescription` while it is
+ * overridden, otherwise its own.
+ *
+ * `templates` answers the `{format}` placeholder — a preset that overrides the
+ * Format option should say *which* format it imposes, and only the preset list
+ * knows that. Absent or unreadable, the sentence simply omits the aside.
  */
 export function optionDescription(
   option: CompileStepOption,
-  optionValues: Record<string, unknown>
+  optionValues: Record<string, unknown>,
+  templates: PandocTemplateChoice[] = []
 ): string {
   const value = overridingValue(option, optionValues);
   if (value === null || !option.disabledDescription) return option.description;
-  return option.disabledDescription.replace(/\{value\}/g, value);
+  const ext = templates.find((t) => t.name === value)?.ext ?? "";
+  return fillOptionText(option.disabledDescription, {
+    value,
+    format: formatAside(ext),
+  });
 }
 
 /** The trimmed value of the option overriding this one, or null if none does. */
@@ -49,9 +65,10 @@ function overridingValue(
   optionValues: Record<string, unknown>
 ): string | null {
   if (!option.disabledBy) return null;
-  const raw = optionValues?.[option.disabledBy];
-  if (typeof raw !== "string") return raw ? String(raw) : null;
-  const value = raw.trim();
+  const raw = optionValues[option.disabledBy];
+  // Every option that can override one today is a text field or a dropdown, so a
+  // non-string value means the step declared a `disabledBy` it shouldn't have.
+  const value = typeof raw === "string" ? raw.trim() : "";
   return value ? value : null;
 }
 
@@ -69,10 +86,4 @@ export function dropdownChoices(
     return templates.map((t) => ({ value: t.name, label: templateLabel(t) }));
   }
   return (option.choices ?? []).map((c) => ({ value: c, label: c }));
-}
-
-/** `paperbell` + `.pdf` → `paperbell — PDF`; an unread preset keeps its bare name. */
-export function templateLabel(template: PandocTemplateChoice): string {
-  const ext = template.ext.replace(/^\./, "").toUpperCase();
-  return ext ? `${template.name} — ${ext}` : template.name;
 }

@@ -67,9 +67,10 @@ export interface CompileStepOption {
   choices?: string[];
   /**
    * For `Dropdown` options: an identifier the compile UI resolves to a live list
-   * of choices (e.g. `"pandoc-templates"` → the downloaded Pandoc presets).
+   * of choices. A closed set — one provider — so the sentinel is type-checked
+   * rather than a string compared hopefully.
    */
-  dynamicChoices?: string;
+  dynamicChoices?: DynamicChoiceSource;
   /**
    * For `Dropdown` options: the label shown for the empty (`""`) choice, which
    * lets the step fall back to its own default behavior. Defaults to "(default)".
@@ -86,10 +87,30 @@ export interface CompileStepOption {
    */
   disabledBy?: string;
   /**
-   * Shown in place of `description` while {@link disabledBy} holds a value.
-   * `{value}` is replaced with that value. Ignored without `disabledBy`.
+   * Shown in place of `description` while {@link disabledBy} holds a value, and
+   * reused verbatim by any step that reports the same precedence at compile time
+   * — one sentence, so the editor and the export cannot drift apart.
+   *
+   * Filled by {@link fillOptionText}: `{value}` is the overriding option's value,
+   * and a step may offer further placeholders of its own. Ignored without
+   * `disabledBy`.
    */
   disabledDescription?: string;
+}
+
+/** The live choice lists the compile UI knows how to resolve. */
+export type DynamicChoiceSource = "pandoc-templates";
+
+/**
+ * Fill `{placeholder}`s in an option's text. A placeholder with no value is left
+ * standing rather than blanked, so a typo shows up as itself instead of as a
+ * hole in the sentence.
+ */
+export function fillOptionText(
+  text: string,
+  vars: Record<string, string>
+): string {
+  return text.replace(/\{(\w+)\}/g, (whole, name) => vars[name] ?? whole);
 }
 
 /**

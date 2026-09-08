@@ -7,7 +7,6 @@ import {
   dropdownChoices,
   optionDescription,
   optionIsInert,
-  templateLabel,
 } from "src/view/compile/option-display";
 
 /** The real Run Pandoc Export `format` option, trimmed to the fields these read. */
@@ -20,7 +19,8 @@ const FORMAT: CompileStepOption = {
   emptyLabel: "(require a preset)",
   default: "",
   disabledBy: "template",
-  disabledDescription: 'Ignored — the preset "{value}" decides the format.',
+  disabledDescription:
+    'Ignored — the preset "{value}" decides the output format{format}.',
 };
 
 const TEMPLATE: CompileStepOption = {
@@ -51,13 +51,44 @@ describe("optionIsInert", () => {
 describe("optionDescription", () => {
   it("swaps in the disabled text, naming the preset that won", () => {
     expect(optionDescription(FORMAT, { template: "paperbell" })).toBe(
-      'Ignored — the preset "paperbell" decides the format.'
+      'Ignored — the preset "paperbell" decides the output format.'
     );
+  });
+
+  it("names the format that preset produces, when the list knows it", () => {
+    // The whole point of the disabled state: not just "you don't decide this",
+    // but what was decided instead.
+    expect(
+      optionDescription(FORMAT, { template: "manuscript-obsidian" }, [
+        { name: "paperbell", ext: ".pdf" },
+        { name: "manuscript-obsidian", ext: ".docx" },
+      ])
+    ).toBe(
+      'Ignored — the preset "manuscript-obsidian" decides the output format (DOCX).'
+    );
+  });
+
+  it("omits the aside for a preset whose yaml could not be read", () => {
+    expect(
+      optionDescription(FORMAT, { template: "broken" }, [
+        { name: "broken", ext: "" },
+      ])
+    ).toBe('Ignored — the preset "broken" decides the output format.');
   });
 
   it("keeps its own description while nothing overrides it", () => {
     expect(optionDescription(FORMAT, { template: "" })).toBe(
       FORMAT.description
+    );
+  });
+
+  it("leaves an unknown placeholder standing rather than blanking it", () => {
+    const option: CompileStepOption = {
+      ...FORMAT,
+      disabledDescription: "Set by {value}, see {nowhere}.",
+    };
+    expect(optionDescription(option, { template: "paperbell" })).toBe(
+      "Set by paperbell, see {nowhere}."
     );
   });
 
@@ -101,11 +132,5 @@ describe("dropdownChoices", () => {
 
   it("yields nothing for a dropdown with neither source", () => {
     expect(dropdownChoices({ ...FORMAT, choices: undefined }, [])).toEqual([]);
-  });
-});
-
-describe("templateLabel", () => {
-  it("upper-cases the extension and drops its dot", () => {
-    expect(templateLabel({ name: "beamer", ext: ".pdf" })).toBe("beamer — PDF");
   });
 });

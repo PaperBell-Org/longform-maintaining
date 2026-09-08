@@ -430,7 +430,7 @@
                   </div>
                 {/if}
                 <p class="step-editor-option-desc">
-                  {optionDescription(option, step.optionValues)}
+                  {optionDescription(option, step.optionValues, $pandocTemplates)}
                 </p>
               </div>
             {/each}

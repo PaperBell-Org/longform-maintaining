@@ -95,6 +95,22 @@ export function json(value: unknown): string {
   return JSON.stringify(value, null, 2) + "\n";
 }
 
+/**
+ * The lead author entry both `metadata.json` files carry. One shape, so the
+ * supplementary deposit never drifts from the main one — Zenodo reads them as
+ * two records of the same paper.
+ *
+ * ORCID stays a placeholder: it is the one field nothing upstream knows.
+ */
+export function leadCreator(ctx: PartContext): Record<string, string> {
+  return {
+    name: ctx.author,
+    affiliation: ctx.affiliation,
+    orcid: "0000-0000-0000-0000",
+    email: ctx.email,
+  };
+}
+
 /** Characters safe to write bare in YAML — no quoting, no escaping, no ambiguity. */
 const PLAIN_YAML_SCALAR = /^[A-Za-z0-9][A-Za-z0-9 ._-]*$/;
 
@@ -366,14 +382,7 @@ function supplementaryMetadata(ctx: PartContext): string {
     publication_type: "article",
     description:
       "Supplementary information for the paper. Shares the main manuscript's metadata but adds supplementary: true so figures and tables receive an S prefix.",
-    creators: [
-      {
-        name: ctx.author,
-        affiliation: ctx.affiliation,
-        orcid: "0000-0000-0000-0000",
-        email: ctx.email,
-      },
-    ],
+    creators: [leadCreator(ctx)],
     keywords: ["keyword-one", "keyword-two"],
     journal_title: "Target Journal",
     version: "v1.0",

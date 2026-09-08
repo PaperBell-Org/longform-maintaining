@@ -4,6 +4,8 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 
+import { ASSETS, hasBin } from "./golden-harness";
+
 /**
  * Owed verification from the change that added a top-level `project:` key to
  * every scaffolded index note (#25, #28).
@@ -19,16 +21,6 @@ import * as path from "path";
  * Gated like the response-letter golden: skips without pandoc and the synced
  * assets. LaTeX output only — no xelatex needed.
  */
-function hasBin(name: string): boolean {
-  try {
-    execFileSync("which", [name], { stdio: "ignore" });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-const ASSETS = path.resolve(process.cwd(), "pandoc-assets");
 const COVER_YAML = path.join(ASSETS, "defaults", "cover_letter.yaml");
 const present = hasBin("pandoc") && fs.existsSync(COVER_YAML);
 

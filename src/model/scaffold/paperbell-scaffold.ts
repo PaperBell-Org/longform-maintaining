@@ -4,6 +4,7 @@ import {
 } from "./assets";
 import {
   json,
+  leadCreator,
   PAPER_PARTS,
   type PaperPartId,
   type PartContext,
@@ -95,32 +96,24 @@ export function acronymFromTitle(title: string): string {
 }
 
 function mainMetadata(ctx: PartContext): string {
-  const { title, acronym, author } = ctx;
   return json({
-    title,
+    title: ctx.title,
     publication_date: "",
     upload_type: "publication",
     publication_type: "article",
     description:
       "One-paragraph summary of the paper. Fill this in — it is emitted into the compiled manuscript's frontmatter and (for Zenodo) the deposit description.",
-    creators: [
-      {
-        name: author,
-        affiliation: ctx.affiliation,
-        orcid: "0000-0000-0000-0000",
-        email: ctx.email,
-      },
-    ],
+    creators: [leadCreator(ctx)],
     keywords: ["keyword-one", "keyword-two"],
     journal_title: "Target Journal",
     version: "v1.0",
     _longform: {
-      acronym,
+      acronym: ctx.acronym,
       csl: "nature",
       template: "paperbell",
       lineno: true,
       figures_at_end: false,
-      corresponding: [author],
+      corresponding: [ctx.author],
       extra_yaml: `corresponding_email: ${ctx.email}\nnumbersections: true\n`,
     },
   });

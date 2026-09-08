@@ -124,7 +124,7 @@
                 </div>
               {/if}
               <p class="longform-compile-step-option-description">
-                {optionDescription(option, step.optionValues)}
+                {optionDescription(option, step.optionValues, $pandocTemplates)}
               </p>
             </div>
           {/each}

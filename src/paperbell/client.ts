@@ -102,11 +102,8 @@ export class PaperBellClient {
     // the next ready event. Cheap, and it prompts for nothing.
     this.plugin.registerEvent(
       this.app.workspace.on(PPB_PLUGINS_CHANGED_EVENT as never, (() => {
-        if (!this.client) return;
-        const host = this.lookupHost();
-        if (host) {
-          this.refreshCapabilities(host);
-        }
+        const host = this.client ? this.lookupHost() : null;
+        if (host) this.refreshCapabilities(host);
       }) as never)
     );
   }
@@ -191,7 +188,7 @@ export class PaperBellClient {
    * features (e.g. llm-invoke). plugin-info needs no consent, so this is safe to
    * call on any host signal.
    */
-  private refreshCapabilities(host: PPBHostApi): PPBScope[] {
+  private refreshCapabilities(host: PPBHostApi): void {
     let capabilities = DISCONNECTED.capabilities;
     try {
       capabilities = host.getPluginInfo()?.capabilities ?? [];
@@ -200,7 +197,6 @@ export class PaperBellClient {
     }
     this.capabilities = capabilities;
     paperbell.update((s) => ({ ...s, capabilities }));
-    return capabilities;
   }
 
   /** Whether the user has already granted us `scope`, per the host's grant list. */

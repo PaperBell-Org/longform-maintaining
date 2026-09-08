@@ -8,7 +8,9 @@ import type { CompileContext, CompileManuscriptInput } from "..";
 import {
   CompileStepKind,
   CompileStepOptionType,
+  fillOptionText,
   makeBuiltinStep,
+  type CompileStepOption,
 } from "./abstract-compile-step";
 import {
   binSearchDirs,
@@ -39,7 +41,8 @@ import {
 import { pandocSetupError } from "../recoverable";
 import { pluginSettings } from "src/model/stores";
 import { projectResourceCandidatePaths } from "src/model/project-resources";
-import { listPandocTemplates } from "src/model/pandoc-templates";
+import { listPandocTemplateNames } from "src/model/pandoc-templates";
+import { formatAside } from "src/model/pandoc-templates-utils";
 
 function line(ok: boolean, label: string, detail: string): string {
   return `[${ok ? "✓" : "✗"}] ${label}` + (detail ? `\n       ${detail}` : "");
@@ -101,7 +104,7 @@ function missingPresetHelp(
   template: string,
   templateSource: string
 ): string {
-  const installed = listPandocTemplates(app).map((t) => t.name);
+  const installed = listPandocTemplateNames(app);
   const where = `The preset "${template}" comes from ${templateSource}.`;
   if (installed.length === 0) {
     return (
@@ -149,6 +152,31 @@ function attachmentResourcePaths(
   return paths;
 }
 
+/**
+ * Why a Format the user set had no effect. Declared once, because two places
+ * report it: the step editor greys the control out and shows this, and an export
+ * that runs with both set (a workflow saved before the control was greyed, or
+ * the headless `Run workflow:` command) says the same thing in a notice.
+ *
+ * `{value}` is the preset; `{format}` the aside naming what it produces.
+ */
+const FORMAT_OVERRIDDEN =
+  'the preset "{value}" decides the output format{format}. Clear the preset to ' +
+  "export with Format instead.";
+
+const FORMAT_OPTION: CompileStepOption = {
+  id: "format",
+  name: "Format (no preset)",
+  description:
+    "Export without any preset, using pandoc on its own — no downloaded assets needed. Word needs nothing but pandoc; PDF also needs a TeX engine (xelatex, for CJK). Setting this overrides the note's `template:` frontmatter; only the Template / preset option above wins over it. Leave blank to require a preset, as the PaperBell pipelines do.",
+  type: CompileStepOptionType.Dropdown,
+  choices: [...BUILTIN_FORMATS],
+  emptyLabel: "(require a preset)",
+  default: "",
+  disabledBy: "template",
+  disabledDescription: `Ignored — ${FORMAT_OVERRIDDEN}`,
+};
+
 export const RunPandocExportStep = makeBuiltinStep({
   id: "run-pandoc-export",
   description: {
@@ -167,19 +195,7 @@ export const RunPandocExportStep = makeBuiltinStep({
         emptyLabel: "(use metadata template)",
         default: "",
       },
-      {
-        id: "format",
-        name: "Format (no preset)",
-        description:
-          "Export without any preset, using pandoc on its own — no downloaded assets needed. Word needs nothing but pandoc; PDF also needs a TeX engine (xelatex, for CJK). Setting this overrides the note's `template:` frontmatter; only the Template / preset option above wins over it. Leave blank to require a preset, as the PaperBell pipelines do.",
-        type: CompileStepOptionType.Dropdown,
-        choices: [...BUILTIN_FORMATS],
-        emptyLabel: "(require a preset)",
-        default: "",
-        disabledBy: "template",
-        disabledDescription:
-          'Ignored — the preset "{value}" decides the output format (the Template / preset dropdown above names it). Clear the preset to export with Format instead.',
-      },
+      FORMAT_OPTION,
       {
         id: "filename",
         name: "File name",
@@ -249,23 +265,7 @@ export const RunPandocExportStep = makeBuiltinStep({
     // assets. See `resolveBuiltinFormat` for the precedence.
     const formatOption = String(context.optionValues["format"] ?? "").trim();
     const builtinFormat = resolveBuiltinFormat(optionTemplate, formatOption);
-    if (!builtinFormat && optionTemplate && formatOption) {
-      console.warn(
-        `[Pandoc Export] Both a preset ("${optionTemplate}") and a Format ` +
-          `("${formatOption}") are set on this step; the preset wins. Clear the ` +
-          `Template / preset option to export with Format instead.`
-      );
-      // The step editor greys the Format control out while a preset is set, but
-      // that only reaches someone who opens it: a workflow saved before it did,
-      // or run headlessly from the `Run workflow: <name>` command, still arrives
-      // here with both. Say it where a writer will actually see it.
-      new Notice(
-        `PaperOut: the preset "${optionTemplate}" decides the format — the ` +
-          `Format option ("${formatOption}") is ignored. Clear the preset to ` +
-          `export with Format instead.`,
-        8000
-      );
-    }
+    const formatOverridden = !builtinFormat && !!optionTemplate && !!formatOption;
 
     // Unused in built-in mode: no preset is read, and `{template}` must not
     // expand to a name that had no effect on the output.
@@ -319,6 +319,22 @@ export const RunPandocExportStep = makeBuiltinStep({
           e
         );
       }
+    }
+
+    // The step editor greys the Format control out while a preset is set, but that
+    // only reaches someone who opens it: a workflow saved before it did, or run
+    // headlessly from the `Run workflow: <name>` command, still arrives here with
+    // both. Say it where a writer will see it — and say it in the editor's own
+    // words, now that the target is known and can name the format.
+    if (formatOverridden) {
+      const why = fillOptionText(FORMAT_OVERRIDDEN, {
+        value: optionTemplate,
+        format: formatAside(target.ext),
+      });
+      console.warn(
+        `[Pandoc Export] Format "${formatOption}" is set alongside a preset: ${why}`
+      );
+      new Notice(`PaperOut: the Format option is ignored — ${why}`, 8000);
     }
 
     // Only require the tools this preset actually asks for. A docx preset needs

@@ -5,6 +5,7 @@ import {
   acronymFromTitle,
   renderTree,
   SCAFFOLD_PRIMARY_DRAFT,
+  type ScaffoldProfile,
 } from "src/model/scaffold/paperbell-scaffold";
 import {
   ALL_PAPER_PARTS,
@@ -342,11 +343,7 @@ describe("buildPaperbellScaffold — the PaperBell project link", () => {
 });
 
 describe("buildPaperbellScaffold — the lead author from the host profile", () => {
-  const build = (profile?: {
-    name?: string;
-    institution?: string;
-    email?: string;
-  }) =>
+  const build = (profile?: ScaffoldProfile) =>
     buildPaperbellScaffold({
       title: "My Paper",
       parts: ALL,

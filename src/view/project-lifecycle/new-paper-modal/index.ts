@@ -59,7 +59,7 @@ export default class NewPaperModal extends Modal {
    * Who the host says the user is, when it can tell us without a consent prompt.
    * Null until it answers — and it may never answer, which is the no-host case.
    */
-  private hostProfile: ScaffoldProfile | null = null;
+  private hostProfile: ScaffoldProfile | undefined = undefined;
   /** Main is mandatory — see the note on the toggle below. */
   private parts = new Set<PaperPartId>(["main"]);
   private examples = true;
@@ -283,7 +283,7 @@ export default class NewPaperModal extends Modal {
         project: this.projectValue.trim() || undefined,
         parts: [...this.parts],
         examples: this.examples,
-        profile: this.hostProfile ?? undefined,
+        profile: this.hostProfile,
       });
       selectedDraftVaultPath.set(primaryPath);
       selectedTab.set("Scenes");

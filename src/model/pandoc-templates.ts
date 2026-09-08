@@ -7,21 +7,12 @@ import { pandocTemplates, pluginSettings } from "./stores";
 import {
   currentPlatformEnv,
   DEFAULT_ASSETS_DIR,
-  exportTargetForDefaults,
   resolveUserPath,
 } from "src/compile/steps/pandoc-export-utils";
-
-/**
- * A downloaded preset, with the file extension it exports to. Knowing the
- * extension is what lets the compile UI label a preset `paperbell — PDF` — until
- * now the only way to learn that a preset produces Word was to open its yaml.
- */
-export interface PandocTemplateChoice {
-  /** Basename of the preset file, without `.yaml`. The value written to the step. */
-  name: string;
-  /** Extension the preset exports to, e.g. `".pdf"`. Empty when it couldn't be read. */
-  ext: string;
-}
+import {
+  pandocTemplateChoices,
+  type PandocTemplateChoice,
+} from "./pandoc-templates-utils";
 
 /**
  * Preset basenames that aren't user-selectable manuscript templates: `crossref`
@@ -35,9 +26,9 @@ const EXCLUDED = new Set(["crossref", "undefined"]);
  * Node fs to read outside the vault); returns `[]` on mobile or if the folder
  * can't be read.
  *
- * Reading each preset is best-effort, exactly as the export step's own preflight
- * is (see `pandoc-export.ts`, "assuming PDF output"): one unreadable or malformed
- * yaml costs that entry its format label, never the whole list.
+ * This is the Obsidian-bound half: locate the folder, read the files. The
+ * pairing and its degradation live in `pandoc-templates-utils.ts`, where they
+ * can be tested.
  */
 export function listPandocTemplates(app: App): PandocTemplateChoice[] {
   const adapter = app.vault.adapter;
@@ -51,9 +42,22 @@ export function listPandocTemplates(app: App): PandocTemplateChoice[] {
     "defaults"
   );
 
-  let names: string[];
+  return pandocTemplateChoices(presetNames(defaultsDir), (name) =>
+    parseYaml(fs.readFileSync(path.join(defaultsDir, name + ".yaml"), "utf8"))
+  );
+}
+
+/**
+ * Just the preset names, for callers that have no use for the formats — reading
+ * every yaml to throw the answer away would be silly on an error path.
+ */
+export function listPandocTemplateNames(app: App): string[] {
+  return listPandocTemplates(app).map((t) => t.name);
+}
+
+function presetNames(defaultsDir: string): string[] {
   try {
-    names = fs
+    return fs
       .readdirSync(defaultsDir)
       .filter((f) => f.endsWith(".yaml"))
       .map((f) => f.slice(0, -".yaml".length))
@@ -61,21 +65,6 @@ export function listPandocTemplates(app: App): PandocTemplateChoice[] {
       .sort();
   } catch {
     return [];
-  }
-
-  return names.map((name) => ({
-    name,
-    ext: presetExtension(path.join(defaultsDir, name + ".yaml")),
-  }));
-}
-
-/** The extension one preset exports to, or `""` when it can't be determined. */
-function presetExtension(file: string): string {
-  try {
-    return exportTargetForDefaults(parseYaml(fs.readFileSync(file, "utf8"))).ext;
-  } catch (e) {
-    console.warn(`[Pandoc Export] Could not read preset ${file}.`, e);
-    return "";
   }
 }
 
