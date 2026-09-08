@@ -1,4 +1,5 @@
 import type { App } from "obsidian";
+import { get } from "svelte/store";
 
 import type LongformPlugin from "../main";
 import {
@@ -17,6 +18,7 @@ import {
   type PPBProjectsQuery,
   type PaperBellAccountInfo,
   type PaperBellRestrictedConfig,
+  type PaperBellUserProfile,
   type PPBScope,
 } from "./shared-config";
 import { paperbell, DISCONNECTED } from "./store";
@@ -226,6 +228,34 @@ export class PaperBellClient {
       paperbell.update((s) => ({ ...s, config }));
     }
     return config;
+  }
+
+  /**
+   * The host's user profile — **only if reading it costs no consent prompt**: the
+   * store's last pushed config, else a fresh fetch when `listGrants()` says the user
+   * already granted `config`. Returns null for a missing host, an older host, a
+   * profile the user never filled in, and (deliberately) an ungranted `config`.
+   *
+   * That last case is the point. The one caller is the new-paper modal, where a
+   * prompt would fire on open, for a field the user may not care about, and could
+   * outlive the modal — the contract has no way to cancel it (see
+   * docs/PROPOSAL_PROJECTS_SCOPE.md §3). Pre-filling an author is not worth that;
+   * the placeholder it falls back to is what everyone gets today.
+   */
+  async profileIfGranted(): Promise<PaperBellUserProfile | null> {
+    if (!this.client) return null;
+
+    const known = get(paperbell).config?.profile;
+    if (known) return known;
+
+    const host = this.lookupHost();
+    if (!host || !this.hasGrant(host, "config")) return null;
+    try {
+      return (await this.fetchSharedConfig())?.profile ?? null;
+    } catch (e) {
+      console.warn("[PaperOut] Could not read the PaperBell profile:", e);
+      return null;
+    }
   }
 
   /** Request the host's account info (scope: `account`). First call prompts for consent. */

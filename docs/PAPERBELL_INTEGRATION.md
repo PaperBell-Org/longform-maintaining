@@ -43,6 +43,14 @@ invisible to the user:
   language the host changed while our handle was dead. A first connect stays scope-free — see
   *Deferred consent* under **Scopes** below.
 
+New paper projects pre-fill their lead author from the host's `profile` (`name` →
+`creators[0].name`, `institution` → `affiliation`, `email` → `email` and the cover letter's
+`corresponding:`), each field falling back to its placeholder on its own. `profileIfGranted()`
+reads it **only** when that costs nothing: the config the host already pushed, or a fetch when
+`listGrants()` says `config` is already granted. It never prompts — a consent dialog raised by
+opening the new-paper modal could outlive the modal, and a pre-filled author is not worth that.
+ORCID stays a placeholder; the host has no such field.
+
 We also subscribe to `paperbell:plugins-changed`, which the host broadcasts when its registered
 sub-plugin list changes (its own use is refreshing the settings card list). We take it as a cue
 to re-read `getPluginInfo()`, so capabilities the host gained or dropped mid-session don't sit

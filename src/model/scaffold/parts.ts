@@ -30,7 +30,15 @@ export type ProjectForm = "legacy" | "project";
 export interface PartContext {
   title: string;
   acronym: string;
+  /**
+   * Lead author, and the affiliation / address to reach them at. Placeholders
+   * unless the PaperBell host told us who the user is — see `ScaffoldOptions.profile`.
+   * `metadata.json` stays the single authority for publication metadata either way;
+   * these only decide what the user finds pre-filled there.
+   */
   author: string;
+  affiliation: string;
+  email: string;
   /**
    * The PaperBell project this paper is a deliverable of, written as the top-level
    * `project:` frontmatter key on every index note. This is the *project's* acronym
@@ -335,7 +343,7 @@ manuscript: ${ctx.title}
 acronym: ${ctx.acronym}
 ${projectLine(ctx)}date:
 to: Dear Editor,
-corresponding: ${ctx.author} (you@example.com)
+corresponding: ${ctx.author} (${ctx.email})
 ---
 
 We are pleased to submit our manuscript, *{{manuscript}}*, for consideration for publication in *{{JournalName}}*.
@@ -361,9 +369,9 @@ function supplementaryMetadata(ctx: PartContext): string {
     creators: [
       {
         name: ctx.author,
-        affiliation: "Your Institution",
+        affiliation: ctx.affiliation,
         orcid: "0000-0000-0000-0000",
-        email: "you@example.com",
+        email: ctx.email,
       },
     ],
     keywords: ["keyword-one", "keyword-two"],

@@ -49,13 +49,37 @@ export interface ScaffoldOptions {
    * the same reason as `parts`; body text adapts to it.
    */
   examples: boolean;
+  /**
+   * Who the PaperBell host says the user is, when it says anything at all. Each
+   * field present replaces its placeholder in `metadata.json` and the cover
+   * letter; each field absent leaves the placeholder exactly as it was, which is
+   * also the whole no-host case.
+   *
+   * Passed in rather than fetched here on purpose: this builder is pure, and its
+   * output is what the unit tests pin down.
+   */
+  profile?: ScaffoldProfile;
 }
 
 /**
- * Stand-in for the lead author. Left as a placeholder for the user to replace in
- * metadata.json, which is the single authority for publication metadata.
+ * The slice of the host's user profile a manuscript can use. Mirrors the fields
+ * of `PaperBellUserProfile` that map onto an author entry — `title` and `avatar`
+ * have nowhere to go, and ORCID the host does not know.
+ */
+export interface ScaffoldProfile {
+  name?: string;
+  institution?: string;
+  email?: string;
+}
+
+/**
+ * Stand-ins for the lead author, used whenever the host has not told us who that
+ * is. Left as placeholders for the user to replace in metadata.json, which is the
+ * single authority for publication metadata.
  */
 const PLACEHOLDER_AUTHOR = "Lastname, Firstname";
+const PLACEHOLDER_AFFILIATION = "Your Institution";
+const PLACEHOLDER_EMAIL = "you@example.com";
 
 /** Initials of a title, upper-cased, digits kept — "Sea Level Memory" → "SLM". */
 export function acronymFromTitle(title: string): string {
@@ -70,7 +94,8 @@ export function acronymFromTitle(title: string): string {
   return initials || "PAPER";
 }
 
-function mainMetadata(title: string, acronym: string, author: string): string {
+function mainMetadata(ctx: PartContext): string {
+  const { title, acronym, author } = ctx;
   return json({
     title,
     publication_date: "",
@@ -81,9 +106,9 @@ function mainMetadata(title: string, acronym: string, author: string): string {
     creators: [
       {
         name: author,
-        affiliation: "Your Institution",
+        affiliation: ctx.affiliation,
         orcid: "0000-0000-0000-0000",
-        email: "you@example.com",
+        email: ctx.email,
       },
     ],
     keywords: ["keyword-one", "keyword-two"],
@@ -96,8 +121,7 @@ function mainMetadata(title: string, acronym: string, author: string): string {
       lineno: true,
       figures_at_end: false,
       corresponding: [author],
-      extra_yaml:
-        "corresponding_email: you@example.com\nnumbersections: true\n",
+      extra_yaml: `corresponding_email: ${ctx.email}\nnumbersections: true\n`,
     },
   });
 }
@@ -222,7 +246,7 @@ export function commonScaffoldFiles(ctx: PartContext): ScaffoldFile[] {
   return [
     {
       path: "metadata.json",
-      text: mainMetadata(ctx.title, ctx.acronym, ctx.author),
+      text: mainMetadata(ctx),
     },
     { path: "results.json", text: RESULTS_JSON },
     { path: "references.bib", text: REFERENCES_BIB },
@@ -239,10 +263,15 @@ export function exampleAssetFiles(): ScaffoldFile[] {
 
 /** Normalize the caller's options into the context every part builder takes. */
 export function scaffoldContext(opts: ScaffoldOptions): PartContext {
+  const profile = opts.profile;
   return {
     title: opts.title.trim(),
     acronym: (opts.acronym || acronymFromTitle(opts.title.trim())).trim(),
-    author: PLACEHOLDER_AUTHOR,
+    // Each field falls back on its own: a host that knows a name but no
+    // institution should still save the user from retyping the name.
+    author: profile?.name?.trim() || PLACEHOLDER_AUTHOR,
+    affiliation: profile?.institution?.trim() || PLACEHOLDER_AFFILIATION,
+    email: profile?.email?.trim() || PLACEHOLDER_EMAIL,
     project: opts.project?.trim() || undefined,
     examples: opts.examples,
     present: new Set(opts.parts),
