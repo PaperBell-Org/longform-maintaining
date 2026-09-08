@@ -16,6 +16,7 @@ import {
   PAPER_PARTS,
   writePaperbellScaffold,
   type PaperPartId,
+  type ScaffoldProfile,
 } from "src/model/scaffold";
 import { projectOptions, type ProjectOption } from "./project-options";
 
@@ -54,6 +55,11 @@ export default class NewPaperModal extends Modal {
    * one-way door — the text field offers a button back to the list.
    */
   private hostProjects: ProjectOption[] = [];
+  /**
+   * Who the host says the user is, when it can tell us without a consent prompt.
+   * Null until it answers — and it may never answer, which is the no-host case.
+   */
+  private hostProfile: ScaffoldProfile | undefined = undefined;
   /** Main is mandatory — see the note on the toggle below. */
   private parts = new Set<PaperPartId>(["main"]);
   private examples = true;
@@ -123,6 +129,7 @@ export default class NewPaperModal extends Modal {
       .setDesc(translate("scaffold.projectDesc"));
     this.renderProjectTextInput();
     void this.loadHostProjects();
+    void this.loadHostProfile();
 
     contentEl.createEl("h4", { text: translate("scaffold.partsHeading") });
 
@@ -184,6 +191,24 @@ export default class NewPaperModal extends Modal {
     // consent prompt and typed the acronym themselves.
     if (this.projectEdited) return;
     this.renderProjectDropdown();
+  }
+
+  /**
+   * Ask the host who the user is, to pre-fill the lead author instead of leaving
+   * `Lastname, Firstname` for them to correct. Fire-and-forget like the project
+   * list, and silent in every failure: `profileIfGranted` returns null rather than
+   * prompt for the `config` scope, so opening this modal still costs no consent
+   * dialog. Nothing here can delay or fail the create — a profile that lands after
+   * the user clicked simply misses this paper.
+   */
+  private async loadHostProfile(): Promise<void> {
+    const profile = await this.plugin.paperBell?.profileIfGranted();
+    if (!profile) return;
+    this.hostProfile = {
+      name: profile.name,
+      institution: profile.institution,
+      email: profile.email,
+    };
   }
 
   /** Swap the project field's control, keeping `projectValue` as the source of truth. */
@@ -258,6 +283,7 @@ export default class NewPaperModal extends Modal {
         project: this.projectValue.trim() || undefined,
         parts: [...this.parts],
         examples: this.examples,
+        profile: this.hostProfile,
       });
       selectedDraftVaultPath.set(primaryPath);
       selectedTab.set("Scenes");

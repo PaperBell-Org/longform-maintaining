@@ -72,6 +72,15 @@ four *PaperBell …* workflows are unaffected — they leave *Format* blank on
 purpose, so their preset is still required and a missing one fails loudly instead
 of silently dropping the submission layout.
 
+Rule 1 is visible in the step editor rather than only in the result: pick a
+preset and the *Format* control greys out, naming the preset that decided for you
+and the format it produces — *"Ignored — the preset `paperbell` decides the
+output format (PDF)."* Each preset in the dropdown is labelled with what it produces —
+`paperbell — PDF`, `manuscript-obsidian — DOCX` — so picking the one that gives
+you a Word file no longer means opening its yaml. A workflow saved before this,
+or run from its `Run workflow: <name>` command, says the same thing in a notice
+when it exports.
+
 If something is missing, the error dialog lists what's needed, which presets are
 installed, and offers buttons to jump straight to **Set up Pandoc export** or the
 asset marketplace.

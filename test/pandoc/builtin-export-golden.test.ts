@@ -4,6 +4,8 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 
+import { hasBin } from "./golden-harness";
+
 import {
   buildPandocArgs,
   builtinExportTarget,
@@ -22,15 +24,6 @@ import {
  * Gated on the binaries, not on the assets (that is the point). Word needs
  * pandoc alone; the PDF case additionally needs xelatex, so it gates separately.
  */
-function hasBin(name: string): boolean {
-  try {
-    execFileSync("which", [name], { stdio: "ignore" });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 const havePandoc = hasBin("pandoc");
 const haveXelatex = hasBin("xelatex");
 

@@ -10,6 +10,11 @@
   } from "src/compile/steps/abstract-compile-step";
   import { createEventDispatcher } from "svelte";
   import { pandocTemplates } from "src/model/stores";
+  import {
+    dropdownChoices,
+    optionDescription,
+    optionIsInert,
+  } from "./option-display";
 
   export let step: CompileStep;
   export let ordinal: number;
@@ -100,11 +105,12 @@
                 <label for={step.id + "-" + option.id}>{option.name}</label>
                 <select
                   id={step.id + "-" + option.id}
+                  disabled={optionIsInert(option, step.optionValues)}
                   bind:value={step.optionValues[option.id]}
                 >
                   <option value="">{option.emptyLabel ?? "(default)"}</option>
-                  {#each option.dynamicChoices === "pandoc-templates" ? $pandocTemplates : option.choices ?? [] as choice}
-                    <option value={choice}>{choice}</option>
+                  {#each dropdownChoices(option, $pandocTemplates) as choice}
+                    <option value={choice.value}>{choice.label}</option>
                   {/each}
                 </select>
               {:else}
@@ -118,7 +124,7 @@
                 </div>
               {/if}
               <p class="longform-compile-step-option-description">
-                {option.description}
+                {optionDescription(option, step.optionValues, $pandocTemplates)}
               </p>
             </div>
           {/each}

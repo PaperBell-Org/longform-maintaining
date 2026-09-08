@@ -20,7 +20,7 @@ export {
   scaffoldContext,
   SCAFFOLD_PRIMARY_DRAFT,
 } from "./paperbell-scaffold";
-export type { ScaffoldOptions } from "./paperbell-scaffold";
+export type { ScaffoldOptions, ScaffoldProfile } from "./paperbell-scaffold";
 export {
   ALL_PAPER_PARTS,
   PAPER_PARTS,
