@@ -1,7 +1,9 @@
 import type { App } from "obsidian";
+import { get } from "svelte/store";
 
 import type LongformPlugin from "../main";
 import {
+  PPB_PLUGINS_CHANGED_EVENT,
   PPB_READY_EVENT,
   PPB_SCHEMA_VERSION,
   type PPBHostApi,
@@ -16,6 +18,7 @@ import {
   type PPBProjectsQuery,
   type PaperBellAccountInfo,
   type PaperBellRestrictedConfig,
+  type PaperBellUserProfile,
   type PPBScope,
 } from "./shared-config";
 import { paperbell, DISCONNECTED } from "./store";
@@ -90,6 +93,19 @@ export class PaperBellClient {
         }
       }) as never)
     );
+
+    // The host broadcasts this when its registered sub-plugin list changes — a
+    // sibling loading or unloading. Its own use is refreshing the settings card
+    // list, but it is also the only consent-free push we get between host
+    // reloads, so we take it as a cue to re-read plugin-info: capabilities the
+    // host gained or dropped in the meantime would otherwise stay stale until
+    // the next ready event. Cheap, and it prompts for nothing.
+    this.plugin.registerEvent(
+      this.app.workspace.on(PPB_PLUGINS_CHANGED_EVENT as never, (() => {
+        const host = this.client ? this.lookupHost() : null;
+        if (host) this.refreshCapabilities(host);
+      }) as never)
+    );
   }
 
   private lookupHost(): PPBHostApi | null {
@@ -137,23 +153,11 @@ export class PaperBellClient {
     }
     this.client = handle;
 
-    // plugin-info is consent-free; use it to gate features (e.g. llm-invoke).
-    let capabilities = DISCONNECTED.capabilities;
-    try {
-      capabilities = host.getPluginInfo()?.capabilities ?? [];
-    } catch (e) {
-      console.warn("[PaperOut] Could not read PaperBell plugin info:", e);
-    }
-
-    this.capabilities = capabilities;
     // Keep whatever config we already had: on a reconnect it is the last value the host
     // gave us, and dropping it would flip the UI back to the fallback language for as
     // long as it takes to fetch a fresh one.
-    paperbell.update((s) => ({
-      ...s,
-      connected: true,
-      capabilities,
-    }));
+    paperbell.update((s) => ({ ...s, connected: true }));
+    this.refreshCapabilities(host);
     console.log(
       reconnecting
         ? "[PaperOut] Reconnected to PaperBell host after it reloaded."
@@ -177,6 +181,22 @@ export class PaperBellClient {
         console.warn("[PaperOut] Could not refresh PaperBell config:", e);
       });
     }
+  }
+
+  /**
+   * Re-read the host's advertised scopes and mirror them into the store; they gate
+   * features (e.g. llm-invoke). plugin-info needs no consent, so this is safe to
+   * call on any host signal.
+   */
+  private refreshCapabilities(host: PPBHostApi): void {
+    let capabilities = DISCONNECTED.capabilities;
+    try {
+      capabilities = host.getPluginInfo()?.capabilities ?? [];
+    } catch (e) {
+      console.warn("[PaperOut] Could not read PaperBell plugin info:", e);
+    }
+    this.capabilities = capabilities;
+    paperbell.update((s) => ({ ...s, capabilities }));
   }
 
   /** Whether the user has already granted us `scope`, per the host's grant list. */
@@ -204,6 +224,34 @@ export class PaperBellClient {
       paperbell.update((s) => ({ ...s, config }));
     }
     return config;
+  }
+
+  /**
+   * The host's user profile — **only if reading it costs no consent prompt**: the
+   * store's last pushed config, else a fresh fetch when `listGrants()` says the user
+   * already granted `config`. Returns null for a missing host, an older host, a
+   * profile the user never filled in, and (deliberately) an ungranted `config`.
+   *
+   * That last case is the point. The one caller is the new-paper modal, where a
+   * prompt would fire on open, for a field the user may not care about, and could
+   * outlive the modal — the contract has no way to cancel it (see
+   * docs/PROPOSAL_PROJECTS_SCOPE.md §3). Pre-filling an author is not worth that;
+   * the placeholder it falls back to is what everyone gets today.
+   */
+  async profileIfGranted(): Promise<PaperBellUserProfile | null> {
+    if (!this.client) return null;
+
+    const known = get(paperbell).config?.profile;
+    if (known) return known;
+
+    const host = this.lookupHost();
+    if (!host || !this.hasGrant(host, "config")) return null;
+    try {
+      return (await this.fetchSharedConfig())?.profile ?? null;
+    } catch (e) {
+      console.warn("[PaperOut] Could not read the PaperBell profile:", e);
+      return null;
+    }
   }
 
   /** Request the host's account info (scope: `account`). First call prompts for consent. */

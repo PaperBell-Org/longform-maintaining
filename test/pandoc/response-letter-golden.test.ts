@@ -4,6 +4,8 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 
+import { ASSETS, hasBin } from "./golden-harness";
+
 /**
  * End-to-end golden test of the response-letter Lua engine (manuscript_include +
  * responseletter). Given a manuscript with a <!--ms:id--> span + a figure, a
@@ -15,16 +17,6 @@ import * as path from "path";
  * without the Pandoc toolchain stays green; runs locally). No xelatex needed —
  * we assert the generated LaTeX, not a PDF.
  */
-function hasBin(name: string): boolean {
-  try {
-    execFileSync("which", [name], { stdio: "ignore" });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-const ASSETS = path.resolve(process.cwd(), "pandoc-assets");
 const RESP_YAML = path.join(ASSETS, "defaults", "response-letter.yaml");
 const CSL = path.join(ASSETS, "csl", "nature.csl");
 const present = hasBin("pandoc") && fs.existsSync(RESP_YAML) && fs.existsSync(CSL);

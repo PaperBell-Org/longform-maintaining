@@ -5,6 +5,7 @@ import {
   acronymFromTitle,
   renderTree,
   SCAFFOLD_PRIMARY_DRAFT,
+  type ScaffoldProfile,
 } from "src/model/scaffold/paperbell-scaffold";
 import {
   ALL_PAPER_PARTS,
@@ -341,6 +342,78 @@ describe("buildPaperbellScaffold — the PaperBell project link", () => {
   });
 });
 
+describe("buildPaperbellScaffold — the lead author from the host profile", () => {
+  const build = (profile?: ScaffoldProfile) =>
+    buildPaperbellScaffold({
+      title: "My Paper",
+      parts: ALL,
+      examples: false,
+      profile,
+    });
+
+  const metadataOf = (files: ScaffoldFile[], path: string) =>
+    JSON.parse(textOf(files, path));
+
+  it("fills the lead author in both metadata.json files and the cover letter", () => {
+    const files = build({
+      name: "Song, Shuang",
+      institution: "Max Planck Institute of Geoanthropology",
+      email: "song@gea.mpg.de",
+    });
+
+    for (const path of ["metadata.json", "supplementary/metadata.json"]) {
+      const meta = metadataOf(files, path);
+      expect(meta.creators[0].name, path).toBe("Song, Shuang");
+      expect(meta.creators[0].affiliation, path).toBe(
+        "Max Planck Institute of Geoanthropology"
+      );
+      expect(meta.creators[0].email, path).toBe("song@gea.mpg.de");
+      expect(meta._longform.corresponding, path).toEqual(["Song, Shuang"]);
+      // ORCID has no profile field, so it stays a placeholder to fill in.
+      expect(meta.creators[0].orcid, path).toBe("0000-0000-0000-0000");
+    }
+    expect(metadataOf(files, "metadata.json")._longform.extra_yaml).toContain(
+      "corresponding_email: song@gea.mpg.de"
+    );
+    expect(textOf(files, "Cover Letter.md")).toContain(
+      "corresponding: Song, Shuang (song@gea.mpg.de)"
+    );
+  });
+
+  it("writes the name exactly as the host gave it", () => {
+    // The host's `name` is a display name; metadata.json's placeholder follows
+    // Zenodo's "Lastname, Firstname". Reordering it blindly would be a guess, so
+    // the user fixes it in the one file that is authoritative.
+    const meta = metadataOf(build({ name: "Shuang Song" }), "metadata.json");
+    expect(meta.creators[0].name).toBe("Shuang Song");
+  });
+
+  it("falls back per field, not all-or-nothing", () => {
+    const meta = metadataOf(build({ name: "Song, Shuang" }), "metadata.json");
+    expect(meta.creators[0].name).toBe("Song, Shuang");
+    expect(meta.creators[0].affiliation).toBe("Your Institution");
+    expect(meta.creators[0].email).toBe("you@example.com");
+  });
+
+  it("is byte-identical to today's scaffold when there is no profile", () => {
+    // No host, an older host, or an ungranted `config` scope — all land here.
+    const none = build();
+    const empty = build({ name: "   ", institution: "", email: undefined });
+    expect(empty).toEqual(none);
+
+    const meta = metadataOf(none, "metadata.json");
+    expect(meta.creators[0].name).toBe("Lastname, Firstname");
+    expect(meta.creators[0].affiliation).toBe("Your Institution");
+    expect(meta.creators[0].email).toBe("you@example.com");
+    expect(meta._longform.extra_yaml).toContain(
+      "corresponding_email: you@example.com"
+    );
+    expect(textOf(none, "Cover Letter.md")).toContain(
+      "corresponding: Lastname, Firstname (you@example.com)"
+    );
+  });
+});
+
 describe("yamlScalar", () => {
   it("writes plain identifiers bare", () => {
     for (const value of ["ColMemo", "PROJ-1", "my project", "v1.0", "A_B"]) {
@@ -410,6 +483,8 @@ describe("buildPaperbellScaffold — invariants across every selection", () => {
       title: "My Paper",
       acronym: "MP",
       author: "A, B",
+      affiliation: "Your Institution",
+      email: "you@example.com",
       examples: true,
       present: new Set<PaperPartId>(ALL),
     };

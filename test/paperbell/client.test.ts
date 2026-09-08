@@ -3,7 +3,10 @@ import { get } from "svelte/store";
 
 import { PaperBellClient } from "src/paperbell/client";
 import { paperbell } from "src/paperbell/store";
-import { PPB_READY_EVENT } from "src/paperbell/shared-config";
+import {
+  PPB_PLUGINS_CHANGED_EVENT,
+  PPB_READY_EVENT,
+} from "src/paperbell/shared-config";
 import type {
   PaperBellRestrictedConfig,
   PPBCompletionResult,
@@ -49,7 +52,19 @@ describe("PaperBellClient — standalone (no host)", () => {
     expect(get(paperbell).connected).toBe(false);
     // Waits for the host to announce itself later.
     expect(plugin.app.workspace.handlerCount(PPB_READY_EVENT)).toBe(1);
-    expect(plugin.registeredEventRefs).toHaveLength(1);
+    expect(plugin.app.workspace.handlerCount(PPB_PLUGINS_CHANGED_EVENT)).toBe(1);
+    // Both are registered through the plugin, so both die with it.
+    expect(plugin.registeredEventRefs).toHaveLength(2);
+  });
+
+  it("ignores a plugins-changed event while no host is connected", () => {
+    const { client, plugin } = newClient();
+    client.init();
+
+    expect(() =>
+      plugin.app.workspace.trigger(PPB_PLUGINS_CHANGED_EVENT)
+    ).not.toThrow();
+    expect(get(paperbell).capabilities).toEqual([]);
   });
 
   it("no-ops all host-backed calls (returns null)", async () => {
@@ -201,6 +216,113 @@ describe("PaperBellClient — handshake", () => {
     expect(client.connected).toBe(false);
     expect(get(paperbell).connected).toBe(false);
     errSpy.mockRestore();
+  });
+});
+
+describe("PaperBellClient — the user profile (consent-free only)", () => {
+  const PROFILE = {
+    name: "Song, Shuang",
+    institution: "Max Planck Institute of Geoanthropology",
+    email: "song@gea.mpg.de",
+  };
+
+  it("returns null with no host at all", async () => {
+    const { client } = newClient();
+    client.init();
+    expect(await client.profileIfGranted()).toBeNull();
+  });
+
+  it("uses the config the host already pushed, without asking again", async () => {
+    const { client, plugin } = newClient();
+    const host = new MockPaperBellHost({
+      sharedConfig: makeRestrictedConfig({ profile: PROFILE }),
+    });
+    plugin.app.installHost(host);
+    client.init();
+    // As a real host does over `onConfigChange` once `config` was granted.
+    host.emitConfigChange(makeRestrictedConfig({ profile: PROFILE }));
+
+    expect(await client.profileIfGranted()).toEqual(PROFILE);
+  });
+
+  it("fetches once when `config` is already granted", async () => {
+    const { client, plugin } = newClient();
+    const host = new MockPaperBellHost({
+      sharedConfig: makeRestrictedConfig({ profile: PROFILE }),
+      grants: [grantFor("config")],
+    });
+    plugin.app.installHost(host);
+    client.init();
+    await flush();
+
+    expect(await client.profileIfGranted()).toEqual(PROFILE);
+  });
+
+  it("does NOT fetch — so does not prompt — when `config` is not granted", async () => {
+    const { client, plugin } = newClient();
+    const host = new MockPaperBellHost({
+      sharedConfig: makeRestrictedConfig({ profile: PROFILE }),
+      grants: [],
+    });
+    plugin.app.installHost(host);
+    client.init();
+
+    // The whole point: a prompt here would fire on opening the new-paper modal,
+    // for a field the user may not care about, and could outlive the modal.
+    expect(await client.profileIfGranted()).toBeNull();
+    expect(get(paperbell).config).toBeNull();
+  });
+
+  it("returns null when the host has a config but no profile in it", async () => {
+    const { client, plugin } = newClient();
+    const host = new MockPaperBellHost({
+      sharedConfig: makeRestrictedConfig(),
+      grants: [grantFor("config")],
+    });
+    plugin.app.installHost(host);
+    client.init();
+
+    expect(await client.profileIfGranted()).toBeNull();
+  });
+});
+
+describe("PaperBellClient — sibling plugins come and go", () => {
+  it("re-reads the host's capabilities when it broadcasts plugins-changed", () => {
+    const { client, plugin } = newClient();
+    const host = new MockPaperBellHost({ capabilities: ["plugin-info"] });
+    plugin.app.installHost(host);
+    client.init();
+    expect(get(paperbell).capabilities).toEqual(["plugin-info"]);
+
+    // The host opened up a scope while we were already connected. Without this
+    // subscription the stale list would stand until the next ready event.
+    host.pluginInfo.capabilities = ["plugin-info", "llm-invoke"];
+    plugin.app.workspace.trigger(PPB_PLUGINS_CHANGED_EVENT);
+
+    expect(get(paperbell).capabilities).toEqual(["plugin-info", "llm-invoke"]);
+    // Consent-free: nothing was re-registered and no scope was requested.
+    expect(host.registeredSources).toHaveLength(1);
+  });
+
+  it("survives a host that throws while reporting plugin info", () => {
+    const warnSpy = vi
+      .spyOn(console, "warn")
+      .mockImplementation((): void => undefined);
+    const { client, plugin } = newClient();
+    const host = new MockPaperBellHost();
+    plugin.app.installHost(host);
+    client.init();
+
+    host.getPluginInfo = () => {
+      throw new Error("host exploded");
+    };
+    expect(() =>
+      plugin.app.workspace.trigger(PPB_PLUGINS_CHANGED_EVENT)
+    ).not.toThrow();
+
+    expect(get(paperbell).capabilities).toEqual([]);
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
   });
 });
 

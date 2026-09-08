@@ -30,7 +30,15 @@ export type ProjectForm = "legacy" | "project";
 export interface PartContext {
   title: string;
   acronym: string;
+  /**
+   * Lead author, and the affiliation / address to reach them at. Placeholders
+   * unless the PaperBell host told us who the user is — see `ScaffoldOptions.profile`.
+   * `metadata.json` stays the single authority for publication metadata either way;
+   * these only decide what the user finds pre-filled there.
+   */
   author: string;
+  affiliation: string;
+  email: string;
   /**
    * The PaperBell project this paper is a deliverable of, written as the top-level
    * `project:` frontmatter key on every index note. This is the *project's* acronym
@@ -85,6 +93,22 @@ export interface PaperPart {
 /** JSON.stringify with the 2-space, trailing-newline shape the fixtures use. */
 export function json(value: unknown): string {
   return JSON.stringify(value, null, 2) + "\n";
+}
+
+/**
+ * The lead author entry both `metadata.json` files carry. One shape, so the
+ * supplementary deposit never drifts from the main one — Zenodo reads them as
+ * two records of the same paper.
+ *
+ * ORCID stays a placeholder: it is the one field nothing upstream knows.
+ */
+export function leadCreator(ctx: PartContext): Record<string, string> {
+  return {
+    name: ctx.author,
+    affiliation: ctx.affiliation,
+    orcid: "0000-0000-0000-0000",
+    email: ctx.email,
+  };
 }
 
 /** Characters safe to write bare in YAML — no quoting, no escaping, no ambiguity. */
@@ -335,7 +359,7 @@ manuscript: ${ctx.title}
 acronym: ${ctx.acronym}
 ${projectLine(ctx)}date:
 to: Dear Editor,
-corresponding: ${ctx.author} (you@example.com)
+corresponding: ${ctx.author} (${ctx.email})
 ---
 
 We are pleased to submit our manuscript, *{{manuscript}}*, for consideration for publication in *{{JournalName}}*.
@@ -358,14 +382,7 @@ function supplementaryMetadata(ctx: PartContext): string {
     publication_type: "article",
     description:
       "Supplementary information for the paper. Shares the main manuscript's metadata but adds supplementary: true so figures and tables receive an S prefix.",
-    creators: [
-      {
-        name: ctx.author,
-        affiliation: "Your Institution",
-        orcid: "0000-0000-0000-0000",
-        email: "you@example.com",
-      },
-    ],
+    creators: [leadCreator(ctx)],
     keywords: ["keyword-one", "keyword-two"],
     journal_title: "Target Journal",
     version: "v1.0",

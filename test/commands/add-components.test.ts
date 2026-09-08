@@ -242,6 +242,8 @@ describe("part builders in project form", () => {
     title: "My Paper",
     acronym: "MP",
     author: "Lastname, Firstname",
+    affiliation: "Your Institution",
+    email: "you@example.com",
     examples: true,
     present: new Set<"main" | "supplementary" | "cover" | "response">(["main"]),
   };
@@ -351,6 +353,8 @@ describe("the context handed to part builders", () => {
         title: "My Paper",
         acronym: "MP",
         author: "A, B",
+        affiliation: "Your Institution",
+        email: "you@example.com",
         examples: false,
         present,
       },
@@ -366,6 +370,8 @@ describe("the context handed to part builders", () => {
         title: "My Paper",
         acronym: "MP",
         author: "A, B",
+        affiliation: "Your Institution",
+        email: "you@example.com",
         examples: false,
         present: new Set<"main" | "supplementary" | "cover" | "response">([
           "response",

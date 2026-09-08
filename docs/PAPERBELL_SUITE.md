@@ -88,8 +88,11 @@ ready to pick up.
 
 ### Direction 1 — Consume concept / scholar / publication data
 
-- **Pre-fill authors into `metadata.json`.** Source an explicit co-author list (host-provided
-  or a designated note) at scaffold time.
+- **Pre-fill authors into `metadata.json`.** *The submitting user is done* — the host's v2
+  `profile` (name / institution / email) fills `creators[0]` and the cover letter's
+  `corresponding:` when reading it costs no consent prompt, falling back per field to the
+  placeholders. What remains is an explicit **co-author** list (host-provided or a designated
+  note); deliberately not the "scholars you track" pool — tracking others ≠ authorship.
   Change sites: `src/model/scaffold/paperbell-scaffold.ts` (`mainMetadata`/`supplementaryMetadata`),
   `src/model/metadata-resolver.ts`, `src/view/project-lifecycle/new-paper-modal/`.
 - **Material/citation suggestions from concepts.** Read the manuscript's `concepts:` and
