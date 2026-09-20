@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.0-beta.8](https://github.com/PaperBell-Org/longform-maintaining/compare/2.4.0-beta.7...2.4.0-beta.8) (2026-09-20)
+
+
+### Bug Fixes
+
+* **pandoc-export:** let output-file name the format when `to:` is a custom writer ([#45](https://github.com/PaperBell-Org/longform-maintaining/issues/45)) ([e5ceeb4](https://github.com/PaperBell-Org/longform-maintaining/commit/e5ceeb45380a960970c8344ee1e722a3804fb801))
+
 ## [2.4.0-beta.7](https://github.com/PaperBell-Org/longform-maintaining/compare/2.4.0-beta.6...2.4.0-beta.7) (2026-09-08)
 
 
