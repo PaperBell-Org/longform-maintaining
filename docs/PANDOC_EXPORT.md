@@ -220,8 +220,21 @@ you get Word.
 This matters because pandoc refuses to write mismatched output: asking a `to: docx`
 preset for a `.pdf` file exits with `cannot produce pdf output from docx`.
 
+A third kind of preset points `to:` at a **custom Lua writer** instead of naming
+a format — that is how the submission-package recipes build a `.zip` of LaTeX
+sources. A writer's path says nothing about what comes out, so those presets
+declare it in `output-file:` (`output-file: submission.zip` → `<note name>.zip`),
+and the export takes its extension from there. A custom-writer preset that names
+no `output-file` gets `.bin`: unknowable, but still one file with a usable name.
+
 The prerequisite check follows the preset too: a docx preset needs neither a TeX
-engine nor `pandoc-crossref`, and neither is demanded of it.
+engine nor `pandoc-crossref`, and neither is demanded of it. `pandoc-crossref`
+counts as needed when the preset names it in `filters:`, when a Lua filter in
+that list calls it (`run_json_filter(doc, 'pandoc-crossref', …)`), or when the
+recipe declares it as a system dependency in the marketplace index. That last
+route relies on `installed.json`, which only the marketplace panel writes —
+assets fetched by **Set up Pandoc export → Download assets**, or synced from the
+canonical vault, have none, and there the preset's own filters are what answer.
 
 ## Naming the exported file
 

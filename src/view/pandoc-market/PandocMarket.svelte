@@ -124,7 +124,7 @@
     busy = { ...busy, [b.id]: true };
     const n = new Notice($t("market.installing") + " " + b.name, 0);
     try {
-      const rec = await installMarketBundle(app, b, destFolder);
+      const rec = await installMarketBundle(app, b, destFolder, index);
       manifest[rec.id] = rec;
       if (b.workflows?.length) {
         const added = await installWorkflows(b.workflows);

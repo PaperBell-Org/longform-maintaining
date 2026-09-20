@@ -87,6 +87,8 @@ paperbell-pandoc-assets/                 # the assets repository (separate repo)
         "template.paperbell", "csl.nature"
       ],
       "systemDeps": ["pandoc-crossref"]   // external tools; surfaced, never downloaded
+                                          // also recorded per preset into installed.json,
+                                          // so export preflight can demand them
     },
 
     { "id": "template.paperbell", "type": "template", "name": "PaperBell template",
@@ -218,7 +220,15 @@ Keep `optionValues` portable (preset names, not absolute paths).
 - Install a bundle via the zip installer, or an asset + its `requires` closure via
   per-file download (optional `sha256` check), tracking everything in
   `installed.json` at the assets root (used for update detection and uninstall,
-  and to avoid clobbering files you've edited locally).
+  and to avoid clobbering files you've edited locally). A record written by
+  either of those two installs also carries `presetDeps` — `defaults/<recipe>.yaml`
+  → that recipe's `systemDeps` — because the index is gone by export time and
+  preflight has only this file to go on. It is keyed per preset so a multi-recipe
+  bundle doesn't make every preset in it demand every tool any of them needs. For
+  a bundle the recipes are recovered by matching the index's assets against the
+  file list the bundle declares. The plain zip download in **Set up Pandoc
+  export** writes no manifest at all, so a recipe installed that way is known
+  only by what its preset says.
 - Refresh the template dropdown so recipes are immediately selectable; inject a
   bundle's recommended workflows (missing-only, built-in steps only).
 - Desktop installs + browsing also work on mobile for download, but the template

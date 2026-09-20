@@ -272,10 +272,82 @@ export interface InstalledRecord {
   /** Dest-relative paths this install wrote (used to uninstall / diff). */
   files: string[];
   installedAt: string;
+  /**
+   * `defaults/<recipe>.yaml` → the `systemDeps` that recipe declares in the
+   * index. Kept per preset, not per install: a bundle carries several recipes
+   * and a shared list would make every preset in `full.zip` demand every tool
+   * any of them needs. Written here because the index is only in hand while
+   * installing — export-time preflight has this file and nothing else.
+   */
+  presetDeps?: Record<string, string[]>;
 }
 
 /** id → install record, persisted as `installed.json` at the assets root. */
 export type InstalledManifest = Record<string, InstalledRecord>;
+
+/** The `defaults/*.yaml` an asset installs — its recipe presets. */
+function presetFiles(asset: MarketAsset): string[] {
+  return (asset.files ?? [])
+    .map((f) => f.path)
+    .filter((p) => /^defaults\/[^/]+\.ya?ml$/i.test(p));
+}
+
+/**
+ * Map each recipe preset these assets install to the system tools it declares,
+ * for {@link InstalledRecord.presetDeps}. Assets with no `systemDeps` and files
+ * that aren't presets drop out, so the result is empty for most installs.
+ */
+export function presetSystemDeps(
+  assets: MarketAsset[]
+): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const asset of assets) {
+    const deps = asset.systemDeps ?? [];
+    if (deps.length === 0) continue;
+    for (const preset of presetFiles(asset)) out[preset] = deps;
+  }
+  return out;
+}
+
+/**
+ * Is every file of this asset among `paths`? The rule for "this asset is here":
+ * used against the files found on disk (`detectPresentIds`) and against the
+ * files a bundle declares (`bundledAssets`). An asset that installs nothing is
+ * never "here" — it would otherwise match vacuously.
+ */
+export function assetFilesAllIn(asset: MarketAsset, paths: Set<string>): boolean {
+  const files = asset.files ?? [];
+  return files.length > 0 && files.every((f) => paths.has(f.path));
+}
+
+/**
+ * The assets a bundle zip contains: every index asset whose files it all lists.
+ * A bundle names files, not asset ids, so its recipes' `systemDeps` can only be
+ * recovered this way.
+ */
+export function bundledAssets(
+  index: MarketIndex,
+  bundle: MarketBundle
+): MarketAsset[] {
+  const contents = new Set(bundle.assets ?? []);
+  return index.assets.filter((a) => assetFilesAllIn(a, contents));
+}
+
+/**
+ * The system tools the recipe at `presetPath` (`defaults/<name>.yaml`) declares,
+ * according to the install manifest. Union across records, since an asset
+ * install and a bundle install can both own the same preset.
+ */
+export function systemDepsForPreset(
+  manifest: InstalledManifest,
+  presetPath: string
+): string[] {
+  const out = new Set<string>();
+  for (const rec of Object.values(manifest ?? {})) {
+    for (const dep of rec?.presetDeps?.[presetPath] ?? []) out.add(dep);
+  }
+  return [...out];
+}
 
 /**
  * Given the index and the install manifest, the display state for an entry.

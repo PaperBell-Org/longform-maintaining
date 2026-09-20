@@ -32,6 +32,7 @@ import {
   parseExportFrontmatter,
   resolveBinary,
   resolveBuiltinFormat,
+  resolvePresetPath,
   resolveUserPath,
   splitBibList,
   zoteroStylesDir,
@@ -42,10 +43,46 @@ import { pandocSetupError } from "../recoverable";
 import { pluginSettings } from "src/model/stores";
 import { projectResourceCandidatePaths } from "src/model/project-resources";
 import { listPandocTemplateNames } from "src/model/pandoc-templates";
+import {
+  INSTALLED_MANIFEST_NAME,
+  systemDepsForPreset,
+  type InstalledManifest,
+} from "src/model/pandoc-market";
 import { formatAside } from "src/model/pandoc-templates-utils";
 
 function line(ok: boolean, label: string, detail: string): string {
   return `[${ok ? "✓" : "✗"}] ${label}` + (detail ? `\n       ${detail}` : "");
+}
+
+/** Read a file preflight only wants to peek at; unreadable → null. */
+function readTextFile(abs: string): string | null {
+  try {
+    return fs.readFileSync(abs, "utf8");
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * The marketplace install manifest at the assets root, or `{}` when nothing
+ * wrote one: only the marketplace panel does, so assets pulled by the setup
+ * modal's "Download assets" or rsynced from the canonical vault have none.
+ * Preflight must work either way — reading the preset's own filters is what
+ * covers those, and this is the extra word of the recipe author when it exists.
+ *
+ * Deliberately not `pandoc-assets.readInstalledManifest`: that one reads
+ * through the vault adapter, which cannot reach an assets folder outside the
+ * vault, and this step has resolved an absolute path already.
+ */
+function readInstalledManifestAt(assetsAbs: string): InstalledManifest {
+  const text = readTextFile(path.join(assetsAbs, INSTALLED_MANIFEST_NAME));
+  if (!text) return {};
+  try {
+    return JSON.parse(text) as InstalledManifest;
+  } catch (e) {
+    console.warn(`[Pandoc Export] Could not read ${INSTALLED_MANIFEST_NAME}.`, e);
+    return {};
+  }
 }
 
 /**
@@ -290,9 +327,11 @@ export const RunPandocExportStep = makeBuiltinStep({
       platform.isWindows
     );
 
-    const defaultsFile = builtinFormat
-      ? null
-      : path.join(defaultsDir, template + ".yaml");
+    // One name for the preset, in the two forms its two readers want: an
+    // absolute path to parse, and the assets-relative path the install manifest
+    // keys its records by. They must name the same file.
+    const presetRel = `defaults/${template}.yaml`;
+    const defaultsFile = builtinFormat ? null : path.join(assetsAbs, presetRel);
     // The assets folder is only a requirement when a preset is read out of it.
     const assetsOk = !!builtinFormat || fs.existsSync(assetsAbs);
     const defaultsOk = !defaultsFile || fs.existsSync(defaultsFile);
@@ -311,13 +350,38 @@ export const RunPandocExportStep = makeBuiltinStep({
     } else if (defaultsFile && defaultsOk) {
       try {
         target = exportTargetForDefaults(
-          parseYaml(fs.readFileSync(defaultsFile, "utf8"))
+          parseYaml(fs.readFileSync(defaultsFile, "utf8")),
+          // Lets a `filters:` entry that *wraps* pandoc-crossref be recognized
+          // as needing it. Reading is best-effort and never throws.
+          (raw) =>
+            readTextFile(
+              resolvePresetPath(raw, {
+                userData: assetsAbs,
+                presetDir: defaultsDir,
+              })
+            )
         );
       } catch (e) {
         console.warn(
           `[Pandoc Export] Could not read preset ${defaultsFile}; assuming PDF output.`,
           e
         );
+      }
+      // A recipe also declares what it needs outright: `systemDeps` in the
+      // marketplace index, recorded per preset when it was installed. That is
+      // the recipe author's own word, so it settles cases no amount of reading
+      // the preset can — a tool reached from a template or a custom writer.
+      //
+      // Only pandoc-crossref is acted on, though every declared tool is read:
+      // the other name in use is `citeproc`, which pandoc 3 has built in and no
+      // machine has on PATH. Requiring each declared name as a binary would
+      // fail preflight for eight recipes that export perfectly well today.
+      const declared = systemDepsForPreset(
+        readInstalledManifestAt(assetsAbs),
+        presetRel
+      );
+      if (declared.indexOf("pandoc-crossref") !== -1) {
+        target = { ...target, needsCrossref: true };
       }
     }
 
@@ -475,10 +539,10 @@ export const RunPandocExportStep = makeBuiltinStep({
         "pandoc-crossref — " +
           (target.needsCrossref
             ? crossrefBin || "not found"
-            : "not needed (not in this preset’s filters)"),
+            : "not needed (this preset doesn’t call it)"),
         !target.needsCrossref || crossrefBin
           ? ""
-          : `The "${template}" preset runs pandoc-crossref for @fig / @tbl references, but it isn’t installed. Install it (macOS: brew install pandoc-crossref).`
+          : `The "${template}" preset runs pandoc-crossref for @fig / @tbl references — directly, through a filter that wraps it, or by its own declared system dependencies — but it isn’t installed. Install it (macOS: brew install pandoc-crossref).`
       ),
     ];
 

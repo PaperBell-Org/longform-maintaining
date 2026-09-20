@@ -329,6 +329,8 @@ const EXPORT_EXTENSIONS = new Set([
   ".rtf",
   ".md",
   ".txt",
+  // A submission-package recipe writes one of these, via a custom Lua writer.
+  ".zip",
 ]);
 
 /** Does this user-entered output path name a file rather than a folder? */
@@ -392,12 +394,75 @@ function baseWriterName(raw: string): string {
   return scalar(raw).split(/[+-]/)[0].trim().toLowerCase();
 }
 
+/**
+ * Does `to:` point at a **custom Lua writer** instead of naming a format?
+ *
+ * Pandoc 3 accepts a path there, and the submission-package recipes use one
+ * (`to: ${USERDATA}/writers/latex-submission.lua`). A path is not a writer
+ * name: {@link baseWriterName} splits it on the first `-` and yields
+ * `${userdata}/writers/latex`, which — used as an extension — turned the export
+ * into a *directory tree* named after the writer's path. Such a preset says
+ * what it produces in `output-file` instead.
+ */
+function isCustomWriter(raw: string): boolean {
+  const to = scalar(raw).toLowerCase();
+  return (
+    to.endsWith(".lua") || to.indexOf("/") !== -1 || to.indexOf("\\") !== -1
+  );
+}
+
+/** Reads a file a preset points at (a Lua filter); null when unreadable. */
+export type PresetFileReader = (rawPath: string) => string | null;
+
+/**
+ * A Lua filter *invoking* pandoc-crossref: the binary's name as a string
+ * literal, which is how `run_json_filter` / `pandoc.pipe` are handed it. The
+ * quotes are the whole point — these filters discuss crossref at length in
+ * their header comments, and a comment is not a dependency.
+ */
+const CROSSREF_CALL = /['"]pandoc-crossref['"]/;
+
+/**
+ * Does this `filters:` entry end up running pandoc-crossref?
+ *
+ * A preset can name the binary outright (`filters: [pandoc-crossref]`), or go
+ * through a Lua filter that calls `run_json_filter(doc, 'pandoc-crossref', …)`
+ * — which is how a chain with a custom writer pins the format crossref sees.
+ * Both need the binary installed, so preflight reads the wrapper when it can.
+ */
+function filterUsesCrossref(entry: string, read?: PresetFileReader): boolean {
+  if (!entry) return false;
+  if (entry.toLowerCase().endsWith("pandoc-crossref")) return true;
+  if (!read || !entry.toLowerCase().endsWith(".lua")) return false;
+  return CROSSREF_CALL.test(read(entry) ?? "");
+}
+
+/**
+ * Expand the placeholders a preset writes into its paths, so we can read a file
+ * it points at. Pandoc expands `${USERDATA}` to its data directory — the assets
+ * folder, which is what every shipped preset sets `data-dir:` to — and `${.}`
+ * to the folder holding the preset; a relative path is relative to that folder.
+ */
+export function resolvePresetPath(
+  raw: string,
+  dirs: { userData: string; presetDir: string }
+): string {
+  const expanded = scalar(raw)
+    .split("${USERDATA}")
+    .join(dirs.userData)
+    .split("${.}")
+    .join(dirs.presetDir);
+  return path.isAbsolute(expanded)
+    ? path.normalize(expanded)
+    : path.join(dirs.presetDir, expanded);
+}
+
 export type ExportTarget = {
   /** File extension to write, including the leading dot. */
   ext: string;
   /** The `pdf-engine` the preset asks for, if any. */
   pdfEngine: string | null;
-  /** Whether the preset's filter list includes pandoc-crossref. */
+  /** Whether the preset's filters end up running pandoc-crossref. */
   needsCrossref: boolean;
 };
 
@@ -405,20 +470,27 @@ export type ExportTarget = {
  * What a Pandoc defaults preset actually produces, read off its parsed YAML.
  *
  * Extension resolution, in order:
- *  1. `to:` names a writer that emits its own binary/text format (docx, odt,
+ *  1. `to:` is a path to a custom Lua writer — it names no format at all, so
+ *     only `output-file` can say what comes out.
+ *  2. `to:` names a writer that emits its own binary/text format (docx, odt,
  *     pptx, epub, …) — use that writer's extension and ignore `output-file`,
  *     since asking pandoc for `.pdf` there is a hard error.
- *  2. `to:` names a PDF-capable writer (latex, beamer, …) — honor an explicit
+ *  3. `to:` names a PDF-capable writer (latex, beamer, …) — honor an explicit
  *     `output-file` extension (the author may really want `.tex`), else `.pdf`.
- *  3. No `to:` — use `output-file`'s extension, else `.pdf`.
+ *  4. No `to:` — use `output-file`'s extension, else `.pdf`.
  *
  * Unknown writer names fall back to using the format name as the extension
  * (`to: rst` → `.rst`), which ages better than an exhaustive table.
  *
  * `pdfEngine` and `needsCrossref` ride along because the caller needs them for
- * the same preflight check and they come from the same parse.
+ * the same preflight check and they come from the same parse. Pass
+ * `readPresetFile` to let a Lua filter be read for an indirect crossref call;
+ * without it only a filter naming the binary counts.
  */
-export function exportTargetForDefaults(parsed: unknown): ExportTarget {
+export function exportTargetForDefaults(
+  parsed: unknown,
+  readPresetFile?: PresetFileReader
+): ExportTarget {
   const doc =
     typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
       ? (parsed as Record<string, unknown>)
@@ -427,21 +499,25 @@ export function exportTargetForDefaults(parsed: unknown): ExportTarget {
   const pdfEngine = scalar(doc["pdf-engine"]) || null;
 
   const filters = Array.isArray(doc["filters"]) ? doc["filters"] : [];
-  const needsCrossref = filters.some(
-    (f) => scalar(f).toLowerCase().endsWith("pandoc-crossref")
+  const needsCrossref = filters.some((f) =>
+    filterUsesCrossref(scalar(f), readPresetFile)
   );
 
   const outputExt = path.extname(scalar(doc["output-file"])).toLowerCase();
 
-  const to = baseWriterName(scalar(doc["to"]));
+  const rawTo = scalar(doc["to"]);
+  const to = baseWriterName(rawTo);
 
-  // A writer that emits its own format wins outright; asking pandoc for .pdf
-  // there is a hard error, so an `output-file: out.pdf` left over in the preset
-  // must not override it. Otherwise the author's `output-file` decides.
-  const ext =
-    to && !PDF_CAPABLE_WRITERS.has(to)
-      ? WRITER_EXTENSIONS[to] ?? `.${to}`
-      : outputExt || ".pdf";
+  // A custom writer's path says nothing about the output, so `output-file`
+  // is the whole story — `.bin` only if the preset left even that unsaid.
+  // Otherwise a writer that emits its own format wins outright; asking pandoc
+  // for .pdf there is a hard error, so an `output-file: out.pdf` left over in
+  // the preset must not override it. Failing those, `output-file` decides.
+  const ext = isCustomWriter(rawTo)
+    ? outputExt || ".bin"
+    : to && !PDF_CAPABLE_WRITERS.has(to)
+    ? WRITER_EXTENSIONS[to] ?? `.${to}`
+    : outputExt || ".pdf";
 
   return { ext, pdfEngine, needsCrossref };
 }

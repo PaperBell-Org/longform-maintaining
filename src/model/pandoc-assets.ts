@@ -6,6 +6,9 @@ import {
   validateIndex,
   normalizeIndex,
   resolveInstallSet,
+  assetFilesAllIn,
+  bundledAssets,
+  presetSystemDeps,
   INSTALLED_MANIFEST_NAME,
   type MarketIndex,
   type MarketAsset,
@@ -158,8 +161,7 @@ export async function detectPresentIds(
   );
   const ids = new Set<string>();
   for (const a of index.assets) {
-    const files = a.files ?? [];
-    if (files.length > 0 && files.every((f) => onDisk.has(f.path))) ids.add(a.id);
+    if (assetFilesAllIn(a, onDisk)) ids.add(a.id);
   }
   for (const b of index.bundles) {
     const assets = b.assets ?? [];
@@ -244,6 +246,7 @@ export async function installAssetWithDeps(
       kind: "asset",
       files,
       installedAt: new Date().toISOString(),
+      presetDeps: presetSystemDeps([asset]),
     };
     manifest[asset.id] = rec;
     records.push(rec);
@@ -252,11 +255,17 @@ export async function installAssetWithDeps(
   return records;
 }
 
-/** Install a bundle zip (reusing the zip downloader) and record it in the manifest. */
+/**
+ * Install a bundle zip (reusing the zip downloader) and record it in the
+ * manifest. `index` is required because the recipes inside the zip have to keep
+ * the `systemDeps` they declare there: that record is all export-time preflight
+ * ever gets to see of them.
+ */
 export async function installMarketBundle(
   app: App,
   bundle: MarketBundle,
-  destFolder: string
+  destFolder: string,
+  index: MarketIndex
 ): Promise<InstalledRecord> {
   const { files } = await downloadPandocAssets(app, bundle.download, destFolder);
   const manifest = await readInstalledManifest(app, destFolder);
@@ -266,6 +275,7 @@ export async function installMarketBundle(
     kind: "bundle",
     files,
     installedAt: new Date().toISOString(),
+    presetDeps: presetSystemDeps(bundledAssets(index, bundle)),
   };
   manifest[bundle.id] = rec;
   await writeInstalledManifest(app, destFolder, manifest);
