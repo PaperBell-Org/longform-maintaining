@@ -13,6 +13,7 @@ import {
   hasCjk,
   isBuiltinFormat,
   exportTargetForDefaults,
+  resolvePresetPath,
   extractCiteKeys,
   findDuplicateCiteKeys,
   hasCitations,
@@ -500,6 +501,96 @@ describe("exportTargetForDefaults", () => {
     expect(exportTargetForDefaults({}).needsCrossref).toBe(false);
   });
 
+  it("lets output-file name the format when `to:` is a custom Lua writer", () => {
+    // nature-latex.yaml, the Springer Nature submission package: pandoc 3 takes
+    // a writer path in `to:`, which is not a format name. Reading it as one
+    // used to yield `.${userdata}/writers/latex` and write the export as a
+    // directory tree (issue #44).
+    const parsed = {
+      to: "${USERDATA}/writers/latex-submission.lua",
+      "output-file": "submission.zip",
+    };
+    expect(exportTargetForDefaults(parsed).ext).toBe(".zip");
+    // …and no PDF engine gets demanded of a chain that never runs TeX.
+    expect(exportTargetForDefaults(parsed).pdfEngine).toBeNull();
+    expect(
+      exportTargetForDefaults({ to: "./writers/zip.lua", "output-file": "x.zip" })
+        .ext
+    ).toBe(".zip");
+    expect(
+      exportTargetForDefaults({
+        to: "C:\\Users\\me\\writers\\latex-submission.lua",
+        "output-file": "submission.zip",
+      }).ext
+    ).toBe(".zip");
+  });
+
+  it("falls back to .bin for a custom writer that says nothing else", () => {
+    // Unknowable, but a neutral extension keeps the output one file with a
+    // usable name — the failure being fixed was a path becoming folders.
+    expect(
+      exportTargetForDefaults({ to: "${USERDATA}/writers/thing.lua" }).ext
+    ).toBe(".bin");
+  });
+
+  it("still reads a bare writer name that contains a dash or dot", () => {
+    // The custom-writer test must not swallow ordinary formats.
+    expect(exportTargetForDefaults({ to: "markdown_strict" }).ext).toBe(".md");
+    expect(exportTargetForDefaults({ to: "gfm-raw_html" }).ext).toBe(".md");
+  });
+
+  it("detects pandoc-crossref through a Lua filter that wraps it", () => {
+    // crossref-latex.lua runs `run_json_filter(doc, 'pandoc-crossref', …)` to
+    // pin the format crossref sees, since the custom writer's path confuses it.
+    // Scanning the filter list for a bare token misses that, and preflight then
+    // stayed silent about a binary the export cannot run without.
+    const parsed = {
+      filters: [
+        "${USERDATA}/filters/image.lua",
+        "${USERDATA}/filters/crossref-latex.lua",
+      ],
+    };
+    const sources: Record<string, string> = {
+      "${USERDATA}/filters/image.lua": "function Image(img) return img end",
+      "${USERDATA}/filters/crossref-latex.lua":
+        "function Pandoc(doc)\n" +
+        "  return pandoc.utils.run_json_filter(doc, 'pandoc-crossref', { 'latex' })\n" +
+        "end",
+    };
+    expect(
+      exportTargetForDefaults(parsed, (raw) => sources[raw] ?? null).needsCrossref
+    ).toBe(true);
+    // Without a reader, only a filter naming the binary counts — the old rule.
+    expect(exportTargetForDefaults(parsed).needsCrossref).toBe(false);
+  });
+
+  it("reads a mention in a comment as prose, not as a dependency", () => {
+    // crossref-latex.lua's own header explains at length what pandoc-crossref
+    // does wrong on this chain; only the quoted name is a call.
+    const doc =
+      "--[[ pandoc-crossref cannot see the format here; see `pandoc-crossref` docs ]]\n" +
+      "function Pandoc(doc) return doc end";
+    expect(
+      exportTargetForDefaults(
+        { filters: ["${USERDATA}/filters/notes.lua"] },
+        () => doc
+      ).needsCrossref
+    ).toBe(false);
+  });
+
+  it("does not ask for pandoc-crossref over a filter that never calls it", () => {
+    expect(
+      exportTargetForDefaults({ filters: ["${USERDATA}/filters/image.lua"] }, () =>
+        "function Image(img) return img end"
+      ).needsCrossref
+    ).toBe(false);
+    // An unreadable filter is not evidence of anything.
+    expect(
+      exportTargetForDefaults({ filters: ["${USERDATA}/filters/gone.lua"] }, () => null)
+        .needsCrossref
+    ).toBe(false);
+  });
+
   it("survives a preset that isn't an object", () => {
     // parseYaml can return null/string for a malformed or empty preset; a bad
     // preset must not break an export that would otherwise have worked.
@@ -514,6 +605,31 @@ describe("exportTargetForDefaults", () => {
   });
 });
 
+
+describe("resolvePresetPath", () => {
+  const dirs = { userData: "/vault/PaperBell/pandoc", presetDir: "/vault/PaperBell/pandoc/defaults" };
+
+  it("expands the placeholders presets write into their paths", () => {
+    expect(resolvePresetPath("${USERDATA}/filters/crossref-latex.lua", dirs)).toBe(
+      "/vault/PaperBell/pandoc/filters/crossref-latex.lua"
+    );
+    expect(resolvePresetPath("${.}/../filters/image.lua", dirs)).toBe(
+      "/vault/PaperBell/pandoc/filters/image.lua"
+    );
+  });
+
+  it("reads a relative path against the preset's own folder, as pandoc does", () => {
+    expect(resolvePresetPath("../filters/image.lua", dirs)).toBe(
+      "/vault/PaperBell/pandoc/filters/image.lua"
+    );
+  });
+
+  it("leaves an absolute path alone, comment and quoting stripped", () => {
+    expect(resolvePresetPath('"/opt/filters/x.lua"   #! mine', dirs)).toBe(
+      "/opt/filters/x.lua"
+    );
+  });
+});
 
 describe("builtinExportTarget", () => {
   it("only asks for an engine when it is building a PDF", () => {

@@ -6,6 +6,9 @@ import {
   resolveInstallSet,
   compareVersions,
   installStateFor,
+  presetSystemDeps,
+  bundledAssets,
+  systemDepsForPreset,
   type MarketIndex,
   type InstalledManifest,
 } from "src/model/pandoc-market";
@@ -299,5 +302,125 @@ describe("mergeMissingWorkflows", () => {
     const res = mergeMissingWorkflows(existing, { A: wf("A2") });
     expect(res.added).toEqual([]);
     expect(res.workflows).toBe(existing);
+  });
+});
+
+describe("systemDeps a recipe declares, carried to export-time preflight", () => {
+  // The index is only in hand while installing; the export step sees nothing but
+  // `installed.json`. These three functions are the whole path between the two.
+  // Shaped after the real `nature-latex` recipe, which reaches pandoc-crossref
+  // through a Lua wrapper and so declares it outright (issue #44).
+  const NATURE: MarketIndex = {
+    schemaVersion: 1,
+    assets: [
+      {
+        id: "nature-latex",
+        type: "recipe",
+        name: "Nature-LaTeX",
+        version: "1.0.0",
+        files: [
+          { path: "defaults/nature-latex.yaml", download: "https://x/n.yaml" },
+          { path: "templates/nature/sn-jnl.cls", download: "https://x/sn.cls" },
+        ],
+        systemDeps: ["pandoc-crossref"],
+      },
+      {
+        id: "response-letter-docx",
+        type: "recipe",
+        name: "Response letter",
+        version: "1.0.0",
+        files: [{ path: "defaults/response-letter-docx.yaml", download: "https://x/r.yaml" }],
+        systemDeps: ["citeproc"],
+      },
+      {
+        id: "filters/crossref-latex.lua",
+        type: "filter",
+        name: "crossref-latex",
+        version: "1.0.0",
+        files: [{ path: "filters/crossref-latex.lua", download: "https://x/c.lua" }],
+      },
+    ],
+    bundles: [
+      {
+        id: "full",
+        name: "Everything",
+        version: "1.0.0",
+        download: "https://x/full.zip",
+        assets: [
+          "defaults/nature-latex.yaml",
+          "templates/nature/sn-jnl.cls",
+          "defaults/response-letter-docx.yaml",
+          "filters/crossref-latex.lua",
+        ],
+      },
+      {
+        id: "nature-latex",
+        name: "Nature-LaTeX bundle",
+        version: "1.0.0",
+        download: "https://x/nature.zip",
+        // Missing the .cls, so the recipe is not fully contained here.
+        assets: ["defaults/nature-latex.yaml", "filters/crossref-latex.lua"],
+      },
+    ],
+  };
+
+  it("keys a recipe's declared tools by the preset file it installs", () => {
+    expect(presetSystemDeps(NATURE.assets)).toEqual({
+      "defaults/nature-latex.yaml": ["pandoc-crossref"],
+      "defaults/response-letter-docx.yaml": ["citeproc"],
+    });
+  });
+
+  it("ignores assets that declare nothing, and files that aren't presets", () => {
+    expect(presetSystemDeps([NATURE.assets[2]])).toEqual({});
+  });
+
+  it("recovers a bundle's recipes from the files it lists", () => {
+    expect(bundledAssets(NATURE, NATURE.bundles[0]).map((a) => a.id)).toEqual([
+      "nature-latex",
+      "response-letter-docx",
+      "filters/crossref-latex.lua",
+    ]);
+    // Not every file of the recipe is in this zip, so we don't claim it is.
+    expect(bundledAssets(NATURE, NATURE.bundles[1]).map((a) => a.id)).toEqual([
+      "filters/crossref-latex.lua",
+    ]);
+  });
+
+  it("answers per preset, so one bundle's recipes don't pool their tools", () => {
+    // The bug this shape avoids: installing full.zip must not make the
+    // response-letter preset demand pandoc-crossref and fail preflight.
+    const manifest: InstalledManifest = {
+      full: {
+        id: "full",
+        version: "1.0.0",
+        kind: "bundle",
+        files: NATURE.bundles[0].assets ?? [],
+        installedAt: "",
+        presetDeps: presetSystemDeps(bundledAssets(NATURE, NATURE.bundles[0])),
+      },
+    };
+    expect(systemDepsForPreset(manifest, "defaults/nature-latex.yaml")).toEqual([
+      "pandoc-crossref",
+    ]);
+    expect(
+      systemDepsForPreset(manifest, "defaults/response-letter-docx.yaml")
+    ).toEqual(["citeproc"]);
+  });
+
+  it("says nothing about assets that predate the field or were never installed", () => {
+    // Assets rsynced from the canonical vault, or installed by an older build,
+    // have no record at all — preflight then falls back to reading the preset.
+    expect(systemDepsForPreset({}, "defaults/nature-latex.yaml")).toEqual([]);
+    const legacy: InstalledManifest = {
+      "nature-latex": {
+        id: "nature-latex",
+        version: "1.0.0",
+        kind: "asset",
+        files: ["defaults/nature-latex.yaml"],
+        installedAt: "",
+      },
+    };
+    expect(systemDepsForPreset(legacy, "defaults/nature-latex.yaml")).toEqual([]);
   });
 });
