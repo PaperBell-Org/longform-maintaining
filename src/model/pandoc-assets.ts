@@ -10,10 +10,12 @@ import {
   bundledAssets,
   presetSystemDeps,
   installBaseline,
+  modifiedSinceInstall,
   planFileRemove,
   planFileWrite,
   INSTALLED_MANIFEST_NAME,
   PRESERVED_SUFFIX,
+  type DiskState,
   type InstallBaseline,
   type MarketIndex,
   type MarketAsset,
@@ -60,6 +62,23 @@ type InstallWrite = {
   preserved: string[];
 };
 
+/** Hash (and, for a hash-less record, mtime evidence) of a file on disk. */
+async function readDiskState(
+  app: App,
+  full: string,
+  installedAt: string | undefined
+): Promise<DiskState> {
+  const adapter = app.vault.adapter;
+  if (!(await adapter.exists(full))) {
+    return { hash: null, modifiedSinceInstall: false };
+  }
+  const stat = await adapter.stat(full);
+  return {
+    hash: await sha256Hex(await adapter.readBinary(full)),
+    modifiedSinceInstall: modifiedSinceInstall(stat?.mtime ?? null, installedAt),
+  };
+}
+
 /**
  * Write one installed file without clobbering a user's change to it (#48);
  * see {@link planFileWrite}. Records into `out`.
@@ -75,26 +94,44 @@ async function writeInstalledFile(
   const adapter = app.vault.adapter;
   const full = `${destFolder}/${rel}`;
   const incomingHash = await sha256Hex(ab);
-  const diskHash = (await adapter.exists(full))
-    ? await sha256Hex(await adapter.readBinary(full))
-    : null;
   const plan = planFileWrite({
-    diskHash,
+    disk: await readDiskState(app, full, baseline.installedAt[rel]),
     incomingHash,
     tracked: baseline.tracked.has(rel),
     recordedHash: baseline.hashes[rel],
   });
-  const parent = full.split("/").slice(0, -1).join("/");
-  if (parent) await ensureFolder(adapter, parent);
-  if (plan === "write") await adapter.writeBinary(full, ab);
-  if (plan === "write-new") {
-    await adapter.writeBinary(full + PRESERVED_SUFFIX, ab);
-    out.files.push(rel + PRESERVED_SUFFIX);
-    out.hashes[rel + PRESERVED_SUFFIX] = incomingHash;
-    out.preserved.push(rel);
-  }
   out.files.push(rel);
   out.hashes[rel] = incomingHash;
+  if (plan === "skip-same") {
+    await removeStaleNew(app, full, baseline.hashes[rel + PRESERVED_SUFFIX]);
+    return;
+  }
+  const parent = full.split("/").slice(0, -1).join("/");
+  if (parent) await ensureFolder(adapter, parent);
+  if (plan === "write") {
+    await adapter.writeBinary(full, ab);
+    await removeStaleNew(app, full, baseline.hashes[rel + PRESERVED_SUFFIX]);
+    return;
+  }
+  await adapter.writeBinary(full + PRESERVED_SUFFIX, ab);
+  out.files.push(rel + PRESERVED_SUFFIX);
+  out.hashes[rel + PRESERVED_SUFFIX] = incomingHash;
+  out.preserved.push(rel);
+}
+
+/**
+ * Once a file installs normally again, drop the `.new` an earlier install left
+ * beside it — if it is still exactly what that install wrote.
+ */
+async function removeStaleNew(
+  app: App,
+  full: string,
+  recordedHash: string | undefined
+): Promise<void> {
+  if (recordedHash === undefined) return;
+  const stale = full + PRESERVED_SUFFIX;
+  const disk = await readDiskState(app, stale, undefined);
+  if (disk.hash === recordedHash) await app.vault.adapter.remove(stale);
 }
 
 /** The manifest-derived baseline for `destFolder` (empty when none exists). */
@@ -369,17 +406,14 @@ export async function uninstallMarketItem(
   const manifest = await readInstalledManifest(app, destFolder);
   const rec = manifest[id];
   const files = rec ? rec.files : fallbackFiles;
-  const adapter = app.vault.adapter;
   let removed = 0;
   const kept: string[] = [];
   for (const rel of files) {
     const full = `${destFolder}/${rel}`;
-    const diskHash = (await adapter.exists(full))
-      ? await sha256Hex(await adapter.readBinary(full))
-      : null;
-    const plan = planFileRemove(diskHash, rec?.hashes?.[rel]);
+    const disk = await readDiskState(app, full, rec?.installedAt);
+    const plan = planFileRemove(disk, rec?.hashes?.[rel]);
     if (plan === "remove") {
-      await adapter.remove(full);
+      await app.vault.adapter.remove(full);
       removed += 1;
     } else if (plan === "keep") {
       kept.push(rel);

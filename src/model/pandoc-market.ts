@@ -294,28 +294,58 @@ export type InstalledManifest = Record<string, InstalledRecord>;
 
 /**
  * What the manifest knows about each installed file: which paths any record
- * tracks, and the last hash written for each (the newest record wins).
+ * tracks, the last hash written for each, and when that record was installed
+ * (the newest record wins).
  */
 export type InstallBaseline = {
   tracked: Set<string>;
   hashes: Record<string, string>;
+  installedAt: Record<string, string>;
 };
 
 export function installBaseline(manifest: InstalledManifest): InstallBaseline {
   const tracked = new Set<string>();
   const hashes: Record<string, string> = {};
+  const installedAt: Record<string, string> = {};
   const records = Object.values(manifest).sort((a, b) =>
     a.installedAt.localeCompare(b.installedAt)
   );
   for (const rec of records) {
-    for (const f of rec.files ?? []) tracked.add(f);
+    for (const f of rec.files ?? []) {
+      tracked.add(f);
+      installedAt[f] = rec.installedAt;
+    }
     Object.assign(hashes, rec.hashes ?? {});
   }
-  return { tracked, hashes };
+  return { tracked, hashes, installedAt };
 }
 
 /** Suffix for a new version written next to a file the user changed. */
 export const PRESERVED_SUFFIX = ".new";
+
+/** Leeway for "modified after install": the record is stamped after the writes. */
+const MTIME_SLACK_MS = 60_000;
+
+/**
+ * For a file recorded before hashes were kept: was it modified after the
+ * install that wrote it? Judged by mtime, the only evidence left.
+ */
+export function modifiedSinceInstall(
+  mtimeMs: number | null,
+  installedAt: string | undefined
+): boolean {
+  if (mtimeMs === null || !installedAt) return false;
+  const at = Date.parse(installedAt);
+  return Number.isFinite(at) && mtimeMs > at + MTIME_SLACK_MS;
+}
+
+/** What we know about the file currently at an install path. */
+export type DiskState = {
+  /** sha256 of the file on disk, or `null` when there is none. */
+  hash: string | null;
+  /** For a record without hashes: whether its mtime is after that install. */
+  modifiedSinceInstall: boolean;
+};
 
 /**
  * How to install one file over what is on disk:
@@ -323,36 +353,54 @@ export const PRESERVED_SUFFIX = ".new";
  *   never installed by the market, e.g. the first-run toolchain zip);
  * - `skip-same`: the disk already holds exactly the incoming bytes;
  * - `write-new`: the user changed a file we installed — keep theirs and put
- *   the incoming version at `<path>.new`. A tracked file with no recorded hash
- *   (installed before hashes were kept) counts as changed when it differs:
- *   losing a user's signature is worse than one stray `.new`.
+ *   the incoming version at `<path>.new`.
+ * "Changed" is a hash mismatch against the recorded install; for a record
+ * from before hashes were kept, it is an mtime after that install.
  */
 export function planFileWrite(p: {
-  diskHash: string | null;
+  disk: DiskState;
   incomingHash: string;
   tracked: boolean;
   recordedHash?: string;
 }): "write" | "skip-same" | "write-new" {
-  if (p.diskHash === null) return "write";
-  if (p.diskHash === p.incomingHash) return "skip-same";
+  if (p.disk.hash === null) return "write";
+  if (p.disk.hash === p.incomingHash) return "skip-same";
   if (p.recordedHash !== undefined) {
-    return p.diskHash === p.recordedHash ? "write" : "write-new";
+    return p.disk.hash === p.recordedHash ? "write" : "write-new";
   }
-  return p.tracked ? "write-new" : "write";
+  return p.tracked && p.disk.modifiedSinceInstall ? "write-new" : "write";
 }
 
 /**
  * Whether uninstall may delete a file: only when it still holds what we
- * installed. Without a recorded hash (older records) there is nothing to
- * compare against, so it is removed as before.
+ * installed — by hash, or for an older record without hashes, by mtime.
  */
 export function planFileRemove(
-  diskHash: string | null,
+  disk: DiskState,
   recordedHash: string | undefined
 ): "remove" | "keep" | "missing" {
-  if (diskHash === null) return "missing";
-  if (recordedHash === undefined || diskHash === recordedHash) return "remove";
-  return "keep";
+  if (disk.hash === null) return "missing";
+  const changed =
+    recordedHash !== undefined
+      ? disk.hash !== recordedHash
+      : disk.modifiedSinceInstall;
+  return changed ? "keep" : "remove";
+}
+
+/**
+ * Whether installing `ids` (assets or bundles) puts `assetId` on disk —
+ * directly or as part of a bundle.
+ */
+export function installsAsset(
+  index: MarketIndex,
+  ids: string[],
+  assetId: string
+): boolean {
+  return ids.some(
+    (id) =>
+      id === assetId ||
+      (index.bundles.find((b) => b.id === id)?.assets ?? []).includes(assetId)
+  );
 }
 
 /** The `defaults/*.yaml` an asset installs — its recipe presets. */

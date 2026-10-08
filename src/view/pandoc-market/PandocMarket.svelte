@@ -18,7 +18,9 @@
   import {
     DEFAULT_MARKET_INDEX_URL,
     installStateFor,
+    installsAsset,
   } from "src/model/pandoc-market";
+  import { noticeKeptFiles } from "./kept-files-notice";
   import { useApp } from "../utils";
   import { t, locale, translate } from "src/i18n";
 
@@ -119,29 +121,14 @@
       : $t("market.install");
   const isPresent = (s) => s !== "not-installed";
 
-  // Files an install/uninstall left alone because the user changed them (#48).
-  function noticeKept(key, files) {
-    if (!files?.length) return;
-    new Notice(
-      translate(key, { count: String(files.length), files: files.join("\n") }),
-      15000
-    );
-  }
-
   // The cover letter needs the user's own signature and letterhead: after its
   // first install, show its README, which says where they go and in what form.
   const COVER_LETTER_ID = "cover_letter";
-  // Installed directly, or as part of an installed bundle.
   const isCoverLetterInstalled = () =>
-    Object.values(manifest ?? {}).some(
-      (r) =>
-        r.id === COVER_LETTER_ID ||
-        (index?.bundles.find((b) => b.id === r.id)?.assets ?? []).includes(
-          COVER_LETTER_ID
-        )
-    );
+    installsAsset(index, Object.keys(manifest ?? {}), COVER_LETTER_ID);
   function showCoverLetterGuide(installedIds, wasInstalled) {
-    if (wasInstalled || !installedIds.includes(COVER_LETTER_ID)) return;
+    if (wasInstalled || !installsAsset(index, installedIds, COVER_LETTER_ID))
+      return;
     const asset = index?.assets.find((a) => a.id === COVER_LETTER_ID);
     if (asset) openDetail(asset);
   }
@@ -166,8 +153,8 @@
       refresh();
       manifest = { ...manifest };
       new Notice($t("market.installedNotice") + " " + b.name);
-      noticeKept("market.preservedFiles", preserved);
-      showCoverLetterGuide(b.assets ?? [], hadCoverLetter);
+      noticeKeptFiles("market.preservedFiles", preserved);
+      showCoverLetterGuide([b.id], hadCoverLetter);
     } catch (e) {
       new Notice($t("market.failed") + " " + String(e?.message ?? e));
     } finally {
@@ -198,7 +185,7 @@
           a.name +
           (extra > 0 ? ` (+${extra})` : "")
       );
-      noticeKept("market.preservedFiles", preserved);
+      noticeKeptFiles("market.preservedFiles", preserved);
       showCoverLetterGuide(
         recs.map((r) => r.id),
         hadCoverLetter
@@ -233,7 +220,7 @@
       present = new Set([...present].filter((x) => x !== item.id));
       refresh();
       new Notice(translate("market.uninstalled") + " " + item.name);
-      noticeKept("market.keptFiles", kept);
+      noticeKeptFiles("market.keptFiles", kept);
     } catch (e) {
       new Notice(translate("market.failed") + " " + String(e?.message ?? e));
     } finally {
