@@ -35,7 +35,10 @@ import {
 } from "./compile/serialization";
 import type { Workflow } from "./compile";
 import { DEFAULT_WORKFLOWS } from "./compile";
-import { mergeMissingWorkflows } from "./compile/workflow-backfill";
+import {
+  mergeMissingWorkflows,
+  repairWorkflowOptions,
+} from "./compile/workflow-backfill";
 import { UserScriptObserver } from "./model/user-script-observer";
 import { StoreVaultSync } from "./model/store-vault-sync";
 import {
@@ -274,6 +277,14 @@ export default class LongformPlugin extends Plugin {
           `[PaperOut] Adding missing built-in workflows: ${added.join(", ")}.`
         );
         _workflows = merged;
+      }
+      const { workflows: repairedWorkflows, repaired } =
+        repairWorkflowOptions(_workflows);
+      if (repaired.length > 0) {
+        console.log(
+          `[PaperOut] Repaired option values in workflows: ${repaired.join(", ")}.`
+        );
+        _workflows = repairedWorkflows;
       }
     }
 

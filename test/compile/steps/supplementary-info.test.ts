@@ -10,6 +10,8 @@ import {
   SUPPLEMENTARY_PREAMBLE,
   transformToSupplementary,
 } from "src/compile/steps/supplementary-info-utils";
+import { repairWorkflowOptions } from "src/compile/workflow-backfill";
+import type { SerializedWorkflow } from "src/model/types";
 
 const FM = [
   "---",
@@ -136,17 +138,6 @@ describe("transformToSupplementary", () => {
     expect(out).not.toContain("comprising:");
   });
 
-  it("treats a non-string abstract option as blank (#43)", () => {
-    expect(coerceAbstractOption(true)).toBe("");
-    expect(coerceAbstractOption(undefined)).toBe("");
-    expect(coerceAbstractOption("Note")).toBe("Note");
-    const out = transformToSupplementary(FM, {
-      abstract: coerceAbstractOption(true),
-    });
-    expect(out).not.toContain('abstract: "true"');
-    expect(out).toContain("comprising: Methods; Results.");
-  });
-
   it("leaves the abstract empty when summarization is disabled and none given", () => {
     const out = transformToSupplementary(FM, { summarizeSections: false });
     expect(out).toContain('abstract: ""');
@@ -164,5 +155,42 @@ describe("transformToSupplementary", () => {
     expect(getYamlScalar(yaml as string, "title")).toBe(
       'Supplementary Information for "A Study"'
     );
+  });
+});
+
+describe("coerceAbstractOption (#43)", () => {
+  it("treats a non-string abstract option as blank", () => {
+    expect(coerceAbstractOption(true)).toBe("");
+    expect(coerceAbstractOption(undefined)).toBe("");
+    expect(coerceAbstractOption("Note")).toBe("Note");
+    const out = transformToSupplementary(FM, {
+      abstract: coerceAbstractOption(true),
+    });
+    expect(out).not.toContain('abstract: "true"');
+    expect(out).toContain("comprising: Methods; Results.");
+  });
+});
+
+describe("repairWorkflowOptions (#43)", () => {
+  const si = (abstract: unknown): SerializedWorkflow => ({
+    name: "PaperBell Supplementary",
+    description: "",
+    steps: [
+      { id: "add-zenodo-frontmatter", optionValues: {} },
+      { id: "supplementary-info", optionValues: { abstract, x: 1 } },
+    ],
+  });
+
+  it("blanks a boolean abstract saved by older defaults", () => {
+    const { workflows, repaired } = repairWorkflowOptions({ SI: si(true) });
+    expect(repaired).toEqual(["SI"]);
+    expect(workflows.SI.steps[1].optionValues).toEqual({ abstract: "", x: 1 });
+  });
+
+  it("leaves text abstracts and other workflows untouched", () => {
+    const input = { SI: si("My note"), Other: si(undefined) };
+    const { workflows, repaired } = repairWorkflowOptions(input);
+    expect(repaired).toEqual([]);
+    expect(workflows).toBe(input);
   });
 });
