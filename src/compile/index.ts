@@ -472,7 +472,7 @@ export const DEFAULT_WORKFLOWS: Record<string, SerializedWorkflow> = {
       },
       {
         id: "supplementary-info",
-        optionValues: { abstract: true, "summarize-sections": true },
+        optionValues: { abstract: "", "summarize-sections": true },
       },
       { id: "write-to-note", optionValues: { target: "$1_$2.md", "open-after": true } },
       {

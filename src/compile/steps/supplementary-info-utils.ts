@@ -136,6 +136,15 @@ export function summarizeSections(titles: string[]): string {
     : `${base}, comprising: ${titles.join("; ")}.`;
 }
 
+/**
+ * The `abstract` option is free text. Anything else stored there (older
+ * default workflows saved the boolean `true`) is treated as blank, so it falls
+ * back to the auto-summary instead of becoming the literal abstract "true".
+ */
+export function coerceAbstractOption(raw: unknown): string {
+  return typeof raw === "string" ? raw : "";
+}
+
 export interface SupplementaryOptions {
   /** Manual abstract; overrides the auto-summary when non-blank. */
   abstract?: string;

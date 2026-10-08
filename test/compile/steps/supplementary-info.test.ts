@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  coerceAbstractOption,
   extractSectionTitles,
   getYamlScalar,
   removeYamlBlock,
@@ -133,6 +134,17 @@ describe("transformToSupplementary", () => {
     const out = transformToSupplementary(FM, { abstract: "  My SI note.  " });
     expect(out).toContain('abstract: "My SI note."');
     expect(out).not.toContain("comprising:");
+  });
+
+  it("treats a non-string abstract option as blank (#43)", () => {
+    expect(coerceAbstractOption(true)).toBe("");
+    expect(coerceAbstractOption(undefined)).toBe("");
+    expect(coerceAbstractOption("Note")).toBe("Note");
+    const out = transformToSupplementary(FM, {
+      abstract: coerceAbstractOption(true),
+    });
+    expect(out).not.toContain('abstract: "true"');
+    expect(out).toContain("comprising: Methods; Results.");
   });
 
   it("leaves the abstract empty when summarization is disabled and none given", () => {
