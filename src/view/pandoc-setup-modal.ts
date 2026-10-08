@@ -249,11 +249,24 @@ export class PandocSetupModal extends Modal {
     const dest = DEFAULT_ASSETS_DIR;
     const notice = new Notice(translate("setup.downloading"), 0);
     try {
-      const { count } = await downloadPandocAssets(this.app, url, dest);
+      const { count, preserved } = await downloadPandocAssets(
+        this.app,
+        url,
+        dest
+      );
       pluginSettings.update((s) => ({ ...s, pandocAssetsFolder: dest }));
       refreshPandocTemplates(this.app);
       notice.hide();
       new Notice(translate("setup.downloaded", { count: String(count), dest }));
+      if (preserved.length > 0) {
+        new Notice(
+          translate("market.preservedFiles", {
+            count: String(preserved.length),
+            files: preserved.join("\n"),
+          }),
+          15000
+        );
+      }
       this.render();
     } catch (e) {
       notice.hide();

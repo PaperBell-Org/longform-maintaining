@@ -9,7 +9,12 @@ import {
   assetFilesAllIn,
   bundledAssets,
   presetSystemDeps,
+  installBaseline,
+  planFileRemove,
+  planFileWrite,
   INSTALLED_MANIFEST_NAME,
+  PRESERVED_SUFFIX,
+  type InstallBaseline,
   type MarketIndex,
   type MarketAsset,
   type MarketBundle,
@@ -38,7 +43,67 @@ async function ensureFolder(
   }
 }
 
-export type DownloadResult = { count: number; dest: string; files: string[] };
+export type DownloadResult = {
+  count: number;
+  dest: string;
+  /** Dest-relative paths written, including any `<path>.new`. */
+  files: string[];
+  /** Path → sha256 of what was written there. */
+  hashes: Record<string, string>;
+  /** Paths kept because the user changed them; the new version is at `<path>.new`. */
+  preserved: string[];
+};
+
+type InstallWrite = {
+  files: string[];
+  hashes: Record<string, string>;
+  preserved: string[];
+};
+
+/**
+ * Write one installed file without clobbering a user's change to it (#48);
+ * see {@link planFileWrite}. Records into `out`.
+ */
+async function writeInstalledFile(
+  app: App,
+  destFolder: string,
+  rel: string,
+  ab: ArrayBuffer,
+  baseline: InstallBaseline,
+  out: InstallWrite
+): Promise<void> {
+  const adapter = app.vault.adapter;
+  const full = `${destFolder}/${rel}`;
+  const incomingHash = await sha256Hex(ab);
+  const diskHash = (await adapter.exists(full))
+    ? await sha256Hex(await adapter.readBinary(full))
+    : null;
+  const plan = planFileWrite({
+    diskHash,
+    incomingHash,
+    tracked: baseline.tracked.has(rel),
+    recordedHash: baseline.hashes[rel],
+  });
+  const parent = full.split("/").slice(0, -1).join("/");
+  if (parent) await ensureFolder(adapter, parent);
+  if (plan === "write") await adapter.writeBinary(full, ab);
+  if (plan === "write-new") {
+    await adapter.writeBinary(full + PRESERVED_SUFFIX, ab);
+    out.files.push(rel + PRESERVED_SUFFIX);
+    out.hashes[rel + PRESERVED_SUFFIX] = incomingHash;
+    out.preserved.push(rel);
+  }
+  out.files.push(rel);
+  out.hashes[rel] = incomingHash;
+}
+
+/** The manifest-derived baseline for `destFolder` (empty when none exists). */
+export async function readInstallBaseline(
+  app: App,
+  destFolder: string
+): Promise<InstallBaseline> {
+  return installBaseline(await readInstalledManifest(app, destFolder));
+}
 
 /**
  * Download the Pandoc toolchain zip from `url` and extract it into the
@@ -50,7 +115,8 @@ export type DownloadResult = { count: number; dest: string; files: string[] };
 export async function downloadPandocAssets(
   app: App,
   url: string,
-  destFolder: string
+  destFolder: string,
+  baseline?: InstallBaseline
 ): Promise<DownloadResult> {
   if (!url || !/^https?:\/\//.test(url)) {
     throw new Error(
@@ -73,30 +139,28 @@ export async function downloadPandocAssets(
 
   const filePaths = Object.keys(files).filter((p) => !p.endsWith("/"));
   const top = commonTopDir(filePaths);
-  const adapter = app.vault.adapter;
+  const base = baseline ?? (await readInstallBaseline(app, destFolder));
 
-  const written: string[] = [];
+  const out: InstallWrite = { files: [], hashes: {}, preserved: [] };
+  let count = 0;
   for (const p of filePaths) {
     const rel = top ? p.slice(top.length) : p;
     if (!rel) continue;
-    const full = `${destFolder}/${rel}`;
-    const parent = full.split("/").slice(0, -1).join("/");
-    if (parent) await ensureFolder(adapter, parent);
     const data = files[p];
     const ab = data.buffer.slice(
       data.byteOffset,
       data.byteOffset + data.byteLength
     );
-    await adapter.writeBinary(full, ab);
-    written.push(rel);
+    await writeInstalledFile(app, destFolder, rel, ab, base, out);
+    count += 1;
   }
-  if (written.length === 0) {
+  if (count === 0) {
     throw new Error("The downloaded archive contained no files.");
   }
-  return { count: written.length, dest: destFolder, files: written };
+  return { count, dest: destFolder, ...out };
 }
 
-/** SHA-256 of an ArrayBuffer as lowercase hex, for optional integrity checks. */
+/** SHA-256 of an ArrayBuffer as lowercase hex. */
 async function sha256Hex(ab: ArrayBuffer): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", ab);
   return Array.from(new Uint8Array(digest))
@@ -200,10 +264,10 @@ async function writeInstalledManifest(
 async function installMarketAsset(
   app: App,
   asset: MarketAsset,
-  destFolder: string
-): Promise<string[]> {
-  const adapter = app.vault.adapter;
-  const written: string[] = [];
+  destFolder: string,
+  baseline: InstallBaseline
+): Promise<InstallWrite> {
+  const out: InstallWrite = { files: [], hashes: {}, preserved: [] };
   for (const file of asset.files) {
     const res = await requestUrl({ url: file.download, method: "GET" });
     if (res.status < 200 || res.status >= 300) {
@@ -216,43 +280,44 @@ async function installMarketAsset(
         throw new Error(`Checksum mismatch for ${file.path}.`);
       }
     }
-    const full = `${destFolder}/${file.path}`;
-    const parent = full.split("/").slice(0, -1).join("/");
-    if (parent) await ensureFolder(adapter, parent);
-    await adapter.writeBinary(full, ab);
-    written.push(file.path);
+    await writeInstalledFile(app, destFolder, file.path, ab, baseline, out);
   }
-  return written;
+  return out;
 }
 
 /**
  * Install an asset and its `requires` closure (recipe → its filters/template/csl),
- * recording each in the install manifest. Returns the added/updated records.
+ * recording each in the install manifest. Returns the added/updated records
+ * and the files kept because the user had changed them.
  */
 export async function installAssetWithDeps(
   app: App,
   index: MarketIndex,
   assetId: string,
   destFolder: string
-): Promise<InstalledRecord[]> {
+): Promise<{ records: InstalledRecord[]; preserved: string[] }> {
   const set = resolveInstallSet(index, assetId);
   const manifest = await readInstalledManifest(app, destFolder);
+  const baseline = installBaseline(manifest);
   const records: InstalledRecord[] = [];
+  const preserved: string[] = [];
   for (const asset of set) {
-    const files = await installMarketAsset(app, asset, destFolder);
+    const out = await installMarketAsset(app, asset, destFolder, baseline);
     const rec: InstalledRecord = {
       id: asset.id,
       version: asset.version,
       kind: "asset",
-      files,
+      files: out.files,
       installedAt: new Date().toISOString(),
       presetDeps: presetSystemDeps([asset]),
+      hashes: out.hashes,
     };
     manifest[asset.id] = rec;
     records.push(rec);
+    preserved.push(...out.preserved);
   }
   await writeInstalledManifest(app, destFolder, manifest);
-  return records;
+  return { records, preserved };
 }
 
 /**
@@ -266,9 +331,14 @@ export async function installMarketBundle(
   bundle: MarketBundle,
   destFolder: string,
   index: MarketIndex
-): Promise<InstalledRecord> {
-  const { files } = await downloadPandocAssets(app, bundle.download, destFolder);
+): Promise<{ record: InstalledRecord; preserved: string[] }> {
   const manifest = await readInstalledManifest(app, destFolder);
+  const { files, hashes, preserved } = await downloadPandocAssets(
+    app,
+    bundle.download,
+    destFolder,
+    installBaseline(manifest)
+  );
   const rec: InstalledRecord = {
     id: bundle.id,
     version: bundle.version,
@@ -276,38 +346,48 @@ export async function installMarketBundle(
     files,
     installedAt: new Date().toISOString(),
     presetDeps: presetSystemDeps(bundledAssets(index, bundle)),
+    hashes,
   };
   manifest[bundle.id] = rec;
   await writeInstalledManifest(app, destFolder, manifest);
-  return rec;
+  return { record: rec, preserved };
 }
 
 /**
  * Remove an installed asset/bundle's files and its manifest record. If the item
  * isn't tracked in the manifest (present on disk but untracked), `fallbackFiles`
- * (e.g. the index's declared file paths) are removed instead. Returns how many
- * files were deleted.
+ * (e.g. the index's declared file paths) are removed instead. A file the user
+ * changed since it was installed is kept (see {@link planFileRemove}).
+ * Returns how many files were deleted and which were kept.
  */
 export async function uninstallMarketItem(
   app: App,
   destFolder: string,
   id: string,
   fallbackFiles: string[] = []
-): Promise<number> {
+): Promise<{ removed: number; kept: string[] }> {
   const manifest = await readInstalledManifest(app, destFolder);
   const rec = manifest[id];
   const files = rec ? rec.files : fallbackFiles;
+  const adapter = app.vault.adapter;
   let removed = 0;
+  const kept: string[] = [];
   for (const rel of files) {
     const full = `${destFolder}/${rel}`;
-    if (await app.vault.adapter.exists(full)) {
-      await app.vault.adapter.remove(full);
+    const diskHash = (await adapter.exists(full))
+      ? await sha256Hex(await adapter.readBinary(full))
+      : null;
+    const plan = planFileRemove(diskHash, rec?.hashes?.[rel]);
+    if (plan === "remove") {
+      await adapter.remove(full);
       removed += 1;
+    } else if (plan === "keep") {
+      kept.push(rel);
     }
   }
   if (rec) {
     delete manifest[id];
     await writeInstalledManifest(app, destFolder, manifest);
   }
-  return removed;
+  return { removed, kept };
 }

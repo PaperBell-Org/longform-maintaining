@@ -171,6 +171,9 @@ export const zh: Messages = {
   "market.installing": "安装中…",
   "market.installedNotice": "已安装",
   "market.failed": "失败:",
+  "market.preservedFiles":
+    "保留了你改过的 {count} 个文件,新版本另存为同目录下的 .new:\n{files}",
+  "market.keptFiles": "保留了你改过的 {count} 个文件:\n{files}",
 
   // ── 资源管理器面板 ────────────────────────────────────────────────────
   "explorer.paneTitle": "PaperOut To-Authors",

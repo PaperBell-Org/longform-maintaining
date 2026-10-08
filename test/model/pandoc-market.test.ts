@@ -9,6 +9,9 @@ import {
   presetSystemDeps,
   bundledAssets,
   systemDepsForPreset,
+  installBaseline,
+  planFileWrite,
+  planFileRemove,
   type MarketIndex,
   type InstalledManifest,
 } from "src/model/pandoc-market";
@@ -422,5 +425,64 @@ describe("systemDeps a recipe declares, carried to export-time preflight", () =>
       },
     };
     expect(systemDepsForPreset(legacy, "defaults/nature-latex.yaml")).toEqual([]);
+  });
+});
+
+describe("preserving user-changed asset files (#48)", () => {
+  const plan = (
+    diskHash: string | null,
+    tracked: boolean,
+    recordedHash?: string
+  ) => planFileWrite({ diskHash, incomingHash: "new", tracked, recordedHash });
+
+  it("writes when nothing is on disk", () => {
+    expect(plan(null, true, "old")).toBe("write");
+  });
+  it("skips a file that already matches the incoming bytes", () => {
+    expect(plan("new", true, "old")).toBe("skip-same");
+  });
+  it("overwrites a file untouched since the last install", () => {
+    expect(plan("old", true, "old")).toBe("write");
+  });
+  it("keeps a file the user replaced and writes <path>.new", () => {
+    expect(plan("mine", true, "old")).toBe("write-new");
+  });
+  it("treats a tracked file with no recorded hash as changed when it differs", () => {
+    expect(plan("mine", true)).toBe("write-new");
+  });
+  it("overwrites a file the market never installed", () => {
+    expect(plan("mine", false)).toBe("write");
+  });
+
+  it("uninstall removes only files still as installed", () => {
+    expect(planFileRemove(null, "old")).toBe("missing");
+    expect(planFileRemove("old", "old")).toBe("remove");
+    expect(planFileRemove("mine", "old")).toBe("keep");
+    expect(planFileRemove("anything", undefined)).toBe("remove");
+  });
+
+  it("builds the baseline from every record, newest hash winning", () => {
+    const manifest: InstalledManifest = {
+      full: {
+        id: "full",
+        version: "1.0.0",
+        kind: "bundle",
+        files: ["templates/cover_letter/signature.png", "csl/nature.csl"],
+        installedAt: "2026-01-01T00:00:00Z",
+        hashes: { "templates/cover_letter/signature.png": "v1" },
+      },
+      cover_letter: {
+        id: "cover_letter",
+        version: "1.1.0",
+        kind: "asset",
+        files: ["templates/cover_letter/signature.png"],
+        installedAt: "2026-02-01T00:00:00Z",
+        hashes: { "templates/cover_letter/signature.png": "v2" },
+      },
+    };
+    const b = installBaseline(manifest);
+    expect(b.tracked.has("csl/nature.csl")).toBe(true);
+    expect(b.hashes["templates/cover_letter/signature.png"]).toBe("v2");
+    expect(b.hashes["csl/nature.csl"]).toBeUndefined();
   });
 });

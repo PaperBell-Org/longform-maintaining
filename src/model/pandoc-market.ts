@@ -280,10 +280,80 @@ export interface InstalledRecord {
    * installing — export-time preflight has this file and nothing else.
    */
   presetDeps?: Record<string, string[]>;
+  /**
+   * Dest-relative path → sha256 of the bytes this install wrote. Lets a later
+   * reinstall/update/uninstall tell an untouched file from one the user
+   * replaced (e.g. the cover letter's signature). Absent on records written
+   * before it existed.
+   */
+  hashes?: Record<string, string>;
 }
 
 /** id → install record, persisted as `installed.json` at the assets root. */
 export type InstalledManifest = Record<string, InstalledRecord>;
+
+/**
+ * What the manifest knows about each installed file: which paths any record
+ * tracks, and the last hash written for each (the newest record wins).
+ */
+export type InstallBaseline = {
+  tracked: Set<string>;
+  hashes: Record<string, string>;
+};
+
+export function installBaseline(manifest: InstalledManifest): InstallBaseline {
+  const tracked = new Set<string>();
+  const hashes: Record<string, string> = {};
+  const records = Object.values(manifest).sort((a, b) =>
+    a.installedAt.localeCompare(b.installedAt)
+  );
+  for (const rec of records) {
+    for (const f of rec.files ?? []) tracked.add(f);
+    Object.assign(hashes, rec.hashes ?? {});
+  }
+  return { tracked, hashes };
+}
+
+/** Suffix for a new version written next to a file the user changed. */
+export const PRESERVED_SUFFIX = ".new";
+
+/**
+ * How to install one file over what is on disk:
+ * - `write`: nothing there, or it is untouched since our last install (or was
+ *   never installed by the market, e.g. the first-run toolchain zip);
+ * - `skip-same`: the disk already holds exactly the incoming bytes;
+ * - `write-new`: the user changed a file we installed — keep theirs and put
+ *   the incoming version at `<path>.new`. A tracked file with no recorded hash
+ *   (installed before hashes were kept) counts as changed when it differs:
+ *   losing a user's signature is worse than one stray `.new`.
+ */
+export function planFileWrite(p: {
+  diskHash: string | null;
+  incomingHash: string;
+  tracked: boolean;
+  recordedHash?: string;
+}): "write" | "skip-same" | "write-new" {
+  if (p.diskHash === null) return "write";
+  if (p.diskHash === p.incomingHash) return "skip-same";
+  if (p.recordedHash !== undefined) {
+    return p.diskHash === p.recordedHash ? "write" : "write-new";
+  }
+  return p.tracked ? "write-new" : "write";
+}
+
+/**
+ * Whether uninstall may delete a file: only when it still holds what we
+ * installed. Without a recorded hash (older records) there is nothing to
+ * compare against, so it is removed as before.
+ */
+export function planFileRemove(
+  diskHash: string | null,
+  recordedHash: string | undefined
+): "remove" | "keep" | "missing" {
+  if (diskHash === null) return "missing";
+  if (recordedHash === undefined || diskHash === recordedHash) return "remove";
+  return "keep";
+}
 
 /** The `defaults/*.yaml` an asset installs — its recipe presets. */
 function presetFiles(asset: MarketAsset): string[] {
