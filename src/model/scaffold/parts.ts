@@ -331,7 +331,7 @@ longform:
   ignoredFiles: []
 ${projectLine(ctx)}---
 
-Supplementary draft of **${title}**. Its own \`metadata.json\` in this folder (found before the shared one at the project root) adds \`supplementary: true\`, so figures and tables are numbered S1, S2, …
+Supplementary draft of **${title}**. Its own \`metadata.json\` in this folder is layered over the shared one at the project root and only adds \`supplementary: true\`, so figures and tables are numbered S1, S2, …
 `;
 }
 
@@ -374,24 +374,17 @@ Thank you for your consideration; we look forward to your response.
 `;
 }
 
+/**
+ * Only what the Supplementary changes: it is layered over the project root's
+ * metadata.json, so authors, journal and the rest stay in one place (#47).
+ */
 function supplementaryMetadata(ctx: PartContext): string {
   return json({
     title: `${ctx.title} — Supplementary Information`,
-    publication_date: "",
-    upload_type: "publication",
-    publication_type: "article",
     description:
-      "Supplementary information for the paper. Shares the main manuscript's metadata but adds supplementary: true so figures and tables receive an S prefix.",
-    creators: [leadCreator(ctx)],
-    keywords: ["keyword-one", "keyword-two"],
-    journal_title: "Target Journal",
-    version: "v1.0",
+      "Supplementary information for the paper. Everything else comes from the project's root metadata.json; this file only adds supplementary: true so figures and tables receive an S prefix.",
     _longform: {
-      acronym: ctx.acronym,
-      csl: "nature",
-      template: "paperbell",
-      corresponding: [ctx.author],
-      extra_yaml: "supplementary: true\nnumbersections: true\n",
+      extra_yaml: "supplementary: true\n",
     },
   });
 }

@@ -14,6 +14,18 @@ export function sceneFolderPath(
   return normalizePath(`${root}/${draft.sceneFolder}`);
 }
 
+/**
+ * Where the layered `metadata.json` walk starts for a draft. A project asset
+ * (all assets share one index at the project root) starts from its scene
+ * folder, so a nearer override such as `supplementary/metadata.json` applies;
+ * every other draft starts from its index note's folder.
+ */
+export function metadataStartDir(draft: Draft, vault: Vault): string {
+  return draft.format === "scenes" && draft.indexPath
+    ? sceneFolderPath(draft, vault)
+    : draftIndexFolder(draft);
+}
+
 export function scenePathForFolder(
   sceneName: string,
   folderPath: string

@@ -174,12 +174,6 @@ async function addComponents(
         names: selected.map((id) => paperPart(id).draftTitle).join(", "),
       })
     );
-
-    // Known gap: in project form the compile steps resolve metadata.json from
-    // the index's own folder, so a Supplementary's nearer override is not seen.
-    if (form === "project" && selected.includes("supplementary")) {
-      new Notice(translate("components.siProjectFormWarning"), 12000);
-    }
   } catch (error) {
     if (error instanceof ScaffoldConflictError) {
       showErrorModal(

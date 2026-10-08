@@ -5,12 +5,23 @@ import { appContext } from "src/view/utils";
 export default class MetadataModal extends Modal {
   private projectPath: string;
   private projectTitle: string;
+  private startDir: string;
   private component: MetadataModalSvelte | null = null;
 
-  constructor(app: App, projectPath: string, projectTitle: string) {
+  /**
+   * @param startDir Where the selected draft's metadata walk starts; nearer
+   *   files between it and `projectPath` are shown as overrides.
+   */
+  constructor(
+    app: App,
+    projectPath: string,
+    projectTitle: string,
+    startDir: string = projectPath
+  ) {
     super(app);
     this.projectPath = projectPath;
     this.projectTitle = projectTitle;
+    this.startDir = startDir;
   }
 
   onOpen(): void {
@@ -30,6 +41,7 @@ export default class MetadataModal extends Modal {
       props: {
         projectPath: this.projectPath,
         projectTitle: this.projectTitle,
+        startDir: this.startDir,
       },
     });
   }
