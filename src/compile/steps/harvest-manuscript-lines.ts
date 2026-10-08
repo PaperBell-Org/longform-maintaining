@@ -17,7 +17,9 @@ import {
   buildExecPath,
   DEFAULT_ASSETS_DIR,
   parseExportFrontmatter,
+  PRESET_SOURCE_LABEL,
   resolveBinary,
+  resolvePresetName,
   resolveUserPath,
 } from "./pandoc-export-utils";
 import { resolveBibliography } from "./pandoc-export";
@@ -29,9 +31,7 @@ import {
   lineSidecarName,
   mergeSidecar,
   parseAuxLabels,
-  resolveHarvestPreset,
   shouldWarnEmptyHarvest,
-  type HarvestPresetSource,
   type NumberSidecar,
   type LinesSidecar,
 } from "./harvest-manuscript-lines-utils";
@@ -71,7 +71,7 @@ export const HarvestManuscriptLinesStep = makeBuiltinStep({
   description: {
     name: "Harvest Manuscript Line Numbers",
     description:
-      "After the manuscript PDF is built, runs a second Pandoc→XeLaTeX pass with mslabels to capture line/figure/table numbers for <!--ms:id--> spans into sidecar JSON, so a response letter can cite the manuscript with correct Page/Line. Desktop only; leaves the manuscript unchanged. Requires the manuscript's remove-comments step to keep HTML comments (so ms: markers survive). The capture pass must use the same preset as the export (it supplies the line-label filters): set Preset below, or `template:` in the note / `_longform.template` in metadata.json.",
+      "After the manuscript PDF is built, runs a second Pandoc→XeLaTeX pass with mslabels to capture line/figure/table numbers for <!--ms:id--> spans into sidecar JSON, so a response letter can cite the manuscript with correct Page/Line. Desktop only; leaves the manuscript unchanged. Requires the manuscript's remove-comments step to keep HTML comments (so ms: markers survive). The capture pass must use the same preset as the export (it supplies the line-label filters): set Template / preset below, or `template:` in the note / `_longform.template` in metadata.json.",
     availableKinds: [CompileStepKind.Manuscript],
     options: [
       {
@@ -83,8 +83,8 @@ export const HarvestManuscriptLinesStep = makeBuiltinStep({
         default: true,
       },
       {
-        id: "preset",
-        name: "Preset",
+        id: "template",
+        name: "Template / preset",
         description:
           "Preset (defaults/<name>.yaml) for the capture pass. Choose the one your Run Pandoc Export step uses; leave empty to follow the note's `template:` key (falling back to the built-in default, which has no line-label filters).",
         type: CompileStepOptionType.Dropdown,
@@ -125,12 +125,6 @@ export const HarvestManuscriptLinesStep = makeBuiltinStep({
   },
 });
 
-const PRESET_SOURCE_LABEL: Record<HarvestPresetSource, string> = {
-  option: "from this step's Preset option",
-  frontmatter: "from the note's `template:` key",
-  fallback: "built-in default; no preset was specified",
-};
-
 async function harvest(
   input: CompileManuscriptInput,
   context: CompileContext,
@@ -147,8 +141,8 @@ async function harvest(
   const projectAbs = path.join(base, context.projectPath);
 
   const fm = parseExportFrontmatter(input.contents);
-  const { template, source } = resolveHarvestPreset(
-    context.optionValues["preset"],
+  const { template, source } = resolvePresetName(
+    context.optionValues["template"],
     fm.template
   );
   const csl = String(fm.csl || "nature");
@@ -241,10 +235,10 @@ async function harvest(
       mergeSidecar(readJsonSafe(tblFile) as NumberSidecar, tables)
     );
 
-    if (shouldWarnEmptyHarvest(input.contents, lines)) {
+    if (shouldWarnEmptyHarvest(input.contents, lines, captionFigs)) {
       new Notice(
-        `Harvested 0 line labels using preset \`${template}\` (${PRESET_SOURCE_LABEL[source]}). ` +
-          "That preset likely lacks the manuscript_linelabel filter. Set this step's Preset, " +
+        `Harvested 0 line labels using preset \`${template}\` (from ${PRESET_SOURCE_LABEL[source]}). ` +
+          "That preset likely lacks the manuscript_linelabel filter. Set this step's Template / preset, " +
           "or `template:` in the note / `_longform.template` in metadata.json, to the preset you export with.",
         15000
       );

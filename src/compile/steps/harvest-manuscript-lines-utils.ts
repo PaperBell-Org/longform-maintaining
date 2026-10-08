@@ -23,35 +23,21 @@ export interface AuxLabels {
   tables: NumberSidecar;
 }
 
-/** Where the capture pass's preset came from (for messages). */
-export type HarvestPresetSource = "option" | "frontmatter" | "fallback";
-
 /**
- * Pick the preset (`defaults/<name>.yaml`) for the capture pass, in the same
- * order Run Pandoc Export uses: this step's Preset option, then the note's
- * `template:` key, then the built-in `undefined` preset.
- */
-export function resolveHarvestPreset(
-  optionPreset: unknown,
-  fmTemplate: unknown
-): { template: string; source: HarvestPresetSource } {
-  const opt = String(optionPreset ?? "").trim();
-  if (opt) return { template: opt, source: "option" };
-  const fm = String(fmTemplate ?? "").trim();
-  if (fm) return { template: fm, source: "frontmatter" };
-  return { template: "undefined", source: "fallback" };
-}
-
-/**
- * True when the manuscript carries `<!--ms:id-->` markers but the capture
- * produced no line labels — almost always a preset without the
+ * True when the manuscript has `<!--ms:id-->` spans outside figure captions but
+ * the capture produced no line labels — almost always a preset without the
  * manuscript_linelabel filter, which would otherwise write `{}` silently.
+ * Caption spans resolve to figure numbers instead (`captionFigs`), so a
+ * manuscript whose spans all sit in captions is not warned about.
  */
 export function shouldWarnEmptyHarvest(
   contents: string,
-  lines: LinesSidecar
+  lines: LinesSidecar,
+  captionFigs: LinesSidecar
 ): boolean {
-  return /<!--\s*ms:/.test(contents) && Object.keys(lines).length === 0;
+  if (Object.keys(lines).length > 0) return false;
+  const ids = contents.match(/<!--ms:[\w-]+-->/g) ?? [];
+  return ids.some((m) => !(m.slice(7, -3) in captionFigs));
 }
 
 /** Keep only alphanumerics ("S1" stays, "\relax 1" → "1"). */

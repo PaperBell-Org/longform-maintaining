@@ -7,9 +7,9 @@ import {
   isSupplementaryFrontmatter,
   buildCaptureArgs,
   buildTexInputs,
-  resolveHarvestPreset,
   shouldWarnEmptyHarvest,
 } from "src/compile/steps/harvest-manuscript-lines-utils";
+import { resolvePresetName } from "src/compile/steps/pandoc-export-utils";
 
 const AUX = [
   "\\newlabel{msl-intro-def}{{12}{3}{}{}{}}",
@@ -139,21 +139,21 @@ describe("buildTexInputs", () => {
   });
 });
 
-describe("resolveHarvestPreset (#42)", () => {
-  it("prefers the step's Preset option", () => {
-    expect(resolveHarvestPreset(" paperbell ", "other")).toEqual({
+describe("resolvePresetName (#42)", () => {
+  it("prefers the step's Template / preset option", () => {
+    expect(resolvePresetName(" paperbell ", "other")).toEqual({
       template: "paperbell",
       source: "option",
     });
   });
   it("falls back to the note's template: key", () => {
-    expect(resolveHarvestPreset("", "paperbell")).toEqual({
+    expect(resolvePresetName("", "paperbell")).toEqual({
       template: "paperbell",
       source: "frontmatter",
     });
   });
   it("falls back to the built-in preset", () => {
-    expect(resolveHarvestPreset(undefined, undefined)).toEqual({
+    expect(resolvePresetName(undefined, undefined)).toEqual({
       template: "undefined",
       source: "fallback",
     });
@@ -162,17 +162,32 @@ describe("resolveHarvestPreset (#42)", () => {
 
 describe("shouldWarnEmptyHarvest (#42)", () => {
   const withMarkers = "Text <!--ms:intro-def-->claim<!--/ms--> more.";
-  it("warns when markers exist but no line labels were captured", () => {
-    expect(shouldWarnEmptyHarvest(withMarkers, {})).toBe(true);
+  it("warns when body spans exist but no line labels were captured", () => {
+    expect(shouldWarnEmptyHarvest(withMarkers, {}, {})).toBe(true);
   });
   it("is quiet when labels were captured", () => {
     expect(
-      shouldWarnEmptyHarvest(withMarkers, {
-        "intro-def": { sline: 1, eline: 2, page: 1 },
-      })
+      shouldWarnEmptyHarvest(
+        withMarkers,
+        { "intro-def": { sline: 1, eline: 2, page: 1 } },
+        {}
+      )
     ).toBe(false);
   });
   it("is quiet when the manuscript has no markers", () => {
-    expect(shouldWarnEmptyHarvest("plain text", {})).toBe(false);
+    expect(shouldWarnEmptyHarvest("plain text", {}, {})).toBe(false);
+  });
+  it("is quiet when every span sits in a figure caption", () => {
+    const md = "![Map <!--ms:cap-a-->of sites<!--/ms-->](figs/a.png){#fig:a}";
+    expect(shouldWarnEmptyHarvest(md, {}, { "cap-a": { fig: "1" } })).toBe(
+      false
+    );
+  });
+  it("still warns when caption spans resolve but body spans do not", () => {
+    const md =
+      "![Map <!--ms:cap-a-->x<!--/ms-->](a.png){#fig:a}\n\n" + withMarkers;
+    expect(shouldWarnEmptyHarvest(md, {}, { "cap-a": { fig: "1" } })).toBe(
+      true
+    );
   });
 });

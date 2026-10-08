@@ -439,7 +439,7 @@ export const DEFAULT_WORKFLOWS: Record<string, SerializedWorkflow> = {
       },
       {
         id: "harvest-manuscript-lines",
-        optionValues: { enabled: true, preset: "" },
+        optionValues: { enabled: true, template: "" },
       },
     ],
   },
@@ -489,7 +489,7 @@ export const DEFAULT_WORKFLOWS: Record<string, SerializedWorkflow> = {
       },
       {
         id: "harvest-manuscript-lines",
-        optionValues: { enabled: true, preset: "" },
+        optionValues: { enabled: true, template: "" },
       },
     ],
   },
