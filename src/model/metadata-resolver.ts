@@ -10,8 +10,12 @@ import {
 } from "./metadata-layers";
 
 export type ResolvedProjectMetadata = {
-  /** The nearest metadata file for the note (the fallback edit target). */
-  file: TFile;
+  /**
+   * Where an edit to a key no layer defines goes: the project's root-most
+   * file, the one the metadata panel edits — not the nearest, which would
+   * create a new override (#47).
+   */
+  defaultFile: TFile;
   /** All layers merged, or `null` if any layer is not valid JSON. */
   data: Record<string, unknown> | null;
   /** Which file each key came from — see `MergedMetadata.origin`. */
@@ -45,14 +49,14 @@ export async function resolveProjectMetadataFile(
   } catch (e) {
     if (!(e instanceof MetadataParseError)) throw e;
     const file = app.vault.getAbstractFileByPath(e.path);
-    return file instanceof TFile ? { file, data: null, origin: {} } : null;
+    return file instanceof TFile
+      ? { defaultFile: file, data: null, origin: {} }
+      : null;
   }
   if (layers.length === 0) return null;
 
-  const nearest = app.vault.getAbstractFileByPath(
-    layers[layers.length - 1].path
-  );
-  if (!(nearest instanceof TFile)) return null;
+  const rootMost = app.vault.getAbstractFileByPath(layers[0].path);
+  if (!(rootMost instanceof TFile)) return null;
   const { merged, origin } = mergeMetadataLayers(layers);
-  return { file: nearest, data: merged, origin };
+  return { defaultFile: rootMost, data: merged, origin };
 }

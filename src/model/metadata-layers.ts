@@ -1,9 +1,9 @@
 import { TFile, type Vault } from "obsidian";
+import { deepMerge, isPlainObject } from "./json-merge";
 import {
-  deepMerge,
-  isPlainObject,
-} from "src/compile/steps/replace-json-placeholders-utils";
-import { projectResourceCandidatePaths } from "./project-resources";
+  folderResourcePaths,
+  projectResourceFolders,
+} from "./project-resources";
 
 /**
  * Layered `metadata.json` resolution, shared by the compile steps, the live
@@ -43,14 +43,10 @@ export function metadataLayerPaths(
   baseName: string,
   exists: (path: string) => boolean
 ): string[] {
-  const candidates = projectResourceCandidatePaths(startDir, rootDir, baseName);
-  const nearFirst: string[] = [];
-  // Candidates come in pairs per folder: `<dir>/x`, then `<dir>/source/x`.
-  for (let i = 0; i < candidates.length; i += 2) {
-    const hit = candidates.slice(i, i + 2).find(exists);
-    if (hit) nearFirst.push(hit);
-  }
-  return nearFirst.reverse();
+  return projectResourceFolders(startDir, rootDir)
+    .map((dir) => folderResourcePaths(dir, baseName).find(exists))
+    .filter((p): p is string => p !== undefined)
+    .reverse();
 }
 
 /** A top-level `key:` line in a YAML snippet. */
@@ -75,7 +71,8 @@ export function mergeExtraYaml(chunks: string[]): string {
         if (!entries.has(key)) order.push(key);
         current = [line];
         entries.set(key, current);
-      } else if (current && line.length > 0) {
+      } else if (current) {
+        // Indented continuation, or a blank line inside a block scalar.
         current.push(line);
       } else if (line.trim().length > 0) {
         // Leading comment or stray text: keep it, in place.
@@ -85,7 +82,14 @@ export function mergeExtraYaml(chunks: string[]): string {
       }
     }
   }
-  const out = order.map((k) => (entries.get(k) ?? []).join("\n")).join("\n");
+  const trimEnd = (lines: string[]) => {
+    const out = [...lines];
+    while (out.length > 0 && out[out.length - 1].trim() === "") out.pop();
+    return out;
+  };
+  const out = order
+    .map((k) => trimEnd(entries.get(k) ?? []).join("\n"))
+    .join("\n");
   return out.length > 0 ? `${out}\n` : "";
 }
 

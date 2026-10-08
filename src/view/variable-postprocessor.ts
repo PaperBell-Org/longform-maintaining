@@ -116,10 +116,10 @@ export function registerVariablePostProcessor(plugin: Plugin): void {
         ctx.sourcePath
       );
       if (!resolved || !resolved.data) return;
-      const { file, data, origin } = resolved;
-      // Edit a value in the layer that defines it; new keys go to the nearest.
+      const { defaultFile, data, origin } = resolved;
+      // Edit a value in the layer that defines it; new keys go to the root.
       const fileFor = (varPath: string) =>
-        originForPath(origin, varPath, file.path);
+        originForPath(origin, varPath, defaultFile.path);
 
       const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
       const textNodes: Text[] = [];

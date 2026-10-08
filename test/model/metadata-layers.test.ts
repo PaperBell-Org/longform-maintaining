@@ -86,6 +86,27 @@ describe("mergeExtraYaml", () => {
   });
 });
 
+describe("mergeExtraYaml — block scalars", () => {
+  it("keeps blank lines inside a block scalar", () => {
+    expect(
+      mergeExtraYaml([
+        "header-includes: |\n  \\usepackage{a}\n\n  \\usepackage{b}\n",
+      ])
+    ).toBe("header-includes: |\n  \\usepackage{a}\n\n  \\usepackage{b}\n");
+  });
+});
+
+describe("metadataLayerPaths at the vault root", () => {
+  it("finds the root file when the project root is the vault root", () => {
+    const files = new Set(["metadata.json", "supplementary/metadata.json"]);
+    expect(
+      metadataLayerPaths("supplementary", "", "metadata.json", (p) =>
+        files.has(p)
+      )
+    ).toEqual(["metadata.json", "supplementary/metadata.json"]);
+  });
+});
+
 describe("mergeMetadataLayers", () => {
   it("overrides only the keys a nearer layer sets", () => {
     const { merged } = mergeMetadataLayers([ROOT, SI]);
