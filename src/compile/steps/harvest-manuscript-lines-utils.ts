@@ -23,6 +23,37 @@ export interface AuxLabels {
   tables: NumberSidecar;
 }
 
+/** Where the capture pass's preset came from (for messages). */
+export type HarvestPresetSource = "option" | "frontmatter" | "fallback";
+
+/**
+ * Pick the preset (`defaults/<name>.yaml`) for the capture pass, in the same
+ * order Run Pandoc Export uses: this step's Preset option, then the note's
+ * `template:` key, then the built-in `undefined` preset.
+ */
+export function resolveHarvestPreset(
+  optionPreset: unknown,
+  fmTemplate: unknown
+): { template: string; source: HarvestPresetSource } {
+  const opt = String(optionPreset ?? "").trim();
+  if (opt) return { template: opt, source: "option" };
+  const fm = String(fmTemplate ?? "").trim();
+  if (fm) return { template: fm, source: "frontmatter" };
+  return { template: "undefined", source: "fallback" };
+}
+
+/**
+ * True when the manuscript carries `<!--ms:id-->` markers but the capture
+ * produced no line labels — almost always a preset without the
+ * manuscript_linelabel filter, which would otherwise write `{}` silently.
+ */
+export function shouldWarnEmptyHarvest(
+  contents: string,
+  lines: LinesSidecar
+): boolean {
+  return /<!--\s*ms:/.test(contents) && Object.keys(lines).length === 0;
+}
+
 /** Keep only alphanumerics ("S1" stays, "\relax 1" → "1"). */
 function alnum(s: string): string {
   return s.replace(/[^A-Za-z0-9]/g, "");

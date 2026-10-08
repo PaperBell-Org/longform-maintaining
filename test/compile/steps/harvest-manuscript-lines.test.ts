@@ -7,6 +7,8 @@ import {
   isSupplementaryFrontmatter,
   buildCaptureArgs,
   buildTexInputs,
+  resolveHarvestPreset,
+  shouldWarnEmptyHarvest,
 } from "src/compile/steps/harvest-manuscript-lines-utils";
 
 const AUX = [
@@ -134,5 +136,43 @@ describe("buildTexInputs", () => {
     const t = buildTexInputs("/p", "/a");
     expect(t).toContain("/p");
     expect(t).toContain("/a/templates");
+  });
+});
+
+describe("resolveHarvestPreset (#42)", () => {
+  it("prefers the step's Preset option", () => {
+    expect(resolveHarvestPreset(" paperbell ", "other")).toEqual({
+      template: "paperbell",
+      source: "option",
+    });
+  });
+  it("falls back to the note's template: key", () => {
+    expect(resolveHarvestPreset("", "paperbell")).toEqual({
+      template: "paperbell",
+      source: "frontmatter",
+    });
+  });
+  it("falls back to the built-in preset", () => {
+    expect(resolveHarvestPreset(undefined, undefined)).toEqual({
+      template: "undefined",
+      source: "fallback",
+    });
+  });
+});
+
+describe("shouldWarnEmptyHarvest (#42)", () => {
+  const withMarkers = "Text <!--ms:intro-def-->claim<!--/ms--> more.";
+  it("warns when markers exist but no line labels were captured", () => {
+    expect(shouldWarnEmptyHarvest(withMarkers, {})).toBe(true);
+  });
+  it("is quiet when labels were captured", () => {
+    expect(
+      shouldWarnEmptyHarvest(withMarkers, {
+        "intro-def": { sline: 1, eline: 2, page: 1 },
+      })
+    ).toBe(false);
+  });
+  it("is quiet when the manuscript has no markers", () => {
+    expect(shouldWarnEmptyHarvest("plain text", {})).toBe(false);
   });
 });
