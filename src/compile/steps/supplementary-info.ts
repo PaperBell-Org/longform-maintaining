@@ -4,7 +4,10 @@ import {
   CompileStepOptionType,
   makeBuiltinStep,
 } from "./abstract-compile-step";
-import { transformToSupplementary } from "./supplementary-info-utils";
+import {
+  coerceAbstractOption,
+  transformToSupplementary,
+} from "./supplementary-info-utils";
 
 export const SupplementaryInfoStep = makeBuiltinStep({
   id: "supplementary-info",
@@ -43,7 +46,7 @@ export const SupplementaryInfoStep = makeBuiltinStep({
     }
     return {
       contents: transformToSupplementary(input.contents, {
-        abstract: String(context.optionValues["abstract"] ?? ""),
+        abstract: coerceAbstractOption(context.optionValues["abstract"]),
         summarizeSections: context.optionValues["summarize-sections"] !== false,
       }),
     };

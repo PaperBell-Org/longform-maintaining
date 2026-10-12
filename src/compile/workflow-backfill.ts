@@ -21,3 +21,35 @@ export function mergeMissingWorkflows(
   }
   return { workflows, added };
 }
+
+/**
+ * Fix option values older defaults saved with the wrong type, so the compile
+ * view shows them correctly. Today: the Supplementary Information step's text
+ * option `abstract`, once stored as the boolean `true` (#43), which the step
+ * already reads as blank but the Abstract field still displays as "true".
+ * Returns the input unchanged (same object) when nothing needed fixing.
+ */
+export function repairWorkflowOptions(
+  workflows: Record<string, SerializedWorkflow>
+): { workflows: Record<string, SerializedWorkflow>; repaired: string[] } {
+  const repaired: string[] = [];
+  const out: Record<string, SerializedWorkflow> = {};
+  for (const [key, wf] of Object.entries(workflows)) {
+    let changed = false;
+    const steps = wf.steps.map((step) => {
+      const abstract = step.optionValues?.["abstract"];
+      if (
+        step.id !== "supplementary-info" ||
+        abstract === undefined ||
+        typeof abstract === "string"
+      ) {
+        return step;
+      }
+      changed = true;
+      return { ...step, optionValues: { ...step.optionValues, abstract: "" } };
+    });
+    out[key] = changed ? { ...wf, steps } : wf;
+    if (changed) repaired.push(key);
+  }
+  return { workflows: repaired.length > 0 ? out : workflows, repaired };
+}
