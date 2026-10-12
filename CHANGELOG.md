@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.0-beta.9](https://github.com/PaperBell-Org/longform-maintaining/compare/2.4.0-beta.8...2.4.0-beta.9) (2026-10-12)
+
+
+### Bug Fixes
+
+* **supplementary-info:** stop exporting `abstract: "true"` from the SI workflow ([#49](https://github.com/PaperBell-Org/longform-maintaining/issues/49)) ([ff929c6](https://github.com/PaperBell-Org/longform-maintaining/commit/ff929c67a428c73114ad6f903f1629ec8ad55415))
+
 ## [2.4.0-beta.8](https://github.com/PaperBell-Org/longform-maintaining/compare/2.4.0-beta.7...2.4.0-beta.8) (2026-09-20)
 
 
