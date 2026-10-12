@@ -61,16 +61,14 @@ export function projectRootPath(projectDrafts: Draft[]): string {
 }
 
 /**
- * Ordered candidate paths for a named resource, searched from `startDir` upward
- * to `rootDir` (inclusive). At each level both `<dir>/<baseName>` and
- * `<dir>/source/<baseName>` are produced. When `rootDir` is not an ancestor of
- * (or equal to) `startDir`, only `startDir` is searched — so callers that don't
+ * The folders searched for a project resource, nearest first: from `startDir`
+ * upward to `rootDir` (inclusive). When `rootDir` is not an ancestor of (or
+ * equal to) `startDir`, only `startDir` is searched — so callers that don't
  * know a project root degrade to the original single-folder behavior.
  */
-export function projectResourceCandidatePaths(
+export function projectResourceFolders(
   startDir: string,
-  rootDir: string,
-  baseName: string
+  rootDir: string
 ): string[] {
   const startSegs = startDir.split("/").filter((s) => s.length > 0);
   const rootSegs = (rootDir ?? "").split("/").filter((s) => s.length > 0);
@@ -80,12 +78,32 @@ export function projectResourceCandidatePaths(
     rootSegs.every((s, i) => s === startSegs[i]);
   const minLen = rootIsAncestor ? rootSegs.length : startSegs.length;
 
-  const candidates: string[] = [];
+  const folders: string[] = [];
   for (let len = startSegs.length; len >= minLen; len--) {
-    const dir = startSegs.slice(0, len).join("/");
-    const prefix = dir.length > 0 ? `${dir}/` : "";
-    candidates.push(`${prefix}${baseName}`);
-    candidates.push(`${prefix}source/${baseName}`);
+    folders.push(startSegs.slice(0, len).join("/"));
+  }
+  return folders;
+}
+
+/** A resource's two candidate paths within one folder, preferred first. */
+export function folderResourcePaths(dir: string, baseName: string): string[] {
+  const prefix = dir.length > 0 ? `${dir}/` : "";
+  return [`${prefix}${baseName}`, `${prefix}source/${baseName}`];
+}
+
+/**
+ * Ordered candidate paths for a named resource: for each folder of
+ * {@link projectResourceFolders}, `<dir>/<baseName>` then
+ * `<dir>/source/<baseName>`.
+ */
+export function projectResourceCandidatePaths(
+  startDir: string,
+  rootDir: string,
+  baseName: string
+): string[] {
+  const candidates: string[] = [];
+  for (const dir of projectResourceFolders(startDir, rootDir)) {
+    candidates.push(...folderResourcePaths(dir, baseName));
   }
   return candidates;
 }

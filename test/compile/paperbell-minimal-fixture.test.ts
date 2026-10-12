@@ -8,6 +8,7 @@ import {
   formatPlaceholderValue,
   getByPath,
 } from "src/compile/steps/replace-json-placeholders-utils";
+import { mergeMetadataLayers } from "src/model/metadata-layers";
 
 // Vitest runs with the repo root as cwd.
 const FIXTURE = resolve(
@@ -56,11 +57,23 @@ describe("paperbell-minimal fixture: Add Zenodo Frontmatter", () => {
     expect(yaml).not.toContain("supplementary: true");
   });
 
-  it("injects supplementary: true from the supplementary override metadata.json", () => {
-    const meta = readJson<ZenodoMetadata>("supplementary/metadata.json");
-    const yaml = buildPandocYaml(meta);
+  it("layers the supplementary override over the root metadata.json", () => {
+    const { merged } = mergeMetadataLayers([
+      { path: "metadata.json", data: readJson("metadata.json") },
+      {
+        path: "supplementary/metadata.json",
+        data: readJson("supplementary/metadata.json"),
+      },
+    ]);
+    const yaml = buildPandocYaml(merged as ZenodoMetadata);
     expect(yaml).toContain("supplementary: true");
-    expect(yaml).toContain("numbersections: true");
+    expect(yaml.match(/numbersections: true/g)).toHaveLength(1);
+    expect(yaml).toContain(
+      'title: "A Minimal PaperBell Manuscript — Supplementary Information"'
+    );
+    // Inherited from the root: authors and the target journal.
+    expect(yaml).toContain('target: "Journal of Reproducible Examples"');
+    expect(yaml).toMatch(/- name: "Roe, Rick"/);
   });
 });
 
