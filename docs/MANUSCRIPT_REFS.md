@@ -75,6 +75,17 @@ Two requirements the workflows already satisfy:
 - Harvest is **desktop-only** (it shells out to Pandoc/XeLaTeX) and leaves the manuscript
   note unchanged — it only writes the sidecars.
 
+One requirement is yours to keep: the harvest's capture pass must use **the same preset as
+the export**, because the preset supplies the filters that turn `<!--ms:-->` markers into
+line labels (`manuscript_linelabel.lua`, `block_ids.lua`, `lineno_default.lua`). The harvest
+step resolves its preset like Run Pandoc Export does — its own **Template / preset** option,
+else the note's `template:` key (copied from `_longform.template` in `metadata.json`), else
+the built-in `undefined` preset, which has none of those filters. So if you pick the preset
+on the export step, pick the same one on the harvest step (or set `_longform.template`).
+When the manuscript has spans outside figure captions but the capture finds no line labels,
+the step shows a notice naming the preset it used and where that came from, instead of
+writing an empty `manuscript-lines.json` silently.
+
 ## Where the substitution happens
 
 This plugin owns the **authoring** (span/reference commands) and the **harvest** (writing the

@@ -437,7 +437,10 @@ export const DEFAULT_WORKFLOWS: Record<string, SerializedWorkflow> = {
           filename: "{acronym}_{date}",
         },
       },
-      { id: "harvest-manuscript-lines", optionValues: { enabled: true } },
+      {
+        id: "harvest-manuscript-lines",
+        optionValues: { enabled: true, template: "" },
+      },
     ],
   },
   "PaperBell Supplementary": {
@@ -484,7 +487,10 @@ export const DEFAULT_WORKFLOWS: Record<string, SerializedWorkflow> = {
           filename: "{acronym}_SI_{date}",
         },
       },
-      { id: "harvest-manuscript-lines", optionValues: { enabled: true } },
+      {
+        id: "harvest-manuscript-lines",
+        optionValues: { enabled: true, template: "" },
+      },
     ],
   },
   "PaperBell Response Letter": {

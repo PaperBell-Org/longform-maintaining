@@ -23,6 +23,23 @@ export interface AuxLabels {
   tables: NumberSidecar;
 }
 
+/**
+ * True when the manuscript has `<!--ms:id-->` spans outside figure captions but
+ * the capture produced no line labels — almost always a preset without the
+ * manuscript_linelabel filter, which would otherwise write `{}` silently.
+ * Caption spans resolve to figure numbers instead (`captionFigs`), so a
+ * manuscript whose spans all sit in captions is not warned about.
+ */
+export function shouldWarnEmptyHarvest(
+  contents: string,
+  lines: LinesSidecar,
+  captionFigs: LinesSidecar
+): boolean {
+  if (Object.keys(lines).length > 0) return false;
+  const ids = contents.match(/<!--ms:[\w-]+-->/g) ?? [];
+  return ids.some((m) => !(m.slice(7, -3) in captionFigs));
+}
+
 /** Keep only alphanumerics ("S1" stays, "\relax 1" → "1"). */
 function alnum(s: string): string {
   return s.replace(/[^A-Za-z0-9]/g, "");
