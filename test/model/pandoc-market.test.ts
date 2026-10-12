@@ -9,6 +9,11 @@ import {
   presetSystemDeps,
   bundledAssets,
   systemDepsForPreset,
+  installBaseline,
+  planFileWrite,
+  planFileRemove,
+  modifiedSinceInstall,
+  installsAsset,
   type MarketIndex,
   type InstalledManifest,
 } from "src/model/pandoc-market";
@@ -422,5 +427,105 @@ describe("systemDeps a recipe declares, carried to export-time preflight", () =>
       },
     };
     expect(systemDepsForPreset(legacy, "defaults/nature-latex.yaml")).toEqual([]);
+  });
+});
+
+describe("preserving user-changed asset files (#48)", () => {
+  const disk = (hash: string | null, modifiedSinceInstall = false) => ({
+    hash,
+    modifiedSinceInstall,
+  });
+  const plan = (
+    d: ReturnType<typeof disk>,
+    tracked: boolean,
+    recordedHash?: string
+  ) => planFileWrite({ disk: d, incomingHash: "new", tracked, recordedHash });
+
+  it("writes when nothing is on disk", () => {
+    expect(plan(disk(null), true, "old")).toBe("write");
+  });
+  it("skips a file that already matches the incoming bytes", () => {
+    expect(plan(disk("new"), true, "old")).toBe("skip-same");
+  });
+  it("overwrites a file untouched since the last install", () => {
+    expect(plan(disk("old"), true, "old")).toBe("write");
+  });
+  it("keeps a file the user replaced and writes <path>.new", () => {
+    expect(plan(disk("mine"), true, "old")).toBe("write-new");
+  });
+  it("overwrites a file the market never installed", () => {
+    expect(plan(disk("mine", true), false)).toBe("write");
+  });
+
+  describe("records from before hashes were kept", () => {
+    it("updates a file not modified since that install", () => {
+      // Otherwise an untouched template would sit behind a .new forever.
+      expect(plan(disk("old"), true)).toBe("write");
+    });
+    it("keeps a file modified after that install", () => {
+      expect(plan(disk("mine", true), true)).toBe("write-new");
+    });
+    it("uninstall keeps a file modified after that install", () => {
+      expect(planFileRemove(disk("mine", true), undefined)).toBe("keep");
+      expect(planFileRemove(disk("old"), undefined)).toBe("remove");
+    });
+  });
+
+  it("uninstall removes only files still as installed", () => {
+    expect(planFileRemove(disk(null), "old")).toBe("missing");
+    expect(planFileRemove(disk("old"), "old")).toBe("remove");
+    expect(planFileRemove(disk("mine"), "old")).toBe("keep");
+  });
+
+  it("judges modification by mtime with a minute of slack", () => {
+    const at = "2026-01-01T00:00:00.000Z";
+    const t = Date.parse(at);
+    expect(modifiedSinceInstall(t + 30_000, at)).toBe(false);
+    expect(modifiedSinceInstall(t + 3_600_000, at)).toBe(true);
+    expect(modifiedSinceInstall(null, at)).toBe(false);
+    expect(modifiedSinceInstall(t + 3_600_000, undefined)).toBe(false);
+  });
+
+  it("builds the baseline from every record, newest winning", () => {
+    const manifest: InstalledManifest = {
+      full: {
+        id: "full",
+        version: "1.0.0",
+        kind: "bundle",
+        files: ["templates/cover_letter/signature.png", "csl/nature.csl"],
+        installedAt: "2026-01-01T00:00:00Z",
+        hashes: { "templates/cover_letter/signature.png": "v1" },
+      },
+      cover_letter: {
+        id: "cover_letter",
+        version: "1.1.0",
+        kind: "asset",
+        files: ["templates/cover_letter/signature.png"],
+        installedAt: "2026-02-01T00:00:00Z",
+        hashes: { "templates/cover_letter/signature.png": "v2" },
+      },
+    };
+    const b = installBaseline(manifest);
+    expect(b.tracked.has("csl/nature.csl")).toBe(true);
+    expect(b.hashes["templates/cover_letter/signature.png"]).toBe("v2");
+    expect(b.hashes["csl/nature.csl"]).toBeUndefined();
+    expect(b.installedAt["templates/cover_letter/signature.png"]).toBe(
+      "2026-02-01T00:00:00Z"
+    );
+    expect(b.installedAt["csl/nature.csl"]).toBe("2026-01-01T00:00:00Z");
+  });
+});
+
+describe("installsAsset", () => {
+  const index = {
+    schemaVersion: 1,
+    bundles: [{ id: "full", assets: ["cover_letter", "nature"] }],
+    assets: [],
+  } as unknown as MarketIndex;
+  it("matches the asset itself or a bundle carrying it", () => {
+    expect(installsAsset(index, ["cover_letter"], "cover_letter")).toBe(true);
+    expect(installsAsset(index, ["full"], "cover_letter")).toBe(true);
+    expect(installsAsset(index, ["nature"], "cover_letter")).toBe(false);
+    expect(installsAsset(index, [], "cover_letter")).toBe(false);
   });
 });

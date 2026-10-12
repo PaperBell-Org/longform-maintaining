@@ -15,6 +15,7 @@ import { downloadPandocAssets } from "src/model/pandoc-assets";
 import { refreshPandocTemplates } from "src/model/pandoc-templates";
 import { translate } from "src/i18n";
 import PandocMarketModal from "./pandoc-market";
+import { noticeKeptFiles } from "./pandoc-market/kept-files-notice";
 import type LongformPlugin from "src/main";
 
 /**
@@ -249,11 +250,16 @@ export class PandocSetupModal extends Modal {
     const dest = DEFAULT_ASSETS_DIR;
     const notice = new Notice(translate("setup.downloading"), 0);
     try {
-      const { count } = await downloadPandocAssets(this.app, url, dest);
+      const { count, preserved } = await downloadPandocAssets(
+        this.app,
+        url,
+        dest
+      );
       pluginSettings.update((s) => ({ ...s, pandocAssetsFolder: dest }));
       refreshPandocTemplates(this.app);
       notice.hide();
       new Notice(translate("setup.downloaded", { count: String(count), dest }));
+      noticeKeptFiles("market.preservedFiles", preserved);
       this.render();
     } catch (e) {
       notice.hide();

@@ -182,6 +182,10 @@ export const en = {
   "market.installing": "Installing…",
   "market.installedNotice": "Installed",
   "market.failed": "Failed:",
+  "market.preservedFiles":
+    "Kept your changes to {count} file(s); the new version is next to each as .new:\n{files}",
+  "market.keptFiles":
+    "Kept {count} file(s) you had changed:\n{files}",
 
   // ── Explorer pane ───────────────────────────────────────────────────────
   "explorer.paneTitle": "PaperOut To-Authors",

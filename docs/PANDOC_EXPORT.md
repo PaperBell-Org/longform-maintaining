@@ -168,9 +168,16 @@ should:
 ## Customizing & contributing
 
 The downloaded copy in `PaperBell/pandoc/` is yours to edit — add a template,
-tweak a filter — and your edits survive plugin updates (the plugin never
-overwrites it unless you click **Download assets** again). To share a template,
-open a PR against the assets repository.
+tweak a filter, replace the cover letter's `signature.png` or `letterhead.pdf` —
+and your edits survive plugin updates. Reinstalling or updating an item from the
+asset marketplace (or downloading the assets again) also keeps them: a file the
+marketplace installed and you have since changed is left as it is, the new
+version is written next to it as `<file>.new`, and a notice lists every file
+kept this way. Merge or rename the `.new` yourself when you want the update.
+Uninstalling an item likewise keeps the files you changed. A file the
+marketplace never installed (for example one that only came from the first-run
+download) is still overwritten by a newer copy. To share a template, open a PR
+against the assets repository.
 
 ## Settings (Longform → Compile → Pandoc export)
 
