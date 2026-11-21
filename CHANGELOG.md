@@ -1,5 +1,20 @@
 # Changelog
 
+## [2.4.0-beta.10](https://github.com/PaperBell-Org/longform-maintaining/compare/2.4.0-beta.9...2.4.0-beta.10) (2026-11-21)
+
+
+### Features
+
+* **metadata:** layer metadata.json root → draft instead of nearest-file-wins ([#51](https://github.com/PaperBell-Org/longform-maintaining/issues/51)) ([80f759b](https://github.com/PaperBell-Org/longform-maintaining/commit/80f759b5ac30a2e8e0b3db0ddb8f0d63acfa7358))
+* **pandoc-export:** adapt preset fonts to the OS the export runs on ([0d8bf01](https://github.com/PaperBell-Org/longform-maintaining/commit/0d8bf019c8c5ad9098e636f7353922842d16642f))
+
+
+### Bug Fixes
+
+* **harvest-manuscript-lines:** capture with the export's preset, warn on an empty harvest ([#50](https://github.com/PaperBell-Org/longform-maintaining/issues/50)) ([ccc1663](https://github.com/PaperBell-Org/longform-maintaining/commit/ccc16635b06abf0c7ebf02c5f258e685707e2df2))
+* **pandoc-market:** keep user-replaced asset files on reinstall, update and uninstall ([#52](https://github.com/PaperBell-Org/longform-maintaining/issues/52)) ([0ed661f](https://github.com/PaperBell-Org/longform-maintaining/commit/0ed661fde59e34804cb2b3db7ea37a0450fc530a))
+* **settings:** save Extra binary folders and Global bibliography on change ([0d8bf01](https://github.com/PaperBell-Org/longform-maintaining/commit/0d8bf019c8c5ad9098e636f7353922842d16642f))
+
 ## [2.4.0-beta.9](https://github.com/PaperBell-Org/longform-maintaining/compare/2.4.0-beta.8...2.4.0-beta.9) (2026-10-12)
 
 
