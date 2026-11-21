@@ -271,6 +271,15 @@ export class LongformSettingsTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
+      .setName(t("settings.adaptFonts.name"))
+      .setDesc(t("settings.adaptFonts.desc"))
+      .addToggle((cb) => {
+        cb.setValue(settings.pandocAdaptFontsToOS).onChange((v) => {
+          pluginSettings.update((s) => ({ ...s, pandocAdaptFontsToOS: v }));
+        });
+      });
+
+    new Setting(containerEl)
       .setName(t("settings.userScriptFolder.name"))
       .setDesc(t("settings.userScriptFolder.desc"))
       .addSearch((cb) => {

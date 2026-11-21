@@ -36,4 +36,8 @@ describe("settingsNeedSave", () => {
       true
     );
   });
+
+  it("saves turning OS font adaptation off", () => {
+    expect(changed({ pandocAdaptFontsToOS: false })).toBe(true);
+  });
 });

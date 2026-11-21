@@ -1,6 +1,14 @@
 import * as os from "os";
 import * as path from "path";
 
+import {
+  FONT_KEYS,
+  fontOverrides,
+  osIdFromPlatform,
+  type FontChange,
+  type OsId,
+} from "src/model/platform-fonts";
+
 /**
  * Default vault-relative folder the Pandoc assets are downloaded into. Used as
  * the fallback when the "Pandoc assets folder" setting is empty.
@@ -48,6 +56,8 @@ export function windowsBinDirs(home: string): string[] {
  */
 export interface PlatformEnv {
   isWindows: boolean;
+  /** Which OS family this is, for choosing fonts that are installed. */
+  os: OsId;
   home: string;
   /** `process.env.PATH`. Searched for binaries, and inherited by the child. */
   envPath: string;
@@ -68,6 +78,7 @@ function flavour(env: PlatformEnv): path.PlatformPath {
 export function currentPlatformEnv(extraBinFolders?: string | null): PlatformEnv {
   return {
     isWindows: process.platform === "win32",
+    os: osIdFromPlatform(process.platform),
     home: os.homedir(),
     envPath: process.env.PATH ?? "",
     extraDirs: splitDirList(extraBinFolders),
@@ -464,6 +475,15 @@ export type ExportTarget = {
   pdfEngine: string | null;
   /** Whether the preset's filters end up running pandoc-crossref. */
   needsCrossref: boolean;
+  /**
+   * Font template variables the preset sets, from `metadata:` and `variables:`
+   * (the latter wins, as in pandoc). Absent for the built-in export.
+   */
+  fonts?: Record<string, string>;
+  /** The preset's `reference-doc:`, as written (placeholders unexpanded). */
+  referenceDoc?: string | null;
+  /** The preset's `data-dir:`, as written — what `${USERDATA}` expands to. */
+  dataDir?: string | null;
 };
 
 /**
@@ -519,7 +539,115 @@ export function exportTargetForDefaults(
     ? WRITER_EXTENSIONS[to] ?? `.${to}`
     : outputExt || ".pdf";
 
-  return { ext, pdfEngine, needsCrossref };
+  const fonts: Record<string, string> = {};
+  for (const section of ["metadata", "variables"]) {
+    const map = doc[section];
+    if (typeof map !== "object" || map === null || Array.isArray(map)) continue;
+    for (const key of FONT_KEYS) {
+      const value = scalar((map as Record<string, unknown>)[key]);
+      if (value) fonts[key] = value;
+    }
+  }
+  const referenceDoc = scalar(doc["reference-doc"]) || null;
+  const dataDir = scalar(doc["data-dir"]) || null;
+
+  return { ext, pdfEngine, needsCrossref, fonts, referenceDoc, dataDir };
+}
+
+/** A template variable passed on the command line as `-V key=value`. */
+export type TemplateVariable = { key: string; value: string };
+
+/** What an export does to fit a preset's fonts to the machine it runs on. */
+export type FontAdaptationPlan = {
+  /** `-V` overrides to pass after `--defaults`. */
+  variables: TemplateVariable[];
+  /** The preset's `reference-doc:` (as written) to patch; docx output only. */
+  referenceDocToPatch: string | null;
+  /** The font swaps among `variables`, for telling the user. */
+  changes: FontChange[];
+};
+
+const NO_ADAPTATION: FontAdaptationPlan = {
+  variables: [],
+  referenceDocToPatch: null,
+  changes: [],
+};
+
+/**
+ * Decide how a preset export adapts its fonts to `os`.
+ *
+ * - A docx takes its fonts from the reference doc's styles, so that is the
+ *   thing to patch; template variables would do nothing there.
+ * - Otherwise each preset font is translated to this OS's equivalent and passed
+ *   as `-V`, which pandoc ranks above the preset's own `metadata:` fonts.
+ * - A font the exported note names in its frontmatter is the writer's choice
+ *   and wins over both. pandoc ranks a defaults file's `metadata:` (`-M`) above
+ *   the document's own YAML, so without help the *preset's* font would win;
+ *   re-passing the note's value as `-V` restores the writer's precedence.
+ *
+ * Nothing is adapted for the built-in export (it picks its own CJK font) or
+ * when the user turned adaptation off.
+ */
+export function planFontAdaptation(input: {
+  target: ExportTarget;
+  builtin: boolean;
+  enabled: boolean;
+  os: OsId;
+  frontmatter: Record<string, string | boolean>;
+}): FontAdaptationPlan {
+  const { target, os, frontmatter } = input;
+  if (input.builtin || !input.enabled) return NO_ADAPTATION;
+  if (target.ext === ".docx") {
+    return { ...NO_ADAPTATION, referenceDocToPatch: target.referenceDoc ?? null };
+  }
+
+  const presetFonts = target.fonts ?? {};
+  const noteFonts = new Map<string, string>();
+  for (const key of FONT_KEYS) {
+    const value = frontmatter[key];
+    if (typeof value === "string" && value.trim()) noteFonts.set(key, value.trim());
+  }
+
+  const variables: TemplateVariable[] = [];
+  for (const [key, value] of noteFonts) {
+    // Only where the preset would otherwise override it.
+    if (presetFonts[key] !== undefined) variables.push({ key, value });
+  }
+  const changes = fontOverrides(presetFonts, os, new Set(noteFonts.keys()));
+  for (const c of changes) variables.push({ key: c.key, value: c.to });
+  return { variables, referenceDocToPatch: null, changes };
+}
+
+/**
+ * Where pandoc may find a preset's `reference-doc:`, most likely first.
+ *
+ * `${USERDATA}` is the preset's `data-dir` (every shipped preset sets it to
+ * `${.}/..`, the assets folder), `${.}` the preset's own folder. pandoc resolves
+ * a relative path against its working directory — the assets folder, which is
+ * where the export runs it — and then the data directory.
+ */
+export function referenceDocCandidates(
+  rawReferenceDoc: string,
+  dirs: { cwd: string; presetDir: string; rawDataDir?: string | null }
+): string[] {
+  const expand = (raw: string, userData: string) =>
+    scalar(raw)
+      .split("${USERDATA}")
+      .join(userData)
+      .split("${.}")
+      .join(dirs.presetDir);
+  const rawDataDir = dirs.rawDataDir ? expand(dirs.rawDataDir, dirs.cwd) : "";
+  const dataDir = !rawDataDir
+    ? dirs.cwd
+    : path.isAbsolute(rawDataDir)
+    ? path.normalize(rawDataDir)
+    : path.join(dirs.cwd, rawDataDir);
+
+  const ref = expand(rawReferenceDoc, dataDir);
+  if (path.isAbsolute(ref)) return [path.normalize(ref)];
+  return [path.join(dirs.cwd, ref), path.join(dataDir, ref)].filter(
+    (p, i, all) => all.indexOf(p) === i
+  );
 }
 
 /** Output formats the built-in, preset-free export can produce. */
@@ -604,18 +732,6 @@ export function hasCjk(text: string): boolean {
   return CJK_RANGE.test(text);
 }
 
-/**
- * A CJK font to hand xelatex, chosen so it ships with the platform: naming a
- * font that isn't installed makes xelatex fail outright and write nothing, so
- * this must never be a guess. Callers only pass it when the document actually
- * contains CJK and the note doesn't name its own `CJKmainfont`.
- */
-export function defaultCjkFont(platform: string): string {
-  if (platform === "darwin") return "Songti SC";
-  if (platform === "win32") return "SimSun";
-  return "Noto Sans CJK SC";
-}
-
 /** What a built-in export needs in place of a preset's directives. */
 export type BuiltinExportOptions = {
   format: BuiltinFormat;
@@ -649,6 +765,14 @@ export type PandocArgPaths = {
   extraResourcePaths?: string[] | null;
   /** Required when `defaultsFile` is null; ignored otherwise. */
   builtin?: BuiltinExportOptions | null;
+  /**
+   * Template variables passed as `-V key=value` after the preset — the fonts
+   * adapted to this OS. The command line outranks the defaults file, so these
+   * replace the preset's own values key by key.
+   */
+  variableOverrides?: TemplateVariable[] | null;
+  /** A `--reference-doc` that replaces the preset's (its OS-adapted copy). */
+  referenceDoc?: string | null;
 };
 
 /**
@@ -752,6 +876,12 @@ export function buildPandocArgs(p: PandocArgPaths): string[] {
   const args = [p.inputFile];
   if (p.defaultsFile) {
     args.push("--defaults=" + p.defaultsFile);
+    for (const v of p.variableOverrides ?? []) {
+      args.push("-V", `${v.key}=${v.value}`);
+    }
+    if (p.referenceDoc) {
+      args.push("--reference-doc=" + p.referenceDoc);
+    }
   } else if (p.builtin) {
     // Everything a preset would have declared, spelled out. Nothing here reads
     // a downloaded file, so this path works with pandoc alone.

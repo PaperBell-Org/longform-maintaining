@@ -9,7 +9,6 @@ import {
   builtinFrom,
   commonTopDir,
   COMMON_BIN_DIRS,
-  defaultCjkFont,
   hasCjk,
   isBuiltinFormat,
   exportTargetForDefaults,
@@ -21,6 +20,8 @@ import {
   normalizeCslId,
   officialCslUrls,
   parseExportFrontmatter,
+  planFontAdaptation,
+  referenceDocCandidates,
   renderFilenamePattern,
   sanitizeExportFilename,
   resolveBinary,
@@ -28,6 +29,7 @@ import {
   resolveUserPath,
   splitBibList,
   zoteroStylesDir,
+  type ExportTarget,
   type PandocArgPaths,
   type PlatformEnv,
 } from "src/compile/steps/pandoc-export-utils";
@@ -176,6 +178,7 @@ describe("binSearchDirs", () => {
     // searching PATH is what actually broke Windows, not the missing dirs.
     const dirs = binSearchDirs({
       isWindows: true,
+      os: "win",
       home: "C:\\Users\\Admin",
       envPath: "C:\\Users\\Admin\\AppData\\Local\\Pandoc;C:\\Windows",
       extraDirs: [],
@@ -187,6 +190,7 @@ describe("binSearchDirs", () => {
   it("searches PATH on macOS too, after the hardcoded dirs", () => {
     const dirs = binSearchDirs({
       isWindows: false,
+      os: "mac",
       home: "/home/u",
       envPath: "/opt/mytools/bin",
       extraDirs: [],
@@ -202,6 +206,7 @@ describe("binSearchDirs", () => {
     // it can't rescue a machine where a wrong binary is found first.
     const dirs = binSearchDirs({
       isWindows: false,
+      os: "mac",
       home: "/home/u",
       envPath: "/usr/bin",
       extraDirs: ["/opt/custom/bin"],
@@ -212,6 +217,7 @@ describe("binSearchDirs", () => {
   it("offers Windows install locations as a fallback for a PATH-less install", () => {
     const dirs = binSearchDirs({
       isWindows: true,
+      os: "win",
       home: "C:\\Users\\Admin",
       envPath: "",
       extraDirs: [],
@@ -225,6 +231,7 @@ describe("binSearchDirs", () => {
   it("keeps the macOS dirs on macOS", () => {
     const dirs = binSearchDirs({
       isWindows: false,
+      os: "mac",
       home: "/home/u",
       envPath: "",
       extraDirs: [],
@@ -237,6 +244,7 @@ describe("buildExecPath", () => {
   it("prepends common bin dirs and dedupes existing entries", () => {
     const out = buildExecPath({
       isWindows: false,
+      os: "mac",
       home: "/home/u",
       envPath: "/usr/bin:/opt/homebrew/bin",
       extraDirs: [],
@@ -255,6 +263,7 @@ describe("buildExecPath", () => {
     // export a second time, after the binary lookup already failed.
     const out = buildExecPath({
       isWindows: true,
+      os: "win",
       home: "C:\\Users\\Admin",
       envPath: "C:\\Program Files\\Pandoc;C:\\Windows\\system32",
       extraDirs: [],
@@ -271,6 +280,7 @@ describe("buildExecPath", () => {
 describe("resolveUserPath", () => {
   const mac: PlatformEnv = {
     isWindows: false,
+    os: "mac",
     home: "/home/u",
     envPath: "",
     extraDirs: [],
@@ -290,6 +300,7 @@ describe("resolveUserPath", () => {
     // where the user asked for it.
     const win: PlatformEnv = {
       isWindows: true,
+      os: "win",
       home: "C:\\Users\\Admin",
       envPath: "",
       extraDirs: [],
@@ -600,8 +611,35 @@ describe("exportTargetForDefaults", () => {
         ext: ".pdf",
         pdfEngine: null,
         needsCrossref: false,
+        fonts: {},
+        referenceDoc: null,
+        dataDir: null,
       });
     }
+  });
+
+  it("reads font keys from metadata and variables, variables winning", () => {
+    const t = exportTargetForDefaults({
+      metadata: {
+        CJKmainfont: "Songti SC",
+        mainfont: "Times New Roman    #! serif",
+        title: "not a font",
+      },
+      variables: { CJKmainfont: "Kaiti SC", fonttheme: "professionalfonts" },
+    });
+    expect(t.fonts).toEqual({
+      CJKmainfont: "Kaiti SC",
+      mainfont: "Times New Roman",
+    });
+  });
+
+  it("reports the preset's reference-doc as written", () => {
+    expect(
+      exportTargetForDefaults({
+        to: "docx",
+        "reference-doc": '"${.}/../templates/demo-reference.docx"',
+      }).referenceDoc
+    ).toBe("${.}/../templates/demo-reference.docx");
   });
 });
 
@@ -718,14 +756,6 @@ describe("hasCjk", () => {
     expect(hasCjk("A plain English abstract.")).toBe(false);
     expect(hasCjk("“smart quotes” — em dash… ±½")).toBe(false);
     expect(hasCjk("café naïve Ω")).toBe(false);
-  });
-});
-
-describe("defaultCjkFont", () => {
-  it("names a font that ships with each platform", () => {
-    expect(defaultCjkFont("darwin")).toBe("Songti SC");
-    expect(defaultCjkFont("win32")).toBe("SimSun");
-    expect(defaultCjkFont("linux")).toBe("Noto Sans CJK SC");
   });
 });
 
@@ -868,6 +898,38 @@ describe("buildPandocArgs", () => {
     });
   });
 
+  it("puts OS font overrides and the adapted reference doc after --defaults", () => {
+    const args = buildPandocArgs({
+      ...base,
+      variableOverrides: [{ key: "CJKmainfont", value: "SimSun" }],
+      referenceDoc: "/tmp/ref-win.docx",
+    });
+    const d = args.findIndex((a) => a.startsWith("--defaults="));
+    expect(d).toBeGreaterThan(-1);
+    // The command line outranks the defaults file only when it comes after it.
+    expect(args.slice(d + 1, d + 4)).toEqual([
+      "-V",
+      "CJKmainfont=SimSun",
+      "--reference-doc=/tmp/ref-win.docx",
+    ]);
+  });
+
+  it("ignores font overrides in the built-in export", () => {
+    const args = buildPandocArgs({
+      ...base,
+      defaultsFile: null,
+      variableOverrides: [{ key: "CJKmainfont", value: "SimSun" }],
+      builtin: {
+        format: "docx",
+        from: builtinFrom("docx"),
+        pdfEngine: null,
+        cjkFont: null,
+        citeproc: false,
+      },
+    });
+    expect(args).not.toContain("CJKmainfont=SimSun");
+  });
+
   it("omits --csl entirely when there is no style to pass", () => {
     // A note with no citations needs no CSL; passing one would make a missing
     // style a hard failure for a document that never cites anything.
@@ -990,5 +1052,112 @@ describe("fflate unzip (download extraction round-trips)", () => {
       "defaults/undefined.yaml",
       "filters/image.lua",
     ]);
+  });
+});
+
+describe("planFontAdaptation", () => {
+  // paperbell.yaml as exportTargetForDefaults reads it.
+  const paperbell: ExportTarget = {
+    ext: ".pdf",
+    pdfEngine: "xelatex",
+    needsCrossref: true,
+    fonts: {
+      CJKmainfont: "Songti SC",
+      CJKsansfont: "Heiti SC",
+      mainfont: "Times New Roman",
+    },
+    referenceDoc: null,
+  };
+  const plan = (
+    over: Partial<Parameters<typeof planFontAdaptation>[0]> = {}
+  ) =>
+    planFontAdaptation({
+      target: paperbell,
+      builtin: false,
+      enabled: true,
+      os: "win",
+      frontmatter: {},
+      ...over,
+    });
+
+  it("passes Windows equivalents of a Mac preset's CJK fonts", () => {
+    expect(plan().variables).toEqual([
+      { key: "CJKmainfont", value: "SimSun" },
+      { key: "CJKsansfont", value: "SimHei" },
+    ]);
+  });
+
+  it("changes nothing on the OS the preset was written for", () => {
+    expect(plan({ os: "mac" }).variables).toEqual([]);
+  });
+
+  it("re-passes the note's own font so it beats the preset's metadata", () => {
+    const p = plan({ frontmatter: { CJKmainfont: "KaiTi", title: "x" } });
+    expect(p.variables).toContainEqual({ key: "CJKmainfont", value: "KaiTi" });
+    expect(p.variables).not.toContainEqual({
+      key: "CJKmainfont",
+      value: "SimSun",
+    });
+    // The note's font is not reported as an adaptation.
+    expect(p.changes.map((c) => c.key)).not.toContain("CJKmainfont");
+  });
+
+  it("leaves a note font alone when the preset doesn't set that key", () => {
+    // Without a competing preset value the note's metadata already applies.
+    expect(plan({ frontmatter: { CJKmonofont: "KaiTi" } }).variables).not.toContainEqual(
+      { key: "CJKmonofont", value: "KaiTi" }
+    );
+  });
+
+  it("patches the reference doc instead for docx output", () => {
+    const p = plan({
+      target: { ...paperbell, ext: ".docx", referenceDoc: "${.}/../ref.docx" },
+    });
+    expect(p.variables).toEqual([]);
+    expect(p.referenceDocToPatch).toBe("${.}/../ref.docx");
+  });
+
+  it("does nothing when turned off or for the built-in export", () => {
+    for (const p of [plan({ enabled: false }), plan({ builtin: true })]) {
+      expect(p.variables).toEqual([]);
+      expect(p.referenceDocToPatch).toBeNull();
+    }
+  });
+});
+
+describe("referenceDocCandidates", () => {
+  const dirs = { cwd: "/a", presetDir: "/a/defaults" };
+
+  it("expands ${.} against the preset's folder", () => {
+    expect(
+      referenceDocCandidates("${.}/../templates/ref.docx", dirs)
+    ).toEqual(["/a/templates/ref.docx"]);
+  });
+
+  it("expands ${USERDATA} to the preset's own data-dir", () => {
+    expect(
+      referenceDocCandidates("${USERDATA}/templates/ref.docx", {
+        ...dirs,
+        rawDataDir: "/elsewhere/pandoc",
+      })
+    ).toEqual(["/elsewhere/pandoc/templates/ref.docx"]);
+  });
+
+  it("defaults ${USERDATA} to the assets folder, like the shipped presets", () => {
+    expect(
+      referenceDocCandidates("${USERDATA}/templates/ref.docx", {
+        ...dirs,
+        rawDataDir: "${.}/..",
+      })
+    ).toEqual(["/a/templates/ref.docx"]);
+  });
+
+  it("tries the working directory, then the data dir, for a relative path", () => {
+    expect(
+      referenceDocCandidates("templates/ref.docx", {
+        ...dirs,
+        rawDataDir: "/data",
+      })
+    ).toEqual(["/a/templates/ref.docx", "/data/templates/ref.docx"]);
   });
 });

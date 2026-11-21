@@ -248,6 +248,9 @@ export const en = {
   "settings.globalBibliography.name": "Global bibliography",
   "settings.globalBibliography.desc":
     "Extra .bib file(s) merged into every export, on top of each project's own. One path per line (or comma-separated); vault-relative or absolute. The project's bibliography wins on duplicate cite keys.",
+  "settings.adaptFonts.name": "Adapt preset fonts to this OS",
+  "settings.adaptFonts.desc":
+    "Presets usually name macOS fonts (Songti SC, Heiti SC). When on, each export swaps them for this system's equivalents — SimSun / SimHei on Windows, Noto CJK on Linux — in PDF/TeX font variables and in a docx preset's reference document. Fonts set in the note's own frontmatter are never changed.",
   "settings.extraBinFolders.name": "Extra binary folders",
   "settings.extraBinFolders.desc":
     "Folders to search for pandoc, the PDF engine and pandoc-crossref, one per line. Searched before PATH and the built-in locations — use this when a tool is installed somewhere PATH doesn't know about.",

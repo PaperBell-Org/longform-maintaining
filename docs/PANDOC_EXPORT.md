@@ -182,6 +182,7 @@ open a PR against the assets repository.
 | Bibliography | *(auto-detect)* | `.bib` for citations. Auto-detects `references.bib`/`mybib.bib` in the project. |
 | Pandoc binary | `pandoc` | Path to pandoc, if not on `PATH`. Absolute paths are accepted in either slash style on Windows. |
 | Extra binary folders | *(empty)* | Folders to search for pandoc / the PDF engine / pandoc-crossref, one per line. Searched before `PATH` and the built-in locations. |
+| Adapt preset fonts to this OS | on | Swap a preset's fonts for this system's equivalents (Songti SC → SimSun on Windows). See [Fonts across macOS, Windows and Linux](#fonts-across-macos-windows-and-linux). |
 
 ## Citations & bibliography
 
@@ -279,6 +280,44 @@ before **Save as Note** / **Run Pandoc Export**. Use a *separate* SI-only workfl
 Because the S-prefix comes from this step, you no longer need a `supplementary:
 true` flag in `metadata.json` for numbering.
 
+## Fonts across macOS, Windows and Linux
+
+xelatex aborts on a font that isn't installed, and Word quietly substitutes a
+different one on each OS. So before running pandoc, the export translates
+font names through equivalence groups (`src/model/platform-fonts.ts`):
+
+| Role | macOS | Windows | Linux |
+| --- | --- | --- | --- |
+| CJK serif | Songti SC | SimSun (宋体) | Noto Serif CJK SC |
+| CJK sans | Heiti SC | SimHei (黑体) | Noto Sans CJK SC |
+| CJK fangsong | STFangsong | FangSong (仿宋) | Noto Serif CJK SC |
+| CJK kai | Kaiti SC | KaiTi (楷体) | Noto Serif CJK SC |
+| Latin serif / sans / mono | Times New Roman / Arial / Courier New | same | Liberation Serif / Sans / Mono |
+
+A font that already belongs to the current OS is left alone. For example,
+Microsoft YaHei stays as it is on Windows. Fonts in no group pass through
+untouched.
+
+- **PDF / LaTeX presets:** the `mainfont`, `sansfont`, `monofont`,
+  `CJK*font`, `cjkfont` and `cjksffont` values from the preset's `metadata:`
+  and `variables:` are passed as `-V key=value` after `--defaults`, which
+  overrides the preset.
+- **docx presets:** fonts live in the preset's `reference-doc` (resolved like
+  pandoc does: `${.}`, `${USERDATA}` = the preset's `data-dir`, else the working
+  directory). The export
+  writes a copy to the system temp folder with the fonts in `styles.xml`,
+  `numbering.xml` and the theme's Simplified-Chinese font translated, then
+  passes that copy as `--reference-doc`. The original is never modified.
+- **What wins:** fonts in the exported note's own frontmatter > the automatic
+  OS fonts > the preset's fonts. pandoc by itself ranks a preset's `metadata:`
+  above the note's YAML, so a note font the preset also sets is re-passed as
+  `-V` to keep the writer's choice.
+- The first export of a session that swaps fonts shows a notice listing them,
+  e.g. `adapted fonts for Windows — Songti SC→SimSun`. Every export also logs
+  the swaps to the developer console.
+- **Turn it off** with *Adapt preset fonts to this OS* in settings. The preset
+  is then used exactly as written.
+
 ## Exporting outside your vault
 
 By default the exported file lands next to the compiled manuscript, inside the
@@ -296,5 +335,8 @@ actually produces.
 
 - **Desktop only.** Export shells out to Pandoc via Node; on mobile the step
   reports a clear error. Writing/compiling still work on mobile.
-- **Fonts.** Templates that assume macOS fonts (Songti/Heiti/Times) may need
-  adjustment on Windows/Linux — edit the downloaded `defaults/*.yaml`.
+- **Fonts adapt to your OS.** Market presets are written once and usually name
+  macOS fonts (`CJKmainfont: Songti SC`). At export time the plugin swaps each
+  font it recognises for the current system's equivalent, so a single preset
+  works on every platform and needs no `-windows` copy. See
+  [Fonts across macOS, Windows and Linux](#fonts-across-macos-windows-and-linux).
