@@ -78,8 +78,9 @@ function readTextFile(abs: string): string | null {
 
 /**
  * The marketplace install manifest at the assets root, or `{}` when nothing
- * wrote one: only the marketplace panel does, so assets pulled by the setup
- * modal's "Download assets" or rsynced from the canonical vault have none.
+ * wrote one: the marketplace panel and the setup modal's "Download assets"
+ * do, but assets rsynced from the canonical vault (or downloaded by an older
+ * version) have none.
  * Preflight must work either way — reading the preset's own filters is what
  * covers those, and this is the extra word of the recipe author when it exists.
  *

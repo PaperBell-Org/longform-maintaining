@@ -110,6 +110,16 @@ export function validateIndex(parsed: unknown): MarketIndex {
   if (!Array.isArray(idx.assets) || !Array.isArray(idx.bundles)) {
     throw new Error("Marketplace index must have `assets` and `bundles` arrays.");
   }
+  // `_`-prefixed ids name the install manifest's own records (`_kept`,
+  // `_toolchain`); a market entry with one would overwrite them.
+  const reserved = [...idx.assets, ...idx.bundles].find(
+    (e) => typeof e?.id === "string" && e.id.startsWith("_")
+  );
+  if (reserved) {
+    throw new Error(
+      `Marketplace id "${reserved.id}" is reserved: ids starting with "_" are used by the install manifest.`
+    );
+  }
   return idx;
 }
 
@@ -268,7 +278,11 @@ export function compareVersions(a: string, b: string): number {
 export interface InstalledRecord {
   id: string;
   version: string;
-  kind: "asset" | "bundle";
+  /**
+   * `kept` and `toolchain` are the reserved records {@link KEPT_RECORD_ID} and
+   * {@link TOOLCHAIN_RECORD_ID}; no market entry ever has their ids.
+   */
+  kind: "asset" | "bundle" | "kept" | "toolchain";
   /** Dest-relative paths this install wrote (used to uninstall / diff). */
   files: string[];
   installedAt: string;
@@ -280,10 +294,232 @@ export interface InstalledRecord {
    * installing — export-time preflight has this file and nothing else.
    */
   presetDeps?: Record<string, string[]>;
+  /**
+   * Dest-relative path → sha256 of the bytes this install wrote. Lets a later
+   * reinstall/update/uninstall tell an untouched file from one the user
+   * replaced (e.g. the cover letter's signature). Absent on records written
+   * before it existed.
+   */
+  hashes?: Record<string, string>;
 }
 
 /** id → install record, persisted as `installed.json` at the assets root. */
 export type InstalledManifest = Record<string, InstalledRecord>;
+
+/**
+ * What the manifest knows about each installed file: which paths any record
+ * tracks, the last hash written for each, and when that record was installed
+ * (the newest record wins).
+ */
+export type InstallBaseline = {
+  tracked: Set<string>;
+  hashes: Record<string, string>;
+  installedAt: Record<string, string>;
+};
+
+export function installBaseline(manifest: InstalledManifest): InstallBaseline {
+  const tracked = new Set<string>();
+  const hashes: Record<string, string> = {};
+  const installedAt: Record<string, string> = {};
+  const records = Object.values(manifest).sort((a, b) =>
+    a.installedAt.localeCompare(b.installedAt)
+  );
+  for (const rec of records) {
+    for (const f of rec.files ?? []) {
+      tracked.add(f);
+      installedAt[f] = rec.installedAt;
+    }
+    Object.assign(hashes, rec.hashes ?? {});
+  }
+  return { tracked, hashes, installedAt };
+}
+
+/**
+ * Reserved manifest record for files an uninstall kept because the user had
+ * changed them. Without it the kept file would look like one the market never
+ * installed, and the next install would overwrite it.
+ */
+export const KEPT_RECORD_ID = "_kept";
+
+/**
+ * Reserved manifest record for the toolchain zip the setup modal downloads.
+ * Recording it keeps the hashes of files it overwrote current — otherwise every
+ * later market update would mistake them for user edits — and tracks any
+ * `<path>.new` it wrote so a later install can clean that up.
+ */
+export const TOOLCHAIN_RECORD_ID = "_toolchain";
+
+function union(a: readonly string[] | undefined, b: readonly string[]): string[] {
+  return [...new Set([...(a ?? []), ...b])];
+}
+
+/**
+ * Hand `paths` back from the kept record: an install that writes them now owns
+ * them. Drops the kept record once it is empty.
+ */
+export function releaseKeptFiles(
+  manifest: InstalledManifest,
+  paths: readonly string[]
+): InstalledManifest {
+  const kept = manifest[KEPT_RECORD_ID];
+  if (!kept) return manifest;
+  const taken = new Set(paths);
+  const files = kept.files.filter((f) => !taken.has(f));
+  const next = { ...manifest };
+  if (files.length === 0) {
+    delete next[KEPT_RECORD_ID];
+    return next;
+  }
+  const hashes: Record<string, string> = {};
+  for (const f of files) {
+    const h = kept.hashes?.[f];
+    if (h !== undefined) hashes[f] = h;
+  }
+  next[KEPT_RECORD_ID] = { ...kept, files, hashes };
+  return next;
+}
+
+/**
+ * The manifest once `id` is uninstalled. Files the uninstall kept (see
+ * {@link planFileRemove}) move to the kept record with the hash that install
+ * wrote, so a reinstall still sees the user's change and writes `<path>.new`.
+ */
+export function manifestAfterUninstall(
+  manifest: InstalledManifest,
+  id: string,
+  kept: readonly string[]
+): InstalledManifest {
+  const rec = manifest[id];
+  const next = { ...manifest };
+  delete next[id];
+  if (!rec || kept.length === 0) return next;
+
+  const prev = next[KEPT_RECORD_ID];
+  const hashes: Record<string, string> = { ...(prev?.hashes ?? {}) };
+  for (const f of kept) {
+    const h = rec.hashes?.[f];
+    if (h !== undefined) hashes[f] = h;
+  }
+  // The older stamp: for a hash-less record, "modified after install" is
+  // judged against it, and the earlier install is the one the file came from.
+  const installedAt =
+    prev && prev.installedAt < rec.installedAt ? prev.installedAt : rec.installedAt;
+  next[KEPT_RECORD_ID] = {
+    id: KEPT_RECORD_ID,
+    version: "0",
+    kind: "kept",
+    files: union(prev?.files, kept),
+    installedAt,
+    hashes,
+  };
+  return next;
+}
+
+/**
+ * The manifest once the setup modal's toolchain zip wrote `written`. The record
+ * describes this download alone: carrying an earlier zip's entries forward
+ * under the new stamp would make their stale hashes outrank a market install
+ * that updated those files since.
+ */
+export function manifestAfterToolchainDownload(
+  manifest: InstalledManifest,
+  written: { files: readonly string[]; hashes: Record<string, string> },
+  installedAt: string
+): InstalledManifest {
+  const next = releaseKeptFiles(manifest, written.files);
+  next[TOOLCHAIN_RECORD_ID] = {
+    id: TOOLCHAIN_RECORD_ID,
+    version: "0",
+    kind: "toolchain",
+    files: [...written.files],
+    installedAt,
+    hashes: { ...written.hashes },
+  };
+  return next;
+}
+
+/** Suffix for a new version written next to a file the user changed. */
+export const PRESERVED_SUFFIX = ".new";
+
+/** Leeway for "modified after install": the record is stamped after the writes. */
+const MTIME_SLACK_MS = 60_000;
+
+/**
+ * For a file recorded before hashes were kept: was it modified after the
+ * install that wrote it? Judged by mtime, the only evidence left.
+ */
+export function modifiedSinceInstall(
+  mtimeMs: number | null,
+  installedAt: string | undefined
+): boolean {
+  if (mtimeMs === null || !installedAt) return false;
+  const at = Date.parse(installedAt);
+  return Number.isFinite(at) && mtimeMs > at + MTIME_SLACK_MS;
+}
+
+/** What we know about the file currently at an install path. */
+export type DiskState = {
+  /** sha256 of the file on disk, or `null` when there is none. */
+  hash: string | null;
+  /** For a record without hashes: whether its mtime is after that install. */
+  modifiedSinceInstall: boolean;
+};
+
+/**
+ * How to install one file over what is on disk:
+ * - `write`: nothing there, or it is untouched since our last install (or was
+ *   never installed by the market, e.g. the first-run toolchain zip);
+ * - `skip-same`: the disk already holds exactly the incoming bytes;
+ * - `write-new`: the user changed a file we installed — keep theirs and put
+ *   the incoming version at `<path>.new`.
+ * "Changed" is a hash mismatch against the recorded install; for a record
+ * from before hashes were kept, it is an mtime after that install.
+ */
+export function planFileWrite(p: {
+  disk: DiskState;
+  incomingHash: string;
+  tracked: boolean;
+  recordedHash?: string;
+}): "write" | "skip-same" | "write-new" {
+  if (p.disk.hash === null) return "write";
+  if (p.disk.hash === p.incomingHash) return "skip-same";
+  if (p.recordedHash !== undefined) {
+    return p.disk.hash === p.recordedHash ? "write" : "write-new";
+  }
+  return p.tracked && p.disk.modifiedSinceInstall ? "write-new" : "write";
+}
+
+/**
+ * Whether uninstall may delete a file: only when it still holds what we
+ * installed — by hash, or for an older record without hashes, by mtime.
+ */
+export function planFileRemove(
+  disk: DiskState,
+  recordedHash: string | undefined
+): "remove" | "keep" | "missing" {
+  if (disk.hash === null) return "missing";
+  const changed =
+    recordedHash !== undefined
+      ? disk.hash !== recordedHash
+      : disk.modifiedSinceInstall;
+  return changed ? "keep" : "remove";
+}
+
+/**
+ * Whether installing `ids` (assets or bundles) puts `assetId` on disk —
+ * directly or as part of a bundle.
+ */
+export function installsAsset(
+  index: MarketIndex,
+  ids: string[],
+  assetId: string
+): boolean {
+  return ids.some(
+    (id) =>
+      id === assetId ||
+      (index.bundles.find((b) => b.id === id)?.assets ?? []).includes(assetId)
+  );
+}
 
 /** The `defaults/*.yaml` an asset installs — its recipe presets. */
 function presetFiles(asset: MarketAsset): string[] {

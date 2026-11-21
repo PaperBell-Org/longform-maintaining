@@ -18,7 +18,9 @@
   import {
     DEFAULT_MARKET_INDEX_URL,
     installStateFor,
+    installsAsset,
   } from "src/model/pandoc-market";
+  import { noticeKeptFiles } from "./kept-files-notice";
   import { useApp } from "../utils";
   import { t, locale, translate } from "src/i18n";
 
@@ -119,12 +121,30 @@
       : $t("market.install");
   const isPresent = (s) => s !== "not-installed";
 
+  // The cover letter needs the user's own signature and letterhead: after its
+  // first install, show its README, which says where they go and in what form.
+  const COVER_LETTER_ID = "cover_letter";
+  const isCoverLetterInstalled = () =>
+    installsAsset(index, Object.keys(manifest ?? {}), COVER_LETTER_ID);
+  function showCoverLetterGuide(installedIds, wasInstalled) {
+    if (wasInstalled || !installsAsset(index, installedIds, COVER_LETTER_ID))
+      return;
+    const asset = index?.assets.find((a) => a.id === COVER_LETTER_ID);
+    if (asset) openDetail(asset);
+  }
+
   async function installBundle(b) {
     if (busy[b.id]) return;
     busy = { ...busy, [b.id]: true };
     const n = new Notice($t("market.installing") + " " + b.name, 0);
     try {
-      const rec = await installMarketBundle(app, b, destFolder, index);
+      const hadCoverLetter = isCoverLetterInstalled();
+      const { record: rec, preserved } = await installMarketBundle(
+        app,
+        b,
+        destFolder,
+        index
+      );
       manifest[rec.id] = rec;
       if (b.workflows?.length) {
         const added = await installWorkflows(b.workflows);
@@ -133,6 +153,8 @@
       refresh();
       manifest = { ...manifest };
       new Notice($t("market.installedNotice") + " " + b.name);
+      noticeKeptFiles("market.preservedFiles", preserved);
+      showCoverLetterGuide([b.id], hadCoverLetter);
     } catch (e) {
       new Notice($t("market.failed") + " " + String(e?.message ?? e));
     } finally {
@@ -146,7 +168,13 @@
     busy = { ...busy, [a.id]: true };
     const n = new Notice($t("market.installing") + " " + a.name, 0);
     try {
-      const recs = await installAssetWithDeps(app, index, a.id, destFolder);
+      const hadCoverLetter = isCoverLetterInstalled();
+      const { records: recs, preserved } = await installAssetWithDeps(
+        app,
+        index,
+        a.id,
+        destFolder
+      );
       for (const r of recs) manifest[r.id] = r;
       refresh();
       manifest = { ...manifest };
@@ -156,6 +184,11 @@
           " " +
           a.name +
           (extra > 0 ? ` (+${extra})` : "")
+      );
+      noticeKeptFiles("market.preservedFiles", preserved);
+      showCoverLetterGuide(
+        recs.map((r) => r.id),
+        hadCoverLetter
       );
     } catch (e) {
       new Notice($t("market.failed") + " " + String(e?.message ?? e));
@@ -176,12 +209,18 @@
       const files = item.download
         ? item.assets ?? []
         : (item.files ?? []).map((f) => f.path);
-      await uninstallMarketItem(app, destFolder, item.id, files);
+      const { kept } = await uninstallMarketItem(
+        app,
+        destFolder,
+        item.id,
+        files
+      );
       delete manifest[item.id];
       manifest = { ...manifest };
       present = new Set([...present].filter((x) => x !== item.id));
       refresh();
       new Notice(translate("market.uninstalled") + " " + item.name);
+      noticeKeptFiles("market.keptFiles", kept);
     } catch (e) {
       new Notice(translate("market.failed") + " " + String(e?.message ?? e));
     } finally {

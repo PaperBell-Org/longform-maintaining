@@ -229,6 +229,20 @@ Keep `optionValues` portable (preset names, not absolute paths).
   file list the bundle declares. The plain zip download in **Set up Pandoc
   export** writes no manifest at all, so a recipe installed that way is known
   only by what its preset says.
+- Records each installed file's sha256 in its `installed.json` record
+  (`hashes`: dest-relative path → hash). On reinstall/update, a tracked file
+  whose disk hash no longer matches the recorded one is the user's: it is kept,
+  the incoming version goes to `<path>.new`, and the user is told. Uninstall
+  deletes a file only while it still matches. A record from before `hashes`
+  existed falls back to the file's mtime: modified after that record's
+  `installedAt` counts as changed. Once a file installs normally again, a
+  `.new` left beside it from an earlier install is removed if unchanged.
+- Keeps two reserved records next to the market's own: `_kept` holds files an
+  uninstall kept (with the hash that install wrote), so reinstalling still
+  treats them as the user's; `_toolchain` records the setup modal's toolchain
+  zip, so the hashes of files it overwrote stay current and any `.new` it wrote
+  is tracked. A later install that writes a kept file takes it back from
+  `_kept`. No market id may start with `_`.
 - Refresh the template dropdown so recipes are immediately selectable; inject a
   bundle's recommended workflows (missing-only, built-in steps only).
 - Desktop installs + browsing also work on mobile for download, but the template
