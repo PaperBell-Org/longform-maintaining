@@ -263,7 +263,22 @@ export const PASSTHROUGH_SAVE_SETTINGS_PATHS: (keyof LongformPluginSettings)[] =
     "pandocAssetsFolder",
     "pandocOutputFolder",
     "pandocBinary",
+    "pandocExtraBinFolders",
     "pandocBibliography",
+    "pandocGlobalBibliography",
     "pandocSetupDismissed",
     "pandocMarketIndexUrl",
   ];
+
+/**
+ * Whether a settings-store update must be written to disk: true when any
+ * setting the plugin persists on change differs between `prev` and `next`.
+ * `prev` is null for the very first value the store emits (the load itself).
+ */
+export function settingsNeedSave(
+  prev: Partial<LongformPluginSettings> | null,
+  next: Partial<LongformPluginSettings>
+): boolean {
+  if (!prev) return false;
+  return PASSTHROUGH_SAVE_SETTINGS_PATHS.some((k) => prev[k] !== next[k]);
+}
