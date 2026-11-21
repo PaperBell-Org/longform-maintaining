@@ -34,8 +34,11 @@ of the root. After the upgrade:
 - a nearer `results.json` is merged over the root copy the same way, instead of replacing
   it.
 
-A nearer file can't delete a root key, only override it. Set it to `null` to blank it for
-that draft.
+A nearer file can't delete a root key, only override it. Setting an optional text field
+(`journal_title`, `description`, `_longform.acronym`, or any key used only as a
+`{{placeholder}}`) to `null` blanks it for that draft. Required fields don't take `null`:
+`title` and `creators` make the compile fail, and `publication_date` falls back to today.
+`_longform.extra_yaml` entries can only be overridden key by key.
 
 A representative file (from the scaffold, `src/model/scaffold/paperbell-scaffold.ts`):
 

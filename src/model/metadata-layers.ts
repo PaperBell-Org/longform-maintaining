@@ -1,5 +1,6 @@
 import { TFile, type Vault } from "obsidian";
 import { deepMerge, isPlainObject } from "./json-merge";
+import { tokenizePath } from "src/compile/steps/replace-json-placeholders-utils";
 import {
   folderResourcePaths,
   projectResourceFolders,
@@ -27,7 +28,8 @@ export type MetadataLayer = {
  * `origin` is keyed by dotted path — `title`, `_longform.acronym`,
  * `summary.n` — for every key of every nested object, since objects are
  * merged key by key at any depth. Arrays replace wholesale, so a path into one
- * is owned by the array's own key.
+ * is owned by the array's own key. (A JSON key that itself contains a dot would
+ * share an entry with the nested path; placeholders cannot address such a key.)
  */
 export type MergedMetadata = {
   merged: Record<string, unknown>;
@@ -110,7 +112,15 @@ export function mergeMetadataLayers(layers: MetadataLayer[]): MergedMetadata {
       const at = prefix ? `${prefix}.${key}` : key;
       origin[at] = path;
       const value = obj[key];
-      if (isPlainObject(value)) recordOrigin(value, at, path);
+      if (isPlainObject(value)) {
+        recordOrigin(value, at, path);
+      } else {
+        // A scalar, array or null replaces the whole subtree (see deepMerge),
+        // so the farther layers' deeper keys no longer exist.
+        for (const k of Object.keys(origin)) {
+          if (k.startsWith(`${at}.`)) delete origin[k];
+        }
+      }
     }
   };
 
@@ -144,7 +154,7 @@ export function originForPath(
 ): string {
   // The deepest recorded prefix of the path owns it: `summary.n` before
   // `summary`; `creators[0].name` falls back to `creators`, the array's key.
-  const segments = varPath.split(/[.[\]]/).filter((s) => s.length > 0);
+  const segments = tokenizePath(varPath);
   for (let i = segments.length; i > 0; i--) {
     const owner = origin[segments.slice(0, i).join(".")];
     if (owner !== undefined) return owner;

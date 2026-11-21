@@ -155,6 +155,19 @@ describe("originForPath", () => {
     // A deeper path the layers never name resolves to its nearest parent.
     expect(originForPath(nested.origin, "summary.n.deeper", "x")).toBe(ROOT.path);
   });
+
+  it("forgets nested origins a nearer layer replaced with a non-object", () => {
+    // The SI blanks the root's summary: {{summary.n}} is empty there, so an
+    // edit made from the SI must go to the SI file, not back into the root.
+    for (const replacement of [null, "n/a", [1, 2]]) {
+      const { merged, origin } = mergeMetadataLayers([
+        { path: ROOT.path, data: { summary: { n: 120 } } },
+        { path: SI.path, data: { summary: replacement } },
+      ]);
+      expect(merged.summary).toEqual(replacement);
+      expect(originForPath(origin, "summary.n", "x")).toBe(SI.path);
+    }
+  });
 });
 
 // Upgrading: Supplementary files scaffolded before layering are full copies of
