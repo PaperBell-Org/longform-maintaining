@@ -69,6 +69,17 @@ const INDEX: MarketIndex = {
 };
 
 describe("validateIndex", () => {
+  it("rejects an id that would collide with a reserved manifest record", () => {
+    const bad: unknown = {
+      schemaVersion: 1,
+      bundles: [] as unknown[],
+      assets: [
+        { id: KEPT_RECORD_ID, type: "csl", name: "x", version: "1", files: [] as unknown[] },
+      ],
+    };
+    expect(() => validateIndex(bad)).toThrow(/reserved/);
+  });
+
   it("accepts a well-formed index", () => {
     expect(validateIndex(INDEX)).toBe(INDEX);
   });
@@ -593,6 +604,34 @@ describe("the manifest remembers what the market can no longer see", () => {
       "2026-03-01T00:00:00Z"
     );
     expect(installBaseline(after).hashes[SIG + ".new"]).toBe("v2");
+  });
+
+  it("a newer toolchain zip that dropped a file doesn't re-stamp its old hash", () => {
+    // Toolchain v1 wrote G, then a market asset updated G. Toolchain v2 no
+    // longer ships G, so it must not make v1's hash of G look newest.
+    const G = "filters/g.lua";
+    const v1 = manifestAfterToolchainDownload(
+      {},
+      { files: [G], hashes: { [G]: "g1" } },
+      "2026-01-01T00:00:00Z"
+    );
+    const withAsset: InstalledManifest = {
+      ...v1,
+      a: {
+        id: "a",
+        version: "1.0.0",
+        kind: "asset",
+        files: [G],
+        installedAt: "2026-02-01T00:00:00Z",
+        hashes: { [G]: "g2" },
+      },
+    };
+    const v2 = manifestAfterToolchainDownload(
+      withAsset,
+      { files: ["filters/h.lua"], hashes: { "filters/h.lua": "h1" } },
+      "2026-03-01T00:00:00Z"
+    );
+    expect(nextWrite(v2, G, "g2", "g3")).toBe("write");
   });
 
   it("a later install takes kept files back over", () => {

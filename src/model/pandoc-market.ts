@@ -110,6 +110,16 @@ export function validateIndex(parsed: unknown): MarketIndex {
   if (!Array.isArray(idx.assets) || !Array.isArray(idx.bundles)) {
     throw new Error("Marketplace index must have `assets` and `bundles` arrays.");
   }
+  // `_`-prefixed ids name the install manifest's own records (`_kept`,
+  // `_toolchain`); a market entry with one would overwrite them.
+  const reserved = [...idx.assets, ...idx.bundles].find(
+    (e) => typeof e?.id === "string" && e.id.startsWith("_")
+  );
+  if (reserved) {
+    throw new Error(
+      `Marketplace id "${reserved.id}" is reserved: ids starting with "_" are used by the install manifest.`
+    );
+  }
   return idx;
 }
 
@@ -405,21 +415,25 @@ export function manifestAfterUninstall(
   return next;
 }
 
-/** The manifest once the setup modal's toolchain zip wrote `written`. */
+/**
+ * The manifest once the setup modal's toolchain zip wrote `written`. The record
+ * describes this download alone: carrying an earlier zip's entries forward
+ * under the new stamp would make their stale hashes outrank a market install
+ * that updated those files since.
+ */
 export function manifestAfterToolchainDownload(
   manifest: InstalledManifest,
   written: { files: readonly string[]; hashes: Record<string, string> },
   installedAt: string
 ): InstalledManifest {
   const next = releaseKeptFiles(manifest, written.files);
-  const prev = next[TOOLCHAIN_RECORD_ID];
   next[TOOLCHAIN_RECORD_ID] = {
     id: TOOLCHAIN_RECORD_ID,
     version: "0",
     kind: "toolchain",
-    files: union(prev?.files, written.files),
+    files: [...written.files],
     installedAt,
-    hashes: { ...(prev?.hashes ?? {}), ...written.hashes },
+    hashes: { ...written.hashes },
   };
   return next;
 }
