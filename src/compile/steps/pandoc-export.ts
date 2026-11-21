@@ -1,6 +1,8 @@
 import { FileSystemAdapter, Notice, parseYaml, requestUrl } from "obsidian";
 import { execFile } from "child_process";
+import { createHash } from "crypto";
 import * as fs from "fs";
+import * as os from "os";
 import * as path from "path";
 import { get } from "svelte/store";
 
@@ -22,7 +24,6 @@ import {
   buildPandocArgs,
   builtinExportTarget,
   DEFAULT_ASSETS_DIR,
-  defaultCjkFont,
   exportTargetForDefaults,
   findDuplicateCiteKeys,
   hasCitations,
@@ -30,6 +31,8 @@ import {
   isFullOutputPath,
   officialCslUrls,
   parseExportFrontmatter,
+  planFontAdaptation,
+  referenceDocCandidates,
   resolveBinary,
   resolveBuiltinFormat,
   resolvePresetName,
@@ -51,6 +54,14 @@ import {
   type InstalledManifest,
 } from "src/model/pandoc-market";
 import { formatAside } from "src/model/pandoc-templates-utils";
+import {
+  defaultCjkFontFor,
+  describeFontChanges,
+  OS_LABELS,
+  type FontChange,
+  type OsId,
+} from "src/model/platform-fonts";
+import { patchReferenceDocx } from "src/model/docx-font-patch";
 
 function line(ok: boolean, label: string, detail: string): string {
   return `[${ok ? "✓" : "✗"}] ${label}` + (detail ? `\n       ${detail}` : "");
@@ -601,6 +612,56 @@ export const RunPandocExportStep = makeBuiltinStep({
       outputPath = path.join(outDirAbs, filename);
     }
 
+    // Presets are written once, usually on a Mac, and name that OS's fonts.
+    // Swap each for its equivalent here (Songti SC → SimSun on Windows) so
+    // xelatex finds it installed and Word doesn't guess a substitute.
+    const hostOs = platform.os;
+    const fontPlan = planFontAdaptation({
+      target,
+      builtin: !!builtinFormat,
+      enabled: settings.pandocAdaptFontsToOS,
+      os: hostOs,
+      frontmatter: fm,
+    });
+    const fontChanges: FontChange[] = [...fontPlan.changes];
+    let adaptedReferenceDoc: string | null = null;
+    if (fontPlan.referenceDocToPatch) {
+      const candidates = referenceDocCandidates(fontPlan.referenceDocToPatch, {
+        cwd: assetsAbs,
+        presetDir: defaultsDir,
+        rawDataDir: target.dataDir,
+      });
+      const refAbs = candidates.find((p) => fs.existsSync(p));
+      if (refAbs) {
+        const adapted = adaptReferenceDoc(refAbs, hostOs);
+        if (adapted) {
+          adaptedReferenceDoc = adapted.path;
+          fontChanges.push(...adapted.changes);
+        }
+      } else {
+        console.warn(
+          `[Pandoc Export] reference-doc "${fontPlan.referenceDocToPatch}" not found ` +
+            `(looked in ${candidates.join(", ")}); its fonts were not adapted.`
+        );
+      }
+    }
+    if (fontChanges.length > 0) {
+      const summary = describeFontChanges(fontChanges);
+      console.log(
+        `[Pandoc Export] Adapted fonts for ${OS_LABELS[hostOs]}: ${summary}`
+      );
+      // Once per session per preset: the swap is the same every export, and a
+      // notice on each one would just be noise.
+      const noticeKey = `${presetRel}|${hostOs}|${summary}`;
+      if (!announcedFontAdaptations.has(noticeKey)) {
+        announcedFontAdaptations.add(noticeKey);
+        new Notice(
+          `PaperOut: adapted fonts for ${OS_LABELS[hostOs]} — ${summary}`,
+          6000
+        );
+      }
+    }
+
     const inputFile = path.join(projectAbs, ".longform-pandoc-export.md");
     const args = buildPandocArgs({
       inputFile,
@@ -625,11 +686,13 @@ export const RunPandocExportStep = makeBuiltinStep({
               builtinFormat === "pdf" &&
               hasCjk(input.contents) &&
               !fm.CJKmainfont
-                ? defaultCjkFont(process.platform)
+                ? defaultCjkFontFor(hostOs)
                 : null,
             citeproc: needsBib,
           }
         : null,
+      variableOverrides: fontPlan.variables,
+      referenceDoc: adaptedReferenceDoc,
     });
     const env = { ...process.env, PATH: buildExecPath(platform) };
 
@@ -711,6 +774,41 @@ export const RunPandocExportStep = makeBuiltinStep({
     return input;
   },
 });
+
+/** Font-adaptation notices already shown this session (see the export step). */
+const announcedFontAdaptations = new Set<string>();
+
+/**
+ * An OS-adapted copy of a preset's reference.docx, written to the system temp
+ * folder (not the vault, so it is never synced), or null when the original
+ * already suits this OS or can't be read — pandoc then uses the preset's own.
+ * The name carries the original's hash, so two reference docs never collide.
+ */
+function adaptReferenceDoc(
+  refAbs: string,
+  hostOs: OsId
+): { path: string; changes: FontChange[] } | null {
+  try {
+    const original = fs.readFileSync(refAbs);
+    const patched = patchReferenceDocx(new Uint8Array(original), hostOs);
+    if (!patched) return null;
+    const hash = createHash("sha1").update(original).digest("hex").slice(0, 12);
+    const dir = path.join(os.tmpdir(), "paperout-reference-docs");
+    fs.mkdirSync(dir, { recursive: true });
+    const out = path.join(
+      dir,
+      `${path.basename(refAbs, ".docx")}-${hash}-${hostOs}.docx`
+    );
+    fs.writeFileSync(out, patched.bytes);
+    return { path: out, changes: patched.changes };
+  } catch (e) {
+    console.warn(
+      `[Pandoc Export] Could not adapt reference doc ${refAbs}; using it as is.`,
+      e
+    );
+    return null;
+  }
+}
 
 /**
  * Resolve the bibliographies for `--bibliography`, merged so pandoc can draw

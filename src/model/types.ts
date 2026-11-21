@@ -162,6 +162,7 @@ export interface LongformPluginSettings {
   pandocGlobalBibliography: string; // vault-wide bib(s), comma/newline separated, merged into every export
   pandocSetupDismissed: boolean; // true once the user has seen the setup prompt
   pandocMarketIndexUrl: string; // "" = the built-in default marketplace index
+  pandocAdaptFontsToOS: boolean; // swap a preset's fonts for this OS's equivalents (Songti SC → SimSun on Windows)
   // DEPRECATED. To be removed in future, needed now for migrations.
   projects: {
     [path: string]: {
@@ -205,6 +206,7 @@ export const DEFAULT_SETTINGS: LongformPluginSettings = {
   pandocGlobalBibliography: "",
   pandocSetupDismissed: false,
   pandocMarketIndexUrl: "",
+  pandocAdaptFontsToOS: true,
 };
 
 export const TRACKED_SETTINGS_PATHS: (keyof LongformPluginSettings)[] = [
@@ -238,6 +240,7 @@ export const TRACKED_SETTINGS_PATHS: (keyof LongformPluginSettings)[] = [
   "pandocGlobalBibliography",
   "pandocSetupDismissed",
   "pandocMarketIndexUrl",
+  "pandocAdaptFontsToOS",
 ];
 
 export const PASSTHROUGH_SAVE_SETTINGS_PATHS: (keyof LongformPluginSettings)[] =
@@ -263,7 +266,23 @@ export const PASSTHROUGH_SAVE_SETTINGS_PATHS: (keyof LongformPluginSettings)[] =
     "pandocAssetsFolder",
     "pandocOutputFolder",
     "pandocBinary",
+    "pandocExtraBinFolders",
     "pandocBibliography",
+    "pandocGlobalBibliography",
     "pandocSetupDismissed",
     "pandocMarketIndexUrl",
+    "pandocAdaptFontsToOS",
   ];
+
+/**
+ * Whether a settings-store update must be written to disk: true when any
+ * setting the plugin persists on change differs between `prev` and `next`.
+ * `prev` is null for the very first value the store emits (the load itself).
+ */
+export function settingsNeedSave(
+  prev: Partial<LongformPluginSettings> | null,
+  next: Partial<LongformPluginSettings>
+): boolean {
+  if (!prev) return false;
+  return PASSTHROUGH_SAVE_SETTINGS_PATHS.some((k) => prev[k] !== next[k]);
+}

@@ -10,9 +10,9 @@ import {
   buildPandocArgs,
   builtinExportTarget,
   builtinFrom,
-  defaultCjkFont,
   hasCjk,
 } from "src/compile/steps/pandoc-export-utils";
+import { defaultCjkFontFor, osIdFromPlatform } from "src/model/platform-fonts";
 
 /**
  * End-to-end proof of the claim the built-in export is built on: that Quick
@@ -88,7 +88,7 @@ describe.skipIf(!havePandoc)("built-in export (real pandoc, no assets)", () => {
         from: builtinFrom(format),
         pdfEngine,
         cjkFont:
-          format === "pdf" && hasCjk(NOTE) ? defaultCjkFont(process.platform) : null,
+          format === "pdf" && hasCjk(NOTE) ? defaultCjkFontFor(osIdFromPlatform(process.platform)) : null,
         citeproc: true,
       },
     });

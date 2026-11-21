@@ -19,7 +19,7 @@ import {
   ExplorerPane,
 } from "./view/explorer/ExplorerPane";
 import {
-  PASSTHROUGH_SAVE_SETTINGS_PATHS,
+  settingsNeedSave,
   type Draft,
   type LongformPluginSettings,
   type SerializedWorkflow,
@@ -135,27 +135,7 @@ export default class LongformPlugin extends Plugin {
 
     // Settings
     this.unsubscribeSettings = pluginSettings.subscribe(async (value) => {
-      let shouldSave = false;
-
-      const changeInKeys = (
-        obj1: Record<string, any>,
-        obj2: Record<string, any>,
-        keys: string[]
-      ): boolean => {
-        return !!keys.find((k) => obj1[k] !== obj2[k]);
-      };
-
-      if (
-        this.cachedSettings &&
-        changeInKeys(
-          this.cachedSettings,
-          value,
-          PASSTHROUGH_SAVE_SETTINGS_PATHS
-        )
-      ) {
-        shouldSave = true;
-      }
-
+      const shouldSave = settingsNeedSave(this.cachedSettings, value);
       this.cachedSettings = value;
 
       if (shouldSave) {

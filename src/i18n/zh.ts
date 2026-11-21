@@ -236,6 +236,9 @@ export const zh: Messages = {
   "settings.globalBibliography.name": "全局参考文献库",
   "settings.globalBibliography.desc":
     "在每个项目自带 .bib 之外,额外合并进每次导出的 .bib 文件(可多个)。每行一个路径(或用逗号分隔);可填库内相对路径或绝对路径。遇到重复 cite key 时,项目自带的优先。",
+  "settings.adaptFonts.name": "按当前系统适配预设字体",
+  "settings.adaptFonts.desc":
+    "预设通常写的是 macOS 字体（Songti SC、Heiti SC）。开启后，每次导出会换成本机系统的等效字体 —— Windows 用 SimSun / SimHei，Linux 用 Noto CJK —— 作用于 PDF/TeX 的字体变量和 docx 预设的参考文档。笔记 frontmatter 里自己写的字体永远不会被改。",
   "settings.extraBinFolders.name": "额外的二进制目录",
   "settings.extraBinFolders.desc":
     "查找 pandoc、PDF 引擎和 pandoc-crossref 的额外目录，每行一个。优先级高于 PATH 和内置位置 —— 当工具装在 PATH 不知道的地方时填这里。",
