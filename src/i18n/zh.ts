@@ -66,8 +66,6 @@ export const zh: Messages = {
   "components.conflictTitle": "未创建任何文件",
   "components.conflictBody": "以下文件已存在，因此没有创建任何组件。请删除或重命名后重试：",
   "components.failed": "添加组件失败",
-  "components.siProjectFormWarning":
-    "提示：单一 Index 项目中，编译步骤只在 Index 同级目录查找 metadata.json，因此补充材料自带的 metadata.json（及其 S 编号）暂时不会生效。",
 
   // ── 新建论文脚手架 ────────────────────────────────────────────────────
   "scaffold.title": "新建 PaperBell 论文项目",

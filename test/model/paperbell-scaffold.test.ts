@@ -210,6 +210,12 @@ describe("buildPaperbellScaffold — the full selection", () => {
     );
   });
 
+  it("writes the supplementary metadata as an override, not a copy (#47)", () => {
+    const si = JSON.parse(textOf(files, "supplementary/metadata.json"));
+    expect(Object.keys(si).sort()).toEqual(["_longform", "description", "title"]);
+    expect(si._longform).toEqual({ extra_yaml: "supplementary: true\n" });
+  });
+
   it("keeps the reference-sync ids the response letter pulls", () => {
     // The response letter cites @intro-gap and @fig:demo; the manuscript must define them.
     expect(textOf(files, "manuscript/introduction.md")).toContain(
@@ -354,24 +360,22 @@ describe("buildPaperbellScaffold — the lead author from the host profile", () 
   const metadataOf = (files: ScaffoldFile[], path: string) =>
     JSON.parse(textOf(files, path));
 
-  it("fills the lead author in both metadata.json files and the cover letter", () => {
+  it("fills the lead author in the root metadata.json and the cover letter", () => {
     const files = build({
       name: "Song, Shuang",
       institution: "Max Planck Institute of Geoanthropology",
       email: "song@gea.mpg.de",
     });
 
-    for (const path of ["metadata.json", "supplementary/metadata.json"]) {
-      const meta = metadataOf(files, path);
-      expect(meta.creators[0].name, path).toBe("Song, Shuang");
-      expect(meta.creators[0].affiliation, path).toBe(
-        "Max Planck Institute of Geoanthropology"
-      );
-      expect(meta.creators[0].email, path).toBe("song@gea.mpg.de");
-      expect(meta._longform.corresponding, path).toEqual(["Song, Shuang"]);
-      // ORCID has no profile field, so it stays a placeholder to fill in.
-      expect(meta.creators[0].orcid, path).toBe("0000-0000-0000-0000");
-    }
+    const meta = metadataOf(files, "metadata.json");
+    expect(meta.creators[0].name).toBe("Song, Shuang");
+    expect(meta.creators[0].affiliation).toBe(
+      "Max Planck Institute of Geoanthropology"
+    );
+    expect(meta.creators[0].email).toBe("song@gea.mpg.de");
+    expect(meta._longform.corresponding).toEqual(["Song, Shuang"]);
+    // ORCID has no profile field, so it stays a placeholder to fill in.
+    expect(meta.creators[0].orcid).toBe("0000-0000-0000-0000");
     expect(metadataOf(files, "metadata.json")._longform.extra_yaml).toContain(
       "corresponding_email: song@gea.mpg.de"
     );

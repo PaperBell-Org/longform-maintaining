@@ -6,6 +6,7 @@ import {
   getByPath,
 } from "src/compile/steps/replace-json-placeholders-utils";
 import { resolveProjectMetadataFile } from "src/model/metadata-resolver";
+import { originForPath } from "src/model/metadata-layers";
 import VariableEditModal from "./variable-edit-modal";
 
 /** True when a text node is nested inside inline code or a code block. */
@@ -64,7 +65,7 @@ function renderTextNode(
   textNode: Text,
   regex: RegExp,
   data: Record<string, unknown>,
-  metadataFilePath: string,
+  fileFor: (varPath: string) => string,
   app: App
 ): void {
   const text = textNode.nodeValue ?? "";
@@ -82,7 +83,7 @@ function renderTextNode(
     }
     const path = match[1].trim();
     const value = getByPath(data, path);
-    frag.appendChild(makeVariableSpan(app, metadataFilePath, path, value));
+    frag.appendChild(makeVariableSpan(app, fileFor(path), path, value));
     lastIndex = start + match[0].length;
   }
 
@@ -115,7 +116,10 @@ export function registerVariablePostProcessor(plugin: Plugin): void {
         ctx.sourcePath
       );
       if (!resolved || !resolved.data) return;
-      const { file, data } = resolved;
+      const { defaultFile, data, origin } = resolved;
+      // Edit a value in the layer that defines it; new keys go to the root.
+      const fileFor = (varPath: string) =>
+        originForPath(origin, varPath, defaultFile.path);
 
       const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
       const textNodes: Text[] = [];
@@ -129,7 +133,7 @@ export function registerVariablePostProcessor(plugin: Plugin): void {
 
       const regex = buildPlaceholderRegex("{{", "}}");
       for (const textNode of textNodes) {
-        renderTextNode(textNode, regex, data, file.path, plugin.app);
+        renderTextNode(textNode, regex, data, fileFor, plugin.app);
       }
     } catch (e) {
       console.error("longform: failed to render {{Variable}} placeholders", e);

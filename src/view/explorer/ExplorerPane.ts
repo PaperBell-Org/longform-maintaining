@@ -16,7 +16,7 @@ import ConfirmActionModal from "../ConfirmActionModal";
 import { ICON_NAME } from "../icon";
 import { translate } from "src/i18n";
 import ExplorerView from "./ExplorerView.svelte";
-import { scenePath } from "src/model/scene-navigation";
+import { metadataStartDir, scenePath } from "src/model/scene-navigation";
 import { migrate } from "src/model/migration";
 import { get } from "svelte/store";
 import {
@@ -337,7 +337,12 @@ export class ExplorerPane extends ItemView {
       const draft = get(selectedDraft);
       if (!draft) return;
       const projectPath = projectRootPath(get(selectedProject) ?? [draft]);
-      new MetadataModal(this.app, projectPath, draft.title).open();
+      new MetadataModal(
+        this.app,
+        projectPath,
+        draft.title,
+        metadataStartDir(draft, this.app.vault)
+      ).open();
     });
 
     this.explorerView = new ExplorerView({

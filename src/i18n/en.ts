@@ -74,8 +74,6 @@ export const en = {
   "components.conflictBody":
     "These files already exist, so no component was created. Remove or rename them and try again:",
   "components.failed": "Could not add components",
-  "components.siProjectFormWarning":
-    "Heads up: in a single-index project, the compile steps look for metadata.json next to the index, so the Supplementary’s own metadata.json (and its S-numbering) is not picked up yet.",
 
   // ── New paper scaffold ──────────────────────────────────────────────────
   "scaffold.title": "New PaperBell paper project",

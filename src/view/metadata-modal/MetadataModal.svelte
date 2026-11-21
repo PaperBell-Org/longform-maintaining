@@ -3,9 +3,17 @@
   import { getContext, onMount } from "svelte";
   import { useApp } from "../utils";
   import Icon from "../components/Icon.svelte";
+  import OverrideHint from "./OverrideHint.svelte";
+  import {
+    mergeMetadataLayers,
+    readMetadataLayers,
+  } from "src/model/metadata-layers";
+  import { folderResourcePaths } from "src/model/project-resources";
 
   export let projectPath: string;
   export let projectTitle: string;
+  /** The selected draft's metadata start folder (see metadataStartDir). */
+  export let startDir: string = projectPath;
 
   const app = useApp();
   const close: () => void = getContext("close");
@@ -35,6 +43,25 @@
   let loading = true;
 
   let form: FormState = blankForm();
+
+  // Fields a nearer metadata.json (e.g. supplementary/) sets for the selected
+  // draft: editing them here does not reach that draft's export (#47).
+  // Keyed like MergedMetadata.origin → the overriding file.
+  let overrides: Record<string, string> = {};
+
+  async function loadOverrides(): Promise<void> {
+    // The root's own file (or its source/ copy) is what this panel edits.
+    const rootFiles = new Set(folderResourcePaths(projectPath, "metadata.json"));
+    try {
+      const layers = await readMetadataLayers(app.vault, startDir, projectPath);
+      overrides = mergeMetadataLayers(
+        layers.filter((l) => !rootFiles.has(l.path))
+      ).origin;
+    } catch {
+      // An unreadable override is the compile step's error to report.
+      overrides = {};
+    }
+  }
 
   function blankForm(): FormState {
     return {
@@ -81,6 +108,7 @@
         originalJson = {};
       }
     }
+    if (startDir !== projectPath) await loadOverrides();
     loading = false;
   });
 
@@ -263,20 +291,24 @@
           <label class="field">
             <span>Title<span class="req">*</span></span>
             <input type="text" bind:value={form.title} placeholder="Manuscript title" />
+            <OverrideHint by={overrides["title"]} />
           </label>
           <label class="field">
             <span>Acronym</span>
             <input type="text" bind:value={form.acronym} placeholder="MYPAPER" />
+            <OverrideHint by={overrides["_longform.acronym"]} />
           </label>
         </div>
         <div class="row two-col">
           <label class="field">
             <span>Publication date</span>
             <input type="date" bind:value={form.publication_date} />
+            <OverrideHint by={overrides["publication_date"]} />
           </label>
           <label class="field">
             <span>Version</span>
             <input type="text" bind:value={form.version} placeholder="v1.0" />
+            <OverrideHint by={overrides["version"]} />
           </label>
         </div>
         <label class="field">
@@ -286,6 +318,7 @@
             bind:value={form.journal_title}
             placeholder="Nature"
           />
+          <OverrideHint by={overrides["journal_title"]} />
         </label>
         <label class="field">
           <span>Abstract / description</span>
@@ -294,6 +327,7 @@
             bind:value={form.description}
             placeholder="Manuscript abstract."
           />
+          <OverrideHint by={overrides["description"]} />
         </label>
         <label class="field">
           <span>Keywords</span>
@@ -302,6 +336,7 @@
             bind:value={form.keywords}
             placeholder="comma, separated, list"
           />
+          <OverrideHint by={overrides["keywords"]} />
         </label>
       </section>
 
@@ -322,6 +357,8 @@
           Check <strong>Corresponding</strong> to mark an author; their
           <code>email</code> is printed as the “Corresponding author” line.
         </p>
+        <OverrideHint by={overrides["creators"]} />
+        <OverrideHint by={overrides["_longform.corresponding"]} />
         <div class="creators">
           {#each form.creators as creator, i (i)}
             <div class="creator-row">

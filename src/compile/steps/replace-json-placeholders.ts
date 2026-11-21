@@ -1,4 +1,3 @@
-import { TFile } from "obsidian";
 import type { CompileContext, CompileManuscriptInput } from "..";
 import {
   CompileStepKind,
@@ -13,6 +12,11 @@ import {
   parseJsonFileList,
 } from "./replace-json-placeholders-utils";
 import { projectResourceCandidatePaths } from "src/model/project-resources";
+import {
+  mergeMetadataLayers,
+  readMetadataLayers,
+} from "src/model/metadata-layers";
+import { metadataStartDir } from "src/model/scene-navigation";
 
 export const ReplaceJsonPlaceholdersStep = makeBuiltinStep({
   id: "replace-json-placeholders",
@@ -26,7 +30,7 @@ export const ReplaceJsonPlaceholdersStep = makeBuiltinStep({
         id: "json-file",
         name: "JSON file(s)",
         description:
-          "Filename(s) of the JSON data file(s). Separate several with commas — they are merged into one namespace, with later files winning on key conflicts (e.g. 'metadata.json, results.json'). Each is searched for in the draft's folder (or its 'source/' subfolder) and any parent folder up to the project root. Trailing '.json' is optional.",
+          "Filename(s) of the JSON data file(s). Separate several with commas — they are merged into one namespace, with later files winning on key conflicts (e.g. 'metadata.json, results.json'). Each is read from the draft's folder (or its 'source/' subfolder) and every parent folder up to the project root, nearer copies overriding farther ones key by key. Trailing '.json' is optional.",
         type: CompileStepOptionType.Text,
         default: "metadata.json, results.json",
       },
@@ -79,39 +83,31 @@ export const ReplaceJsonPlaceholdersStep = makeBuiltinStep({
     let data: unknown = {};
     const foundNames: string[] = [];
     const searchedFor: string[] = [];
+    const startDir = metadataStartDir(context.draft, context.app.vault);
+    const rootDir = context.projectRoot ?? context.projectPath;
     for (const baseName of fileList) {
-      const candidatePaths = projectResourceCandidatePaths(
-        context.projectPath,
-        context.projectRoot ?? context.projectPath,
-        baseName
+      searchedFor.push(
+        `${baseName} (${projectResourceCandidatePaths(
+          startDir,
+          rootDir,
+          baseName
+        ).join(" or ")})`
       );
-      searchedFor.push(`${baseName} (${candidatePaths.join(" or ")})`);
-
-      let file: TFile | null = null;
-      let foundPath = "";
-      for (const path of candidatePaths) {
-        const f = context.app.vault.getAbstractFileByPath(path);
-        if (f instanceof TFile) {
-          file = f;
-          foundPath = path;
-          break;
-        }
-      }
-      if (!file) continue;
-
-      const raw = await context.app.vault.cachedRead(file);
-      let parsed: unknown;
+      let layers;
       try {
-        parsed = JSON.parse(raw);
-      } catch (e) {
-        throw new Error(
-          `[Replace JSON Placeholders] Invalid JSON in ${foundPath}: ${
-            (e as Error).message
-          }`
+        layers = await readMetadataLayers(
+          context.app.vault,
+          startDir,
+          rootDir,
+          baseName
         );
+      } catch (e) {
+        throw new Error(`[Replace JSON Placeholders] ${(e as Error).message}`);
       }
-      data = deepMerge(data, parsed);
-      foundNames.push(foundPath);
+      if (layers.length === 0) continue;
+      // Each file is layered root → draft like metadata.json (#47).
+      data = deepMerge(data, mergeMetadataLayers(layers).merged);
+      foundNames.push(...layers.map((l) => l.path));
     }
 
     if (foundNames.length === 0) {

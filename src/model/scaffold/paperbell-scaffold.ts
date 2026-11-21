@@ -157,7 +157,7 @@ const TREE_ANNOTATIONS: Record<string, string> = {
   "Response Letter (Index).md": "draft index (sceneFolder: response)",
   "Cover Letter.md": "single-file draft; own to/date/manuscript frontmatter",
   "supplementary/Supplementary (Index).md": "draft index (same title → same project)",
-  "supplementary/metadata.json": "nearest-wins override adding supplementary: true",
+  "supplementary/metadata.json": "layered over the root metadata.json; adds supplementary: true",
 };
 
 type TreeNode = { name: string; children: TreeNode[]; path: string };
@@ -281,7 +281,7 @@ export function scaffoldContext(opts: ScaffoldOptions): PartContext {
  */
 export function buildPaperbellScaffold(opts: ScaffoldOptions): ScaffoldFile[] {
   // The Main Manuscript is not optional. It anchors the project root that every
-  // nearest-wins metadata.json lookup is bounded by; a project whose only draft
+  // layered metadata.json lookup is bounded by; a project whose only draft
   // sat in supplementary/ would search from there and miss the shared files.
   if (!opts.parts.includes("main")) {
     throw new Error("A paper project must include the Main Manuscript.");

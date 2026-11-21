@@ -92,11 +92,11 @@ Saves the manuscript as Markdown note in your vault. Options:
 
 _Manuscript_
 
-Reads a [Zenodo deposition](https://developers.zenodo.org/#representation)–style metadata JSON from your project folder (or its `source/` subfolder) and prepends a Pandoc-compatible YAML frontmatter to the manuscript. Keeping the metadata in Zenodo's schema means the same file can be uploaded to Zenodo when archiving your work. Options:
+Reads a [Zenodo deposition](https://developers.zenodo.org/#representation)–style metadata JSON from the draft's folder and every parent folder up to the project root (each, or its `source/` subfolder), merges them key by key with nearer files winning, and prepends a Pandoc-compatible YAML frontmatter to the manuscript. Keeping the metadata in Zenodo's schema means the same file can be uploaded to Zenodo when archiving your work. Options:
 
 | Name                  | Type    | Default       | Description                                                                                                  |
 | --------------------- | ------- | ------------- | ------------------------------------------------------------------------------------------------------------ |
-| Metadata file         | Text    | metadata.json | Filename of the Zenodo metadata JSON in your project folder. Trailing `.json` is optional.                   |
+| Metadata file         | Text    | metadata.json | Filename of the Zenodo metadata JSON, layered from the project root to the draft. Trailing `.json` is optional. |
 | Error on missing file | Boolean | true          | If checked, throw when the metadata file is not found. Otherwise pass the manuscript through unchanged.       |
 
 The metadata file follows Zenodo's deposition schema for fields like `title`, `publication_date`, `description`, `creators[]`, `contributors[]`, `keywords[]`, `journal_title`, and `version`. Plugin-specific keys (Pandoc template, citation style, line numbering, multiple affiliations per author, corresponding-author flags, free-form extra YAML) live under a `_longform` namespace that Zenodo will ignore on upload. Example:

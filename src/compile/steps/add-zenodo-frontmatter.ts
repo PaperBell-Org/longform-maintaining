@@ -1,4 +1,3 @@
-import { TFile } from "obsidian";
 import type { CompileContext, CompileManuscriptInput } from "..";
 import {
   CompileStepKind,
@@ -10,6 +9,11 @@ import {
   type ZenodoMetadata,
 } from "./add-zenodo-frontmatter-utils";
 import { projectResourceCandidatePaths } from "src/model/project-resources";
+import {
+  mergeMetadataLayers,
+  readMetadataLayers,
+} from "src/model/metadata-layers";
+import { metadataStartDir } from "src/model/scene-navigation";
 
 export const AddZenodoFrontmatterStep = makeBuiltinStep({
   id: "add-zenodo-frontmatter",
@@ -23,7 +27,7 @@ export const AddZenodoFrontmatterStep = makeBuiltinStep({
         id: "metadata-file",
         name: "Metadata file",
         description:
-          "Filename of the Zenodo deposition metadata JSON. Searched for in the draft's folder (or its 'source/' subfolder) and any parent folder up to the project root, so multiple drafts can share one file. Trailing '.json' is optional.",
+          "Filename of the Zenodo deposition metadata JSON. Read from the draft's folder (or its 'source/' subfolder) and every parent folder up to the project root; nearer files override farther ones key by key, so a draft's file only needs the keys it changes. Trailing '.json' is optional.",
         type: CompileStepOptionType.Text,
         default: "metadata.json",
       },
@@ -56,45 +60,36 @@ export const AddZenodoFrontmatterStep = makeBuiltinStep({
       ? metaFileName
       : `${metaFileName}.json`;
 
-    const candidatePaths = projectResourceCandidatePaths(
-      context.projectPath,
-      context.projectRoot ?? context.projectPath,
-      baseName
-    );
+    const startDir = metadataStartDir(context.draft, context.app.vault);
+    const rootDir = context.projectRoot ?? context.projectPath;
 
-    let file: TFile | null = null;
-    let foundPath = "";
-    for (const path of candidatePaths) {
-      const f = context.app.vault.getAbstractFileByPath(path);
-      if (f instanceof TFile) {
-        file = f;
-        foundPath = path;
-        break;
-      }
+    let layers;
+    try {
+      layers = await readMetadataLayers(
+        context.app.vault,
+        startDir,
+        rootDir,
+        baseName
+      );
+    } catch (e) {
+      throw new Error(`[Add Zenodo Frontmatter] ${(e as Error).message}`);
     }
 
-    if (!file) {
+    if (layers.length === 0) {
       if (errorOnMissingFile) {
         throw new Error(
-          `[Add Zenodo Frontmatter] Metadata file not found at ${candidatePaths.join(
-            " or "
-          )}`
+          `[Add Zenodo Frontmatter] Metadata file not found at ${projectResourceCandidatePaths(
+            startDir,
+            rootDir,
+            baseName
+          ).join(" or ")}`
         );
       }
       return input;
     }
 
-    const raw = await context.app.vault.cachedRead(file);
-    let metadata: ZenodoMetadata;
-    try {
-      metadata = JSON.parse(raw) as ZenodoMetadata;
-    } catch (e) {
-      throw new Error(
-        `[Add Zenodo Frontmatter] Invalid JSON in ${foundPath}: ${
-          (e as Error).message
-        }`
-      );
-    }
+    // Nearer files override farther ones key by key (#47).
+    const metadata = mergeMetadataLayers(layers).merged as ZenodoMetadata;
 
     const yaml = buildPandocYaml(metadata);
     return {

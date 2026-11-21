@@ -8,10 +8,37 @@ place instead of scattered across your scenes.
 ## `metadata.json` — the single source of truth
 
 `metadata.json` uses a **Zenodo-style schema** plus a `_longform` block for export options.
-It is resolved **nearest-wins**: the compile steps and the live preview walk up from the
-draft's own folder to the project root, so a `supplementary/metadata.json` overrides the
-project root for the SI draft (`src/model/metadata-resolver.ts`,
-`resolveProjectMetadataFile`).
+It is **layered**: the compile steps, the live preview, and the metadata panel read every
+`metadata.json` from the project root down to the draft's own folder (one per folder;
+`<dir>/source/metadata.json` when `<dir>/metadata.json` is absent) and merge them key by
+key, nearer files winning. So `supplementary/metadata.json` only needs the keys that differ
+for the SI draft — its title and `supplementary: true` — and inherits authors, journal and
+the rest from the root (`src/model/metadata-layers.ts`). `_longform` is merged key by key
+too, and `_longform.extra_yaml` is combined by top-level YAML key, the nearer file winning
+on a shared key. For a draft in a single-index project the walk starts from the draft's
+scene folder.
+
+The metadata panel always edits the project root's file. When a nearer file overrides a
+field for the selected draft, the panel says so under that field.
+
+**Upgrading a project made before layering.** Earlier versions read only the *nearest*
+`metadata.json`, so older projects scaffolded `supplementary/metadata.json` as a full copy
+of the root. After the upgrade:
+
+- every key that copy still holds keeps overriding the root for the SI. For example, a
+  journal you later change in the panel won't reach the SI export, and the panel shows the
+  override hint under that field. Trim the copy down to the keys that really differ (its
+  `title` and `supplementary: true`) to inherit the rest;
+- root keys the copy lacks, such as a newer `doi` or `extra_yaml` entries, now reach the
+  SI export, where they used to be dropped;
+- a nearer `results.json` is merged over the root copy the same way, instead of replacing
+  it.
+
+A nearer file can't delete a root key, only override it. Setting an optional text field
+(`journal_title`, `description`, `_longform.acronym`, or any key used only as a
+`{{placeholder}}`) to `null` blanks it for that draft. Required fields don't take `null`:
+`title` and `creators` make the compile fail, and `publication_date` falls back to today.
+`_longform.extra_yaml` entries can only be overridden key by key.
 
 A representative file (from the scaffold, `src/model/scaffold/paperbell-scaffold.ts`):
 
@@ -95,16 +122,17 @@ We analysed {{ summary.n }} {{ summary.unit }}, first identified as {{ samples[0
 At compile time the **Replace JSON Placeholders** step (`replace-json-placeholders`)
 substitutes them. Its `json-file` option is `metadata.json, results.json` by default:
 several files separated by commas are **merged into one namespace, later files winning** on
-key conflicts. Each filename is searched nearest-wins from the draft folder up to the project
-root; the trailing `.json` is optional. With `error-on-missing: false` (the workflow default)
+key conflicts. Each filename is layered like `metadata.json` (root → draft folder, nearer
+copies overriding key by key); the trailing `.json` is optional. With `error-on-missing: false` (the workflow default)
 an unresolved placeholder is left as-is rather than failing the compile.
 
 ### Live preview in reading mode
 
 You don't have to compile to see the values. `registerVariablePostProcessor`
 (`src/view/variable-postprocessor.ts`) renders `{{ }}` placeholders **in reading mode** as
-their resolved value from the project's `metadata.json`, and lets you **double-click a value
-to edit it** (writing back to `metadata.json`). Placeholders that resolve only from
+their resolved value from the project's layered `metadata.json`, and lets you **double-click a
+value to edit it**. The edit is written to the file that defines that value; a value no file
+defines yet goes to the project root's `metadata.json`. Placeholders that resolve only from
 `results.json` stay as raw `{{ }}` in the live preview and are substituted only at compile
 time — which is why the scaffold's Methods scene notes that its `{{ summary.n }}` values
 "stay as raw placeholders in the live preview".

@@ -143,7 +143,7 @@ export default class NewPaperModal extends Modal {
           else this.parts.delete(part.id);
         });
         // The Main Manuscript is not optional: it anchors the project root that
-        // every nearest-wins metadata.json lookup is bounded by, and a project
+        // every layered metadata.json lookup is bounded by, and a project
         // whose only draft sits in supplementary/ would search from there.
         if (part.id === "main") {
           toggle.setDisabled(true);

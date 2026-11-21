@@ -1,25 +1,32 @@
 import { App, TFile } from "obsidian";
 import { get } from "svelte/store";
 import { drafts, projects } from "./stores";
-import { draftForPath, sceneFolderPath } from "./scene-navigation";
+import { draftForPath, metadataStartDir } from "./scene-navigation";
+import { projectRootPath } from "./project-resources";
 import {
-  draftIndexFolder,
-  projectResourceCandidatePaths,
-  projectRootPath,
-} from "./project-resources";
+  MetadataParseError,
+  mergeMetadataLayers,
+  readMetadataLayers,
+} from "./metadata-layers";
 
 export type ResolvedProjectMetadata = {
-  /** The metadata file backing the project (shared across its drafts). */
-  file: TFile;
-  /** Parsed JSON contents, or `null` if the file is not valid JSON. */
+  /**
+   * Where an edit to a key no layer defines goes: the project's root-most
+   * file, the one the metadata panel edits — not the nearest, which would
+   * create a new override (#47).
+   */
+  defaultFile: TFile;
+  /** All layers merged, or `null` if any layer is not valid JSON. */
   data: Record<string, unknown> | null;
+  /** Which file each key came from — see `MergedMetadata.origin`. */
+  origin: Record<string, string>;
 };
 
 /**
- * Locate and read the `metadata.json` that backs the Longform project owning
- * `sourcePath`, mirroring how the compile steps resolve project resources: from
- * the draft's own folder up to the project root (lowest common ancestor of the
- * project's drafts), checking each level's `source/` subfolder too.
+ * Read the layered `metadata.json` behind the Longform project owning
+ * `sourcePath`, exactly as the compile steps do: every file from the project
+ * root (lowest common ancestor of the project's drafts) down to the draft's
+ * start folder, nearer files overriding farther ones key by key.
  *
  * Returns `null` when the note is not part of any Longform draft or no metadata
  * file exists — so live rendering only ever touches project notes.
@@ -34,38 +41,22 @@ export async function resolveProjectMetadataFile(
 
   const projectDrafts = get(projects)[draft.title] ?? [draft];
   const root = projectRootPath(projectDrafts);
-  // Start the nearest-wins walk from the draft's own folder. For a project
-  // asset (all assets share one index at the project root) start instead from
-  // its scene folder, so a nearer `metadata.json` (e.g. supplementary/) still
-  // wins. Legacy drafts keep their own index folder — unchanged behavior.
-  const startDir =
-    draft.format === "scenes" && draft.indexPath
-      ? sceneFolderPath(draft, app.vault)
-      : draftIndexFolder(draft);
-  const candidatePaths = projectResourceCandidatePaths(
-    startDir,
-    root,
-    "metadata.json"
-  );
+  const startDir = metadataStartDir(draft, app.vault);
 
-  let file: TFile | null = null;
-  for (const path of candidatePaths) {
-    const f = app.vault.getAbstractFileByPath(path);
-    if (f instanceof TFile) {
-      file = f;
-      break;
-    }
-  }
-  if (!file) return null;
-
-  let data: Record<string, unknown> | null = null;
+  let layers;
   try {
-    data = JSON.parse(await app.vault.cachedRead(file)) as Record<
-      string,
-      unknown
-    >;
-  } catch {
-    data = null;
+    layers = await readMetadataLayers(app.vault, startDir, root);
+  } catch (e) {
+    if (!(e instanceof MetadataParseError)) throw e;
+    const file = app.vault.getAbstractFileByPath(e.path);
+    return file instanceof TFile
+      ? { defaultFile: file, data: null, origin: {} }
+      : null;
   }
-  return { file, data };
+  if (layers.length === 0) return null;
+
+  const rootMost = app.vault.getAbstractFileByPath(layers[0].path);
+  if (!(rootMost instanceof TFile)) return null;
+  const { merged, origin } = mergeMetadataLayers(layers);
+  return { defaultFile: rootMost, data: merged, origin };
 }

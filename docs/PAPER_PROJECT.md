@@ -27,7 +27,7 @@ before review.
 
 The Main Manuscript is mandatory, and not just because it is the paper. The project root is
 the lowest common ancestor of its drafts' index folders, and that root bounds the
-nearest-wins search for `metadata.json`. A project whose only draft were the Supplementary
+layered search for `metadata.json`. A project whose only draft were the Supplementary
 would have its root *inside* `supplementary/`, putting the shared `metadata.json`,
 `references.bib`, and `figs/` out of reach.
 
@@ -89,16 +89,16 @@ My Paper/
 ├── Cover Letter.md
 └── supplementary/
     ├── Supplementary (Index).md
-    ├── metadata.json           # nearest-wins override adding supplementary: true → S-numbering
+    ├── metadata.json           # layered over the root; adds supplementary: true → S-numbering
     └── supplementary results.md
 ```
 
 - **`metadata.json`** is the single authority for publication metadata (title, authors,
   target journal, corresponding author, export template/CSL). See
   [METADATA_AND_PLACEHOLDERS.md](./METADATA_AND_PLACEHOLDERS.md).
-- **`supplementary/metadata.json`** is resolved *nearest-wins* (the draft's own folder
-  beats the project root), and adds `supplementary: true` so its figures/tables get an
-  **S** prefix (Figure S1, Table S1…).
+- **`supplementary/metadata.json`** is layered over the root file: it holds only what
+  differs for the SI (its title, and `supplementary: true` so its figures/tables get an
+  **S** prefix — Figure S1, Table S1…) and inherits everything else.
 - **`results.json`** holds externally-computed numbers referenced with `{{ }}` placeholders.
 - **`references.bib`** is the project-local bibliography for `[@citekey]` citations.
 - **`figs/`** ships a placeholder PNG and an XLSX so the project **compiles out of the box**.
