@@ -11,7 +11,7 @@ import {
   resolveBinary,
   resolveUserPath,
 } from "src/compile/steps/pandoc-export-utils";
-import { downloadPandocAssets } from "src/model/pandoc-assets";
+import { installToolchainZip } from "src/model/pandoc-assets";
 import { refreshPandocTemplates } from "src/model/pandoc-templates";
 import { translate } from "src/i18n";
 import PandocMarketModal from "./pandoc-market";
@@ -250,7 +250,7 @@ export class PandocSetupModal extends Modal {
     const dest = DEFAULT_ASSETS_DIR;
     const notice = new Notice(translate("setup.downloading"), 0);
     try {
-      const { count, preserved } = await downloadPandocAssets(
+      const { count, preserved } = await installToolchainZip(
         this.app,
         url,
         dest

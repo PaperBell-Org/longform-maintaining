@@ -14,6 +14,9 @@ import {
   planFileRemove,
   modifiedSinceInstall,
   installsAsset,
+  manifestAfterUninstall,
+  manifestAfterToolchainDownload,
+  KEPT_RECORD_ID,
   type MarketIndex,
   type InstalledManifest,
 } from "src/model/pandoc-market";
@@ -513,6 +516,93 @@ describe("preserving user-changed asset files (#48)", () => {
       "2026-02-01T00:00:00Z"
     );
     expect(b.installedAt["csl/nature.csl"]).toBe("2026-01-01T00:00:00Z");
+  });
+});
+
+describe("the manifest remembers what the market can no longer see", () => {
+  const SIG = "templates/cover_letter/signature.png";
+  const coverLetter: InstalledManifest = {
+    cover_letter: {
+      id: "cover_letter",
+      version: "1.0.0",
+      kind: "asset",
+      files: [SIG, "templates/cover_letter.latex"],
+      installedAt: "2026-01-01T00:00:00Z",
+      hashes: { [SIG]: "v1", "templates/cover_letter.latex": "tex1" },
+    },
+  };
+  const nextWrite = (
+    manifest: InstalledManifest,
+    rel: string,
+    diskHash: string,
+    incomingHash: string
+  ) => {
+    const b = installBaseline(manifest);
+    return planFileWrite({
+      disk: { hash: diskHash, modifiedSinceInstall: false },
+      incomingHash,
+      tracked: b.tracked.has(rel),
+      recordedHash: b.hashes[rel],
+    });
+  };
+
+  it("a reinstall after uninstall still keeps the file the user replaced", () => {
+    // Uninstall kept the user's signature; reinstalling must not clobber it.
+    const after = manifestAfterUninstall(coverLetter, "cover_letter", [SIG]);
+    expect(after.cover_letter).toBeUndefined();
+    expect(nextWrite(after, SIG, "mine", "v1")).toBe("write-new");
+  });
+
+  it("forgets an uninstalled item entirely when nothing was kept", () => {
+    expect(manifestAfterUninstall(coverLetter, "cover_letter", [])).toEqual({});
+  });
+
+  it("accumulates files kept across several uninstalls", () => {
+    const other: InstalledManifest = {
+      ...coverLetter,
+      nature: {
+        id: "nature",
+        version: "1.0.0",
+        kind: "asset",
+        files: ["csl/nature.csl"],
+        installedAt: "2026-01-02T00:00:00Z",
+        hashes: { "csl/nature.csl": "csl1" },
+      },
+    };
+    const once = manifestAfterUninstall(other, "cover_letter", [SIG]);
+    const twice = manifestAfterUninstall(once, "nature", ["csl/nature.csl"]);
+    expect(nextWrite(twice, SIG, "mine", "v1")).toBe("write-new");
+    expect(nextWrite(twice, "csl/nature.csl", "mine", "csl1")).toBe("write-new");
+  });
+
+  it("the setup download refreshes the hashes of files it overwrote", () => {
+    // The setup zip replaced an untouched signature v1 with v2. A later market
+    // update to v3 must overwrite it, not park v3 at .new forever.
+    const after = manifestAfterToolchainDownload(
+      coverLetter,
+      { files: [SIG], hashes: { [SIG]: "v2" } },
+      "2026-03-01T00:00:00Z"
+    );
+    expect(nextWrite(after, SIG, "v2", "v3")).toBe("write");
+  });
+
+  it("the setup download records a .new it wrote, so it can be cleaned up", () => {
+    const after = manifestAfterToolchainDownload(
+      coverLetter,
+      { files: [SIG, SIG + ".new"], hashes: { [SIG]: "v2", [SIG + ".new"]: "v2" } },
+      "2026-03-01T00:00:00Z"
+    );
+    expect(installBaseline(after).hashes[SIG + ".new"]).toBe("v2");
+  });
+
+  it("a later install takes kept files back over", () => {
+    const kept = manifestAfterUninstall(coverLetter, "cover_letter", [SIG]);
+    const reinstalled = manifestAfterToolchainDownload(
+      kept,
+      { files: [SIG], hashes: { [SIG]: "v1" } },
+      "2026-03-01T00:00:00Z"
+    );
+    expect(reinstalled[KEPT_RECORD_ID]).toBeUndefined();
   });
 });
 

@@ -174,9 +174,11 @@ asset marketplace (or downloading the assets again) also keeps them: a file the
 marketplace installed and you have since changed is left as it is, the new
 version is written next to it as `<file>.new`, and a notice lists every file
 kept this way. Merge or rename the `.new` yourself when you want the update.
-Uninstalling an item likewise keeps the files you changed. A file the
-marketplace never installed (for example one that only came from the first-run
-download) is still overwritten by a newer copy. To share a template, open a PR
+Uninstalling an item likewise keeps the files you changed, and they stay
+protected if you install that item again later. The first-run *Download assets*
+is recorded the same way. Only a file nothing ever recorded installing (one
+from a download made before this version) is still overwritten by a newer
+copy. To share a template, open a PR
 against the assets repository.
 
 ## Settings (Longform → Compile → Pandoc export)

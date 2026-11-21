@@ -10,9 +10,12 @@ import {
   bundledAssets,
   presetSystemDeps,
   installBaseline,
+  manifestAfterToolchainDownload,
+  manifestAfterUninstall,
   modifiedSinceInstall,
   planFileRemove,
   planFileWrite,
+  releaseKeptFiles,
   INSTALLED_MANIFEST_NAME,
   PRESERVED_SUFFIX,
   type DiskState,
@@ -197,6 +200,31 @@ export async function downloadPandocAssets(
   return { count, dest: destFolder, ...out };
 }
 
+/**
+ * The setup modal's "Download assets": the toolchain zip, recorded in the
+ * install manifest like a market install (see {@link TOOLCHAIN_RECORD_ID}), so
+ * files it overwrote or parked at `<path>.new` stay accounted for.
+ */
+export async function installToolchainZip(
+  app: App,
+  url: string,
+  destFolder: string
+): Promise<DownloadResult> {
+  const manifest = await readInstalledManifest(app, destFolder);
+  const result = await downloadPandocAssets(
+    app,
+    url,
+    destFolder,
+    installBaseline(manifest)
+  );
+  await writeInstalledManifest(
+    app,
+    destFolder,
+    manifestAfterToolchainDownload(manifest, result, new Date().toISOString())
+  );
+  return result;
+}
+
 /** SHA-256 of an ArrayBuffer as lowercase hex. */
 async function sha256Hex(ab: ArrayBuffer): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", ab);
@@ -334,7 +362,7 @@ export async function installAssetWithDeps(
   destFolder: string
 ): Promise<{ records: InstalledRecord[]; preserved: string[] }> {
   const set = resolveInstallSet(index, assetId);
-  const manifest = await readInstalledManifest(app, destFolder);
+  let manifest = await readInstalledManifest(app, destFolder);
   const baseline = installBaseline(manifest);
   const records: InstalledRecord[] = [];
   const preserved: string[] = [];
@@ -353,6 +381,10 @@ export async function installAssetWithDeps(
     records.push(rec);
     preserved.push(...out.preserved);
   }
+  manifest = releaseKeptFiles(
+    manifest,
+    ([] as string[]).concat(...records.map((r) => r.files))
+  );
   await writeInstalledManifest(app, destFolder, manifest);
   return { records, preserved };
 }
@@ -386,7 +418,11 @@ export async function installMarketBundle(
     hashes,
   };
   manifest[bundle.id] = rec;
-  await writeInstalledManifest(app, destFolder, manifest);
+  await writeInstalledManifest(
+    app,
+    destFolder,
+    releaseKeptFiles(manifest, files)
+  );
   return { record: rec, preserved };
 }
 
@@ -394,7 +430,8 @@ export async function installMarketBundle(
  * Remove an installed asset/bundle's files and its manifest record. If the item
  * isn't tracked in the manifest (present on disk but untracked), `fallbackFiles`
  * (e.g. the index's declared file paths) are removed instead. A file the user
- * changed since it was installed is kept (see {@link planFileRemove}).
+ * changed since it was installed is kept (see {@link planFileRemove}) and stays
+ * tracked (see {@link manifestAfterUninstall}).
  * Returns how many files were deleted and which were kept.
  */
 export async function uninstallMarketItem(
@@ -420,8 +457,12 @@ export async function uninstallMarketItem(
     }
   }
   if (rec) {
-    delete manifest[id];
-    await writeInstalledManifest(app, destFolder, manifest);
+    // Kept files stay in the manifest, so a reinstall still protects them.
+    await writeInstalledManifest(
+      app,
+      destFolder,
+      manifestAfterUninstall(manifest, id, kept)
+    );
   }
   return { removed, kept };
 }

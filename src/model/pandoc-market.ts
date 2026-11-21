@@ -268,7 +268,11 @@ export function compareVersions(a: string, b: string): number {
 export interface InstalledRecord {
   id: string;
   version: string;
-  kind: "asset" | "bundle";
+  /**
+   * `kept` and `toolchain` are the reserved records {@link KEPT_RECORD_ID} and
+   * {@link TOOLCHAIN_RECORD_ID}; no market entry ever has their ids.
+   */
+  kind: "asset" | "bundle" | "kept" | "toolchain";
   /** Dest-relative paths this install wrote (used to uninstall / diff). */
   files: string[];
   installedAt: string;
@@ -318,6 +322,106 @@ export function installBaseline(manifest: InstalledManifest): InstallBaseline {
     Object.assign(hashes, rec.hashes ?? {});
   }
   return { tracked, hashes, installedAt };
+}
+
+/**
+ * Reserved manifest record for files an uninstall kept because the user had
+ * changed them. Without it the kept file would look like one the market never
+ * installed, and the next install would overwrite it.
+ */
+export const KEPT_RECORD_ID = "_kept";
+
+/**
+ * Reserved manifest record for the toolchain zip the setup modal downloads.
+ * Recording it keeps the hashes of files it overwrote current — otherwise every
+ * later market update would mistake them for user edits — and tracks any
+ * `<path>.new` it wrote so a later install can clean that up.
+ */
+export const TOOLCHAIN_RECORD_ID = "_toolchain";
+
+function union(a: readonly string[] | undefined, b: readonly string[]): string[] {
+  return [...new Set([...(a ?? []), ...b])];
+}
+
+/**
+ * Hand `paths` back from the kept record: an install that writes them now owns
+ * them. Drops the kept record once it is empty.
+ */
+export function releaseKeptFiles(
+  manifest: InstalledManifest,
+  paths: readonly string[]
+): InstalledManifest {
+  const kept = manifest[KEPT_RECORD_ID];
+  if (!kept) return manifest;
+  const taken = new Set(paths);
+  const files = kept.files.filter((f) => !taken.has(f));
+  const next = { ...manifest };
+  if (files.length === 0) {
+    delete next[KEPT_RECORD_ID];
+    return next;
+  }
+  const hashes: Record<string, string> = {};
+  for (const f of files) {
+    const h = kept.hashes?.[f];
+    if (h !== undefined) hashes[f] = h;
+  }
+  next[KEPT_RECORD_ID] = { ...kept, files, hashes };
+  return next;
+}
+
+/**
+ * The manifest once `id` is uninstalled. Files the uninstall kept (see
+ * {@link planFileRemove}) move to the kept record with the hash that install
+ * wrote, so a reinstall still sees the user's change and writes `<path>.new`.
+ */
+export function manifestAfterUninstall(
+  manifest: InstalledManifest,
+  id: string,
+  kept: readonly string[]
+): InstalledManifest {
+  const rec = manifest[id];
+  const next = { ...manifest };
+  delete next[id];
+  if (!rec || kept.length === 0) return next;
+
+  const prev = next[KEPT_RECORD_ID];
+  const hashes: Record<string, string> = { ...(prev?.hashes ?? {}) };
+  for (const f of kept) {
+    const h = rec.hashes?.[f];
+    if (h !== undefined) hashes[f] = h;
+  }
+  // The older stamp: for a hash-less record, "modified after install" is
+  // judged against it, and the earlier install is the one the file came from.
+  const installedAt =
+    prev && prev.installedAt < rec.installedAt ? prev.installedAt : rec.installedAt;
+  next[KEPT_RECORD_ID] = {
+    id: KEPT_RECORD_ID,
+    version: "0",
+    kind: "kept",
+    files: union(prev?.files, kept),
+    installedAt,
+    hashes,
+  };
+  return next;
+}
+
+/** The manifest once the setup modal's toolchain zip wrote `written`. */
+export function manifestAfterToolchainDownload(
+  manifest: InstalledManifest,
+  written: { files: readonly string[]; hashes: Record<string, string> },
+  installedAt: string
+): InstalledManifest {
+  const next = releaseKeptFiles(manifest, written.files);
+  const prev = next[TOOLCHAIN_RECORD_ID];
+  next[TOOLCHAIN_RECORD_ID] = {
+    id: TOOLCHAIN_RECORD_ID,
+    version: "0",
+    kind: "toolchain",
+    files: union(prev?.files, written.files),
+    installedAt,
+    hashes: { ...(prev?.hashes ?? {}), ...written.hashes },
+  };
+  return next;
 }
 
 /** Suffix for a new version written next to a file the user changed. */
