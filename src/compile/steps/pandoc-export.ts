@@ -32,6 +32,8 @@ import {
   parseExportFrontmatter,
   resolveBinary,
   resolveBuiltinFormat,
+  resolvePresetName,
+  PRESET_SOURCE_LABEL,
   resolvePresetPath,
   resolveUserPath,
   splitBibList,
@@ -306,14 +308,9 @@ export const RunPandocExportStep = makeBuiltinStep({
 
     // Unused in built-in mode: no preset is read, and `{template}` must not
     // expand to a name that had no effect on the output.
-    const template = builtinFormat
-      ? ""
-      : optionTemplate || fmTemplate || "undefined";
-    const templateSource = optionTemplate
-      ? "this step’s Template / preset option"
-      : fmTemplate
-      ? "the `template:` key in the exported note’s frontmatter"
-      : "the built-in default (no template was specified)";
+    const preset = resolvePresetName(optionTemplate, fmTemplate);
+    const template = builtinFormat ? "" : preset.template;
+    const templateSource = PRESET_SOURCE_LABEL[preset.source];
     const csl = String(fm.csl || "nature");
     // Presets use ${.}/.. and relative paths that resolve inside the assets
     // folder; a built-in export reads nothing from there and it may not exist.

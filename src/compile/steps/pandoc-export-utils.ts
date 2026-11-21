@@ -530,6 +530,32 @@ export function isBuiltinFormat(value: string): value is BuiltinFormat {
   return (BUILTIN_FORMATS as readonly string[]).indexOf(value) !== -1;
 }
 
+/** Where a preset name came from, for messages that point the user at it. */
+export type PresetSource = "option" | "frontmatter" | "fallback";
+
+export const PRESET_SOURCE_LABEL: Record<PresetSource, string> = {
+  option: "this step’s Template / preset option",
+  frontmatter: "the `template:` key in the exported note’s frontmatter",
+  fallback: "the built-in default (no template was specified)",
+};
+
+/**
+ * The preset (`defaults/<name>.yaml`) a step uses: its own Template / preset
+ * option, else the note's `template:` key, else the built-in `undefined`.
+ * Run Pandoc Export and Harvest Manuscript Line Numbers share this so the
+ * capture pass can match the export (#42).
+ */
+export function resolvePresetName(
+  optionTemplate: unknown,
+  fmTemplate: unknown
+): { template: string; source: PresetSource } {
+  const opt = String(optionTemplate ?? "").trim();
+  if (opt) return { template: opt, source: "option" };
+  const fm = String(fmTemplate ?? "").trim();
+  if (fm) return { template: fm, source: "frontmatter" };
+  return { template: "undefined", source: "fallback" };
+}
+
 /**
  * Which preset-free format to export in, if any — `null` means "use a preset".
  *
