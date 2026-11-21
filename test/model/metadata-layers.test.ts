@@ -142,6 +142,47 @@ describe("originForPath", () => {
     expect(originForPath(origin, "_longform.acronym", "x")).toBe(ROOT.path);
     expect(originForPath(origin, "missing", "x")).toBe("x");
   });
+
+  it("follows a nested key to the layer that actually set it", () => {
+    // Both layers have a `summary` object; only the root sets `summary.n`.
+    // Editing {{summary.n}} must go to the root, not create an SI override.
+    const nested = mergeMetadataLayers([
+      { path: ROOT.path, data: { summary: { n: 120, mean: 3.2 } } },
+      { path: SI.path, data: { summary: { extra: "SI only" } } },
+    ]);
+    expect(originForPath(nested.origin, "summary.n", "x")).toBe(ROOT.path);
+    expect(originForPath(nested.origin, "summary.extra", "x")).toBe(SI.path);
+    // A deeper path the layers never name resolves to its nearest parent.
+    expect(originForPath(nested.origin, "summary.n.deeper", "x")).toBe(ROOT.path);
+  });
+});
+
+// Upgrading: Supplementary files scaffolded before layering are full copies of
+// the root. They keep shadowing every key they copied — the panel flags this —
+// while root keys the copy lacks now reach the SI for the first time.
+describe("an old full-copy supplementary/metadata.json after upgrade", () => {
+  const OLD_SI = {
+    path: SI.path,
+    data: {
+      ...ROOT.data,
+      title: "My Paper — Supplementary Information",
+      journal_title: "Nature",
+    },
+  };
+
+  it("still shadows the root keys it copied", () => {
+    const root = { ...ROOT, data: { ...ROOT.data, journal_title: "Science" } };
+    const { merged, origin } = mergeMetadataLayers([root, OLD_SI]);
+    expect(merged.journal_title).toBe("Nature");
+    expect(origin.journal_title).toBe(SI.path);
+  });
+
+  it("inherits root keys added after the copy was made", () => {
+    const root = { ...ROOT, data: { ...ROOT.data, doi: "10.1/x" } };
+    const { merged, origin } = mergeMetadataLayers([root, OLD_SI]);
+    expect(merged.doi).toBe("10.1/x");
+    expect(origin.doi).toBe(ROOT.path);
+  });
 });
 
 // #47: the journal edited in the panel (root metadata.json) must reach the

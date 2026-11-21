@@ -24,8 +24,10 @@ export type MetadataLayer = {
 
 /**
  * The merged view of several layers, plus which file each key came from.
- * `origin` is keyed by top-level key, and by `_longform.<key>` for the
- * entries of the `_longform` block.
+ * `origin` is keyed by dotted path — `title`, `_longform.acronym`,
+ * `summary.n` — for every key of every nested object, since objects are
+ * merged key by key at any depth. Arrays replace wholesale, so a path into one
+ * is owned by the array's own key.
  */
 export type MergedMetadata = {
   merged: Record<string, unknown>;
@@ -99,16 +101,24 @@ export function mergeMetadataLayers(layers: MetadataLayer[]): MergedMetadata {
   const origin: Record<string, string> = {};
   const extraYaml: string[] = [];
 
+  const recordOrigin = (
+    obj: Record<string, unknown>,
+    prefix: string,
+    path: string
+  ) => {
+    for (const key of Object.keys(obj)) {
+      const at = prefix ? `${prefix}.${key}` : key;
+      origin[at] = path;
+      const value = obj[key];
+      if (isPlainObject(value)) recordOrigin(value, at, path);
+    }
+  };
+
   for (const { path, data } of layers) {
-    for (const key of Object.keys(data)) origin[key] = path;
+    recordOrigin(data, "", path);
     const longform = data["_longform"];
-    if (isPlainObject(longform)) {
-      for (const key of Object.keys(longform)) {
-        origin[`_longform.${key}`] = path;
-      }
-      if (typeof longform["extra_yaml"] === "string") {
-        extraYaml.push(longform["extra_yaml"]);
-      }
+    if (isPlainObject(longform) && typeof longform["extra_yaml"] === "string") {
+      extraYaml.push(longform["extra_yaml"]);
     }
     merged = deepMerge(merged, data) as Record<string, unknown>;
   }
@@ -132,11 +142,14 @@ export function originForPath(
   varPath: string,
   fallback: string
 ): string {
-  const [head, next] = varPath.split(/[.[\]]/).filter((s) => s.length > 0);
-  if (head === "_longform" && next && origin[`_longform.${next}`]) {
-    return origin[`_longform.${next}`];
+  // The deepest recorded prefix of the path owns it: `summary.n` before
+  // `summary`; `creators[0].name` falls back to `creators`, the array's key.
+  const segments = varPath.split(/[.[\]]/).filter((s) => s.length > 0);
+  for (let i = segments.length; i > 0; i--) {
+    const owner = origin[segments.slice(0, i).join(".")];
+    if (owner !== undefined) return owner;
   }
-  return origin[head] ?? fallback;
+  return fallback;
 }
 
 /** A metadata file that exists but is not valid JSON. */

@@ -21,6 +21,22 @@ scene folder.
 The metadata panel always edits the project root's file. When a nearer file overrides a
 field for the selected draft, the panel says so under that field.
 
+**Upgrading a project made before layering.** Earlier versions read only the *nearest*
+`metadata.json`, so older projects scaffolded `supplementary/metadata.json` as a full copy
+of the root. After the upgrade:
+
+- every key that copy still holds keeps overriding the root for the SI. For example, a
+  journal you later change in the panel won't reach the SI export, and the panel shows the
+  override hint under that field. Trim the copy down to the keys that really differ (its
+  `title` and `supplementary: true`) to inherit the rest;
+- root keys the copy lacks, such as a newer `doi` or `extra_yaml` entries, now reach the
+  SI export, where they used to be dropped;
+- a nearer `results.json` is merged over the root copy the same way, instead of replacing
+  it.
+
+A nearer file can't delete a root key, only override it. Set it to `null` to blank it for
+that draft.
+
 A representative file (from the scaffold, `src/model/scaffold/paperbell-scaffold.ts`):
 
 ```json
