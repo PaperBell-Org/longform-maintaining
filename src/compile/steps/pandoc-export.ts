@@ -240,10 +240,10 @@ export const RunPandocExportStep = makeBuiltinStep({
         id: "template",
         name: "Template / preset",
         description:
-          "Which downloaded Pandoc preset (defaults/*.yaml) to export with — e.g. a Manuscript vs. an SI layout. Wins over the Format option below. Leave blank to use the Format option, or, when that is blank too, the template from your project metadata (_longform.template).",
+          "Which downloaded Pandoc preset (defaults/*.yaml) to export with — e.g. a Manuscript vs. an SI layout. Wins over the Format option below. Only installed presets are listed; add more from the Pandoc market. Left blank, the export uses the Format option if it is set; otherwise the note's `template:` (written from _longform.template in metadata.json); otherwise the built-in `undefined` preset.",
         type: CompileStepOptionType.Dropdown,
         dynamicChoices: "pandoc-templates",
-        emptyLabel: "(use metadata template)",
+        emptyLabel: "(none — use Format below, else note template)",
         default: "",
       },
       FORMAT_OPTION,
