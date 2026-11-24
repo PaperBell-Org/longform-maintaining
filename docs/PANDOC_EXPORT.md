@@ -213,8 +213,12 @@ Frontmatter** generates from `metadata.json` (`_longform.template`,
 - `csl` → `<assets>/csl/<csl>.csl`
 
 **Overriding the template per workflow.** The **Run Pandoc Export** step has a
-*Template / preset* dropdown listing every downloaded `defaults/*.yaml`. Leave it
-blank to use the project's `_longform.template`, or pick another preset — e.g.
+*Template / preset* dropdown listing every downloaded `defaults/*.yaml` (only
+installed recipes appear — a Word preset such as `manuscript-obsidian` shows up
+once you install it from the market). Leave it blank — the
+"(none — use Format below, else note template)" choice — to use the step's
+*Format* option if set, otherwise the project's `_longform.template`; or pick
+another preset — e.g.
 one workflow named "Manuscript" (`paperbell`) and another "SI" (a supplementary
 layout). The dropdown populates after you download assets via **Set up Pandoc
 export**.
