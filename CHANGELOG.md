@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.0-beta.11](https://github.com/PaperBell-Org/longform-maintaining/compare/2.4.0-beta.10...2.4.0-beta.11) (2026-11-24)
+
+
+### Bug Fixes
+
+* **pandoc-export:** say what an empty Template / preset really does ([#56](https://github.com/PaperBell-Org/longform-maintaining/issues/56)) ([d59b4b6](https://github.com/PaperBell-Org/longform-maintaining/commit/d59b4b67022fa1a2a1e510f84d7e8cce7aa11467))
+
 ## [2.4.0-beta.10](https://github.com/PaperBell-Org/longform-maintaining/compare/2.4.0-beta.9...2.4.0-beta.10) (2026-11-21)
 
 
